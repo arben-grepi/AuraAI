@@ -1,0 +1,20 @@
+{
+  "rules": {
+    "react/react-in-jsx-scope": "off", // Next.js auto-imports React
+    "react/jsx-key": "error", // Ensure keys in lists
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "semi": ["error", "always"],
+    "quotes": ["error", "single"],
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }
+    ],
+    "import/order": [
+      "warn",
+      {
+        "groups": ["builtin", "external", "internal"],
+        "newlines-between": "always"
+      }
+    ]
+  }
+}
