@@ -3,6 +3,9 @@
 import { APIError } from "better-auth";
 import { auth } from "./auth";
 import { redirect } from "next/navigation";
+import prisma from "./prisma";
+import { headers } from "next/headers";
+import { revalidateTag } from "next/cache";
 
 interface State {
   errorMessage?: string | null;
@@ -67,4 +70,29 @@ export async function signIn(prevState: State | null, formData: FormData) {
   }
   redirect("/");
   return { errorMessage: "Signed in successfully" };
+}
+
+export async function createConversation(formData: FormData) {
+  const title = formData.get("title") as string;
+
+  if (!title) {
+    return redirect("/");
+  }
+
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
+    return redirect("/sign-in");
+  }
+
+  await prisma.conversation.create({
+    data: {
+      title,
+      userId: session.user.id,
+    },
+  });
+
+  revalidateTag("conversations");
 }

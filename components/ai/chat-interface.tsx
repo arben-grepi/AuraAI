@@ -7,13 +7,60 @@ import { Message } from "./message";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { ArrowDown, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-export function ChatInterface() {
-  const { messages, sendMessage, status, stop } = useChat({
+interface ChatInterfaceProps {
+  conversationId: string;
+}
+
+export function ChatInterface({ conversationId }: ChatInterfaceProps) {
+  const { messages, setMessages, sendMessage, status, stop } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/ai/chat",
+      body: {
+        conversationId,
+      },
     }),
   });
+
+  const { data: messagesData, isLoading } = useQuery({
+    queryKey: ["messages", conversationId],
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/ai/chat/messages?conversationId=${conversationId}`,
+      );
+      const data = await response.json();
+
+      const formattedMessages = data.map(
+        (msg: {
+          id: string;
+          role: string;
+          content: string;
+          parts?: Array<{ type: string; text: string }>;
+          createdAt: string;
+        }) => ({
+          id: msg.id,
+          role: msg.role,
+          parts: msg.parts || [{ type: "text", text: msg.content }],
+          createdAt: msg.createdAt,
+        }),
+      );
+
+      return formattedMessages;
+    },
+    enabled: !!conversationId,
+  });
+
+  useEffect(() => {
+    if (conversationId && messagesData) {
+      const uniqueMessages = messagesData.filter(
+        (message: { id: string }, index: number, self: { id: string }[]) =>
+          index === self.findIndex((m: { id: string }) => m.id === message.id),
+      );
+      setMessages(uniqueMessages);
+    }
+  }, [conversationId, messagesData, setMessages]);
 
   function addMessage(message: string) {
     sendMessage({ text: message });
@@ -23,8 +70,18 @@ export function ChatInterface() {
     stop();
   }
 
+  if (isLoading) {
+    return (
+      <div className="mx-auto border border-border flex flex-col overflow-hidden w-[100%] h-screen">
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="size-4 animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="mx-auto border border-border rounded-lg flex flex-col overflow-hidden w-[100%] h-screen">
+    <div className="mx-auto border border-border flex flex-col overflow-hidden w-[100%] h-screen">
       <div className="flex-1 relative overflow-hidden">
         <StickToBottom
           className="h-full w-full"
