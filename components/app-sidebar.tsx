@@ -113,10 +113,10 @@ export async function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <SidebarFooter>
-          <NavUser name={name || ""} email={email || ""} avatar={image || ""} />
-        </SidebarFooter>
       </SidebarContent>
+      <SidebarFooter>
+        <NavUser name={name || ""} email={email || ""} avatar={image || ""} />
+      </SidebarFooter>
     </Sidebar>
   );
 }
