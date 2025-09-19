@@ -36,7 +36,6 @@ export async function signUp(
         password,
       },
     });
-    return { errorMessage: null };
   } catch (error) {
     if (error instanceof APIError) {
       return { errorMessage: error.message };
@@ -44,6 +43,8 @@ export async function signUp(
     console.error("sign up with email and password has not worked", error);
     return { errorMessage: "Could not sign up" };
   }
+
+  redirect("/sign-in");
 }
 
 export async function signIn(
@@ -75,7 +76,8 @@ export async function signIn(
     console.error("sign in with email and password has not worked", error);
     return { errorMessage: "Could not sign in" };
   }
-  redirect("/");
+
+  redirect("/chat");
 }
 
 export async function createConversation(formData: FormData) {

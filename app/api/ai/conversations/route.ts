@@ -1,11 +1,13 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 import { revalidateTag, revalidatePath } from "next/cache";
 
 export async function GET(req: Request) {
-  const session = await auth.api.getSession({ headers: req.headers });
+  const session = await auth.api.getSession({ headers: await headers() });
 
+  console.log("Session from conversations route:", session);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
