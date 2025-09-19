@@ -5,14 +5,16 @@ import { DeleteConvo } from "./delete-convo";
 import { headers } from "next/headers";
 
 export async function Conversations() {
-  const headersList = await headers();
+  const incoming = await headers();
+  const h = new Headers(incoming);
+
   const convos = await fetch(
     `${process.env.BETTER_AUTH_URL}/api/ai/conversations`,
     {
       next: {
         tags: ["conversations"],
       },
-      headers: headersList,
+      headers: h,
     },
   );
   const data = await convos.json();
