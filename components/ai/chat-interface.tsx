@@ -28,7 +28,6 @@ export function ChatInterface({
   const router = useRouter();
   const hasSentInitialRef = useRef(false);
 
-  // Reset the ref when conversationId changes (new conversation)
   useEffect(() => {
     hasSentInitialRef.current = false;
   }, [conversationId]);
@@ -73,7 +72,6 @@ export function ChatInterface({
     refetchOnMount: false,
   });
 
-  // Seed initial messages from server immediately, then reconcile with query
   useEffect(() => {
     if (initialMessages && initialMessages.length > 0) {
       setMessages(initialMessages as unknown as typeof messages);
@@ -86,7 +84,6 @@ export function ChatInterface({
         (message: { id: string }, index: number, self: { id: string }[]) =>
           index === self.findIndex((m: { id: string }) => m.id === message.id),
       );
-      // Merge with existing messages by id to avoid wiping pending user message
       setMessages((current) => {
         const seen = new Set<string>(current.map((m) => m.id));
         const merged = [...current];
@@ -98,7 +95,6 @@ export function ChatInterface({
     }
   }, [conversationId, messagesData, setMessages]);
 
-  // Check for pending message in localStorage and send it
   useEffect(() => {
     if (
       conversationId &&
@@ -125,7 +121,6 @@ export function ChatInterface({
     async function ensureConversationAndSend() {
       const id = conversationId;
       if (!id) {
-        // Store message in localStorage and create conversation
         localStorage.setItem(
           "pendingMessage",
           JSON.stringify({ text: message }),
@@ -146,7 +141,6 @@ export function ChatInterface({
           }
 
           const data = await response.json();
-          // Navigate to the new conversation - this will re-render with the new ID
           router.replace(`/chat/${data.id}`);
         } catch (error) {
           console.error("Error creating conversation:", error);

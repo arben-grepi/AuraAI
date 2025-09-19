@@ -1,17 +1,21 @@
 import prisma from "@/lib/prisma";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { revalidateTag, revalidatePath } from "next/cache";
 
-export async function GET() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+export async function GET(req: Request) {
+  const session = await auth.api.getSession({ headers: req.headers });
+
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const conversations = await prisma.conversation.findMany({
     where: {
-      userId: session?.user.id,
+      userId: session.user.id,
+    },
+    orderBy: {
+      createdAt: "desc",
     },
   });
 
@@ -24,7 +28,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const session = await auth.api.getSession({
-    headers: await headers(),
+    headers: req.headers,
   });
 
   if (!session) {
@@ -41,7 +45,7 @@ export async function POST(req: Request) {
   });
 
   revalidateTag("conversations");
-  revalidatePath(`/chat/${created.id}`);
+  revalidatePath(`/chat`);
 
   return NextResponse.json(
     { id: created.id, title: created.title },
