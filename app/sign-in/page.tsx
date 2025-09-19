@@ -15,7 +15,9 @@ import {
 } from "@/components/ui/card";
 
 export default function Page() {
-  const [state, formAction, isPending] = useActionState(signIn, null);
+  const [state, formAction, isPending] = useActionState(signIn, {
+    errorMessage: null,
+  });
 
   useEffect(() => {
     if (state?.errorMessage?.length) {

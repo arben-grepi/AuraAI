@@ -22,7 +22,7 @@ export async function Conversations() {
       {data.length > 0 ? (
         data.map((convo: Conversation) => (
           <div className="w-full" key={convo.id}>
-            <ConversationItem id={convo.id} conversation={convo} />
+            <ConversationItem conversation={convo} />
           </div>
         ))
       ) : (
@@ -36,13 +36,7 @@ export async function Conversations() {
   );
 }
 
-const ConversationItem = ({
-  id,
-  conversation,
-}: {
-  id: string;
-  conversation: Conversation;
-}) => {
+const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
   return (
     <div className="w-full flex justify-between items-center hover:bg-sidebar-accent py-0.5 px-1 rounded-sm cursor-pointer">
       <Link href={`/chat/${conversation.id}`}>{conversation.title}</Link>
