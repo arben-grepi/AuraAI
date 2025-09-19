@@ -15,13 +15,15 @@ import {
 } from "@/components/ui/card";
 
 export default function Page() {
-  const [state, formAction, isPending] = useActionState(signUp, null);
+  const [state, formAction, isPending] = useActionState(signUp, {
+    errorMessage: null,
+  });
 
   useEffect(() => {
-    if (state?.errorMessage?.length) {
+    if (state.errorMessage) {
       toast.error(state.errorMessage);
     }
-  }, [state?.errorMessage]);
+  }, [state.errorMessage]);
 
   return (
     <div className="flex flex-col gap-6 justify-center items-center h-screen">

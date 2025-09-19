@@ -7,19 +7,38 @@ import { Message } from "./message";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { ArrowDown, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 
 interface ChatInterfaceProps {
   conversationId: string;
+  initialMessages?: Array<{
+    id: string;
+    role: "user" | "assistant";
+    parts: Array<{ type: string; text: string }>;
+    createdAt?: string;
+  }>;
 }
 
-export function ChatInterface({ conversationId }: ChatInterfaceProps) {
+export function ChatInterface({
+  conversationId,
+  initialMessages,
+}: ChatInterfaceProps) {
+  const router = useRouter();
+  const hasSentInitialRef = useRef(false);
+
+  // Reset the ref when conversationId changes (new conversation)
+  useEffect(() => {
+    hasSentInitialRef.current = false;
+  }, [conversationId]);
+
   const { messages, setMessages, sendMessage, status, stop } = useChat({
+    id: conversationId || undefined,
     transport: new DefaultChatTransport({
       api: "/api/ai/chat",
       body: {
-        conversationId,
+        conversationId: conversationId,
       },
     }),
   });
@@ -50,20 +69,93 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
       return formattedMessages;
     },
     enabled: !!conversationId,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
+  // Seed initial messages from server immediately, then reconcile with query
   useEffect(() => {
-    if (conversationId && messagesData) {
+    if (initialMessages && initialMessages.length > 0) {
+      setMessages(initialMessages as unknown as typeof messages);
+    }
+  }, [initialMessages, setMessages]);
+
+  useEffect(() => {
+    if (conversationId && messagesData && messagesData.length > 0) {
       const uniqueMessages = messagesData.filter(
         (message: { id: string }, index: number, self: { id: string }[]) =>
           index === self.findIndex((m: { id: string }) => m.id === message.id),
       );
-      setMessages(uniqueMessages);
+      // Merge with existing messages by id to avoid wiping pending user message
+      setMessages((current) => {
+        const seen = new Set<string>(current.map((m) => m.id));
+        const merged = [...current];
+        for (const m of uniqueMessages as unknown as typeof current) {
+          if (!seen.has(m.id)) merged.push(m);
+        }
+        return merged;
+      });
     }
   }, [conversationId, messagesData, setMessages]);
 
+  // Check for pending message in localStorage and send it
+  useEffect(() => {
+    if (
+      conversationId &&
+      !hasSentInitialRef.current &&
+      (messages.length === 0 || messages[messages.length - 1]?.role !== "user")
+    ) {
+      const pendingMessage = localStorage.getItem("pendingMessage");
+      if (pendingMessage) {
+        try {
+          const messageData = JSON.parse(pendingMessage);
+          hasSentInitialRef.current = true;
+          sendMessage({ text: messageData.text });
+          localStorage.removeItem("pendingMessage");
+        } catch (error) {
+          console.error("Failed to parse pending message:", error);
+          localStorage.removeItem("pendingMessage");
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, messages.length]);
+
   function addMessage(message: string) {
-    sendMessage({ text: message });
+    async function ensureConversationAndSend() {
+      const id = conversationId;
+      if (!id) {
+        // Store message in localStorage and create conversation
+        localStorage.setItem(
+          "pendingMessage",
+          JSON.stringify({ text: message }),
+        );
+
+        try {
+          const response = await fetch("/api/ai/conversations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: message.slice(0, 80) || "New chat",
+            }),
+          });
+
+          if (!response.ok) {
+            console.error("Failed to create conversation");
+            return;
+          }
+
+          const data = await response.json();
+          // Navigate to the new conversation - this will re-render with the new ID
+          router.replace(`/chat/${data.id}`);
+        } catch (error) {
+          console.error("Error creating conversation:", error);
+        }
+        return;
+      }
+      sendMessage({ text: message });
+    }
+    ensureConversationAndSend();
   }
 
   function stopRequest() {

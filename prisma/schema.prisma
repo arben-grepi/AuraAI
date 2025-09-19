@@ -95,6 +95,5 @@ model Message {
   parts          Json
   createdAt      DateTime     @default(now())
 
-  @@unique([conversationId, content, role])
   @@map("message")
 }

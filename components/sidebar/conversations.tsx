@@ -1,6 +1,7 @@
 import { Conversation } from "@/app/generated/prisma";
 import { SidebarMenuButton, SidebarMenuItem } from "../ui/sidebar";
 import Link from "next/link";
+import { DeleteConvo } from "./delete-convo";
 
 export async function Conversations() {
   const convos = await fetch(
@@ -8,7 +9,6 @@ export async function Conversations() {
     {
       next: {
         tags: ["conversations"],
-        revalidate: 60,
       },
     },
   );
@@ -18,11 +18,9 @@ export async function Conversations() {
     <>
       {data.length > 0 ? (
         data.map((convo: Conversation) => (
-          <SidebarMenuItem key={convo.id}>
-            <SidebarMenuButton asChild>
-              <Link href={`/chat/${convo.id}`}>{convo.title}</Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          <div className="w-full" key={convo.id}>
+            <ConversationItem id={convo.id} conversation={convo} />
+          </div>
         ))
       ) : (
         <SidebarMenuItem>
@@ -34,3 +32,18 @@ export async function Conversations() {
     </>
   );
 }
+
+const ConversationItem = ({
+  id,
+  conversation,
+}: {
+  id: string;
+  conversation: Conversation;
+}) => {
+  return (
+    <div className="w-full flex justify-between items-center hover:bg-sidebar-accent py-0.5 px-1 rounded-sm cursor-pointer">
+      <Link href={`/chat/${conversation.id}`}>{conversation.title}</Link>
+      <DeleteConvo />
+    </div>
+  );
+};

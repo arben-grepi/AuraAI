@@ -8,10 +8,13 @@ import { headers } from "next/headers";
 import { revalidateTag } from "next/cache";
 
 interface State {
-  errorMessage?: string | null;
+  errorMessage: string | null;
 }
 
-export async function signUp(prevState: State | null, formData: FormData) {
+export async function signUp(
+  prevState: State,
+  formData: FormData,
+): Promise<State> {
   const rawFormData = {
     email: formData.get("email") as string,
     password: formData.get("password") as string,
@@ -33,16 +36,20 @@ export async function signUp(prevState: State | null, formData: FormData) {
         password,
       },
     });
+    return { errorMessage: null };
   } catch (error) {
     if (error instanceof APIError) {
       return { errorMessage: error.message };
     }
     console.error("sign up with email and password has not worked", error);
+    return { errorMessage: "Could not sign up" };
   }
-  return { errorMessage: "We have sent you an email to verify your account" };
 }
 
-export async function signIn(prevState: State | null, formData: FormData) {
+export async function signIn(
+  prevState: State,
+  formData: FormData,
+): Promise<State> {
   const rawFormData = {
     email: formData.get("email") as string,
     password: formData.get("password") as string,
@@ -69,7 +76,6 @@ export async function signIn(prevState: State | null, formData: FormData) {
     return { errorMessage: "Could not sign in" };
   }
   redirect("/");
-  return { errorMessage: "Signed in successfully" };
 }
 
 export async function createConversation(formData: FormData) {
@@ -95,4 +101,29 @@ export async function createConversation(formData: FormData) {
   });
 
   revalidateTag("conversations");
+}
+
+export async function deleteConversation(id: string) {
+  if (!id) {
+    return { success: false, message: "Conversation ID is required" };
+  }
+
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
+    return { success: false, message: "Unauthorized" };
+  }
+
+  await prisma.conversation.delete({
+    where: {
+      id,
+      userId: session.user.id,
+    },
+  });
+
+  revalidateTag("conversations");
+
+  return { success: true, message: "Conversation deleted" };
 }

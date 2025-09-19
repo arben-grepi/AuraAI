@@ -43,16 +43,8 @@ export async function POST(req: Request) {
       });
       console.log("Created new user message");
     } catch (error: unknown) {
-      if (
-        error &&
-        typeof error === "object" &&
-        "code" in error &&
-        error.code === "P2002"
-      ) {
-        console.log("Duplicate message detected, continuing...");
-      } else {
-        throw error;
-      }
+      console.error("Error creating user message:", error);
+      throw error;
     }
   }
 
