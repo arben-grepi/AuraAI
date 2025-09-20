@@ -7,7 +7,6 @@ import { revalidateTag, revalidatePath } from "next/cache";
 export async function GET(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
 
-  console.log("Session from conversations route:", session);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

@@ -1,5 +1,4 @@
 import { Calendar, Home, Inbox, Search, Settings } from "lucide-react";
-import Form from "next/form";
 import {
   Sidebar,
   SidebarContent,
@@ -15,20 +14,11 @@ import { Button } from "./ui/button";
 import { Conversations } from "./sidebar/conversations";
 import { Suspense } from "react";
 import { ConversationsSkeleton } from "./sidebar/conversations-skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogTrigger,
-} from "./ui/dialog";
-import { Input } from "./ui/input";
-import { NewChatForm } from "./sidebar/new-chat-form";
 import { NavUser } from "./sidebar/nav-user";
 
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { createConversation } from "@/lib/actions";
 
 const items = [
   {
@@ -84,27 +74,12 @@ export async function AppSidebar() {
               ))}
               <SidebarMenuItem className="my-2">
                 <SidebarMenuButton asChild>
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button className="cursor-pointer">New Chat</Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>New Chat</DialogTitle>
-                        <DialogDescription>
-                          Create a new chat with the AI.
-                        </DialogDescription>
-                        <NewChatForm>
-                          <Input
-                            type="text"
-                            name="title"
-                            placeholder="Enter a title for your chat"
-                          />
-                          <Button type="submit">Create</Button>
-                        </NewChatForm>
-                      </DialogHeader>
-                    </DialogContent>
-                  </Dialog>
+                  <Button
+                    onClick={createConversation}
+                    className="cursor-pointer w-full"
+                  >
+                    New Chat
+                  </Button>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <Suspense fallback={<ConversationsSkeleton />}>

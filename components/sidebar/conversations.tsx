@@ -3,12 +3,19 @@
 import { Conversation } from "@/app/generated/prisma";
 import { SidebarMenuButton, SidebarMenuItem } from "../ui/sidebar";
 import Link from "next/link";
-import { DeleteConvo } from "./delete-convo";
 import { useQuery } from "@tanstack/react-query";
 import { ConversationsSkeleton } from "./conversations-skeleton";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, MoreHorizontal } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import { Button } from "../ui/button";
+import { DeleteConvo } from "./delete-convo";
 
 export function Conversations() {
   const { data, isLoading } = useQuery({
@@ -53,9 +60,9 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
   return (
     <div
       className={cn(
-        "w-full flex justify-between items-center px-3 rounded-md transition-all duration-200 group cursor-pointer",
+        "w-full flex justify-between items-center py-2 px-3 rounded-md transition-all duration-200 group cursor-pointer",
         isActive
-          ? "bg-black/10 text-sidebar-accent-foreground font-medium border-sidebar-accent-foreground"
+          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium border-sidebar-accent-foreground"
           : "hover:bg-sidebar-accent/50",
       )}
     >
@@ -69,8 +76,21 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
         <MessageSquare className={cn("h-3 w-3 flex-shrink-0")} />
         <span className="truncate">{conversation.title}</span>
       </Link>
-      <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        <DeleteConvo />
+      <div className="flex-shrink-0">
+        <DropdownMenu>
+          <DropdownMenuTrigger className="items-center flex" asChild>
+            <Button
+              className="size-4 cursor-pointer hover:bg-sidebar-accent/50"
+              variant="ghost"
+              size="icon"
+            >
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DeleteConvo id={conversation.id} />
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

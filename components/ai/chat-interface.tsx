@@ -188,11 +188,7 @@ export function ChatInterface({
                       .map((part) => (part.type === "text" ? part.text : ""))
                       .join("")}
                     variant={message.role === "user" ? "user" : "assistant"}
-                    submitted={
-                      status === "submitted" &&
-                      message.role === "assistant" &&
-                      index === messages.length - 1
-                    }
+                    submitted={status === "submitted"}
                     isStreaming={
                       message.role === "assistant" &&
                       status === "streaming" &&
@@ -200,18 +196,18 @@ export function ChatInterface({
                     }
                   />
                 ))}
-                {status === "submitted" &&
-                  messages.length > 0 &&
-                  messages[messages.length - 1]?.role === "user" && (
-                    <Message
-                      key="thinking-message"
-                      message=""
-                      variant="assistant"
-                      submitted={true}
-                      isStreaming={false}
-                    />
-                  )}
               </AnimatePresence>
+              {status === "submitted" && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.3 }}
+                  className="flex justify-center"
+                >
+                  <Loader2 className="size-4 text-foreground group-hover:text-muted-foreground animate-spin" />
+                </motion.div>
+              )}
             </StickToBottom.Content>
             <ScrollToBottom />
           </div>

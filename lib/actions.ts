@@ -80,13 +80,7 @@ export async function signIn(
   redirect("/chat");
 }
 
-export async function createConversation(formData: FormData) {
-  const title = formData.get("title") as string;
-
-  if (!title) {
-    return redirect("/");
-  }
-
+export async function createConversation() {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -95,14 +89,15 @@ export async function createConversation(formData: FormData) {
     return redirect("/sign-in");
   }
 
-  await prisma.conversation.create({
+  const created = await prisma.conversation.create({
     data: {
-      title,
+      title: "New chat",
       userId: session.user.id,
     },
   });
 
   revalidateTag("conversations");
+  redirect(`/chat/${created.id}`);
 }
 
 export async function deleteConversation(id: string) {

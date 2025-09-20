@@ -11,8 +11,6 @@ export async function GET(req: Request) {
     headers: await headers(),
   });
 
-  console.log("Session from messages route:", session);
-
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
