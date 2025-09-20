@@ -10,15 +10,13 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Button } from "./ui/button";
 import { Conversations } from "./sidebar/conversations";
 import { Suspense } from "react";
 import { ConversationsSkeleton } from "./sidebar/conversations-skeleton";
 import { NavUser } from "./sidebar/nav-user";
-
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { createConversation } from "@/lib/actions";
+import { NewChatButton } from "./sidebar/new-chat-button";
 
 const items = [
   {
@@ -72,16 +70,7 @@ export async function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-              <SidebarMenuItem className="my-2">
-                <SidebarMenuButton asChild>
-                  <Button
-                    onClick={createConversation}
-                    className="cursor-pointer w-full"
-                  >
-                    New Chat
-                  </Button>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              <NewChatButton />
               <Suspense fallback={<ConversationsSkeleton />}>
                 <Conversations />
               </Suspense>

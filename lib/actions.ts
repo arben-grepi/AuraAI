@@ -96,8 +96,12 @@ export async function createConversation() {
     },
   });
 
+  if (!created) {
+    return { success: false, message: "Failed to create conversation" };
+  }
+
   revalidateTag("conversations");
-  redirect(`/chat/${created.id}`);
+  return { success: true, message: "Conversation created", id: created.id };
 }
 
 export async function deleteConversation(id: string) {
