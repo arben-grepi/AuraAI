@@ -21,7 +21,7 @@ export function Conversations() {
     queryKey: ["conversations"],
     queryFn: async () => {
       const response = await fetch(
-        `http://localhost:3000/api/ai/conversations`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/ai/conversations`,
       );
       return response.json();
     },
