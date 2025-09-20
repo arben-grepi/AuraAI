@@ -24,7 +24,7 @@ import {
   DialogTrigger,
 } from "./ui/dialog";
 import { Input } from "./ui/input";
-import { createConversation } from "@/lib/actions";
+import { NewChatForm } from "./sidebar/new-chat-form";
 import { NavUser } from "./sidebar/nav-user";
 
 import { auth } from "@/lib/auth";
@@ -94,14 +94,14 @@ export async function AppSidebar() {
                         <DialogDescription>
                           Create a new chat with the AI.
                         </DialogDescription>
-                        <Form action={createConversation}>
+                        <NewChatForm>
                           <Input
                             type="text"
                             name="title"
                             placeholder="Enter a title for your chat"
                           />
                           <Button type="submit">Create</Button>
-                        </Form>
+                        </NewChatForm>
                       </DialogHeader>
                     </DialogContent>
                   </Dialog>

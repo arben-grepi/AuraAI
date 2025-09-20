@@ -1,27 +1,35 @@
+"use client";
+
 import { Conversation } from "@/app/generated/prisma";
 import { SidebarMenuButton, SidebarMenuItem } from "../ui/sidebar";
 import Link from "next/link";
 import { DeleteConvo } from "./delete-convo";
-import { headers } from "next/headers";
+import { useQuery } from "@tanstack/react-query";
+import { ConversationsSkeleton } from "./conversations-skeleton";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { MessageSquare } from "lucide-react";
 
-export async function Conversations() {
-  const incoming = await headers();
-  const h = new Headers(incoming);
-
-  const convos = await fetch(
-    `${process.env.BETTER_AUTH_URL}/api/ai/conversations`,
-    {
-      next: {
-        tags: ["conversations"],
-      },
-      headers: h,
+export function Conversations() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["conversations"],
+    queryFn: async () => {
+      const response = await fetch(
+        `http://localhost:3000/api/ai/conversations`,
+      );
+      return response.json();
     },
-  );
-  const data = await convos.json();
+    gcTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  if (isLoading) {
+    return <ConversationsSkeleton />;
+  }
 
   return (
     <>
-      {data.length > 0 ? (
+      {data && data.length > 0 ? (
         data.map((convo: Conversation) => (
           <div className="w-full" key={convo.id}>
             <ConversationItem conversation={convo} />
@@ -39,10 +47,31 @@ export async function Conversations() {
 }
 
 const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
+  const pathname = usePathname();
+  const isActive = pathname === `/chat/${conversation.id}`;
+
   return (
-    <div className="w-full flex justify-between items-center hover:bg-sidebar-accent py-0.5 px-1 rounded-sm cursor-pointer">
-      <Link href={`/chat/${conversation.id}`}>{conversation.title}</Link>
-      <DeleteConvo />
+    <div
+      className={cn(
+        "w-full flex justify-between items-center px-3 rounded-md transition-all duration-200 group cursor-pointer",
+        isActive
+          ? "bg-black/10 text-sidebar-accent-foreground font-medium border-sidebar-accent-foreground"
+          : "hover:bg-sidebar-accent/50",
+      )}
+    >
+      <Link
+        href={`/chat/${conversation.id}`}
+        className={cn(
+          "flex-1 truncate flex items-center gap-2 min-w-0 cursor-pointer",
+          isActive && "text-sidebar-accent-foreground",
+        )}
+      >
+        <MessageSquare className={cn("h-3 w-3 flex-shrink-0")} />
+        <span className="truncate">{conversation.title}</span>
+      </Link>
+      <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <DeleteConvo />
+      </div>
     </div>
   );
 };
