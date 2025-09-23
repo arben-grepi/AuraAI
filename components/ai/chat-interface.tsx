@@ -196,18 +196,15 @@ export function ChatInterface({
                     }
                   />
                 ))}
+                {status === "submitted" && (
+                  <Message
+                    key="assistant-thinking"
+                    message=""
+                    variant="assistant"
+                    submitted
+                  />
+                )}
               </AnimatePresence>
-              {status === "submitted" && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  transition={{ duration: 0.3 }}
-                  className="flex justify-center"
-                >
-                  <Loader2 className="size-4 text-foreground group-hover:text-muted-foreground animate-spin" />
-                </motion.div>
-              )}
             </StickToBottom.Content>
             <ScrollToBottom />
           </div>

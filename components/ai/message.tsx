@@ -88,17 +88,35 @@ function Message({
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3, delay: 0.1 }}
           >
-            <MarkdownContent content={message} />
-            {isStreaming && (
-              <motion.span
-                className="inline-block w-2 h-4 bg-primary ml-1"
-                animate={{ opacity: [1, 0, 1] }}
-                transition={{
-                  duration: 0.8,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-              />
+            {submitted && (!message || message.trim() === "") ? (
+              <motion.div
+                className="flex items-center gap-2 text-muted-foreground animate-pulse"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="flex gap-2">
+                  <div className="h-1 w-1 bg-muted-foreground rounded-full animate-bounce delay-0"></div>
+                  <div className="h-1 w-1 bg-muted-foreground rounded-full animate-bounce delay-100"></div>
+                  <div className="h-1 w-1 bg-muted-foreground rounded-full animate-bounce delay-200"></div>
+                </div>
+                <span className="text-sm animate-pulse">Thinking...</span>
+              </motion.div>
+            ) : (
+              <>
+                <MarkdownContent content={message} />
+                {isStreaming && (
+                  <motion.span
+                    className="inline-block w-2 h-4 bg-primary ml-1"
+                    animate={{ opacity: [1, 0, 1] }}
+                    transition={{
+                      duration: 0.8,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                  />
+                )}
+              </>
             )}
           </motion.div>
         ) : (
