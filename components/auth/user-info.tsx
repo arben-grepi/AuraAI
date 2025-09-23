@@ -31,6 +31,7 @@ export default async function UserInfo() {
       <CardFooter className="flex items-center justify-between">
         <Link href="/verify-email">Verify Email</Link>
         <Link href="/change-email">Change Email</Link>
+        <Link href="/forgot-password">Change Password</Link>
         <SignOutButton />
       </CardFooter>
     </Card>

@@ -69,6 +69,14 @@ export default function Page() {
                 Sign up
               </a>
             </div>
+            <div className="mt-4 text-center text-sm">
+              <a
+                href="/forgot-password"
+                className="text-primary hover:underline"
+              >
+                Forgot your password?
+              </a>
+            </div>
           </form>
         </CardContent>
       </Card>

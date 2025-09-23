@@ -6,6 +6,7 @@ import { openAPI } from "better-auth/plugins";
 import {
   sendChangeEmailVerificationEmail,
   sendEmailVerificationEmail,
+  sendPasswordResetEmailEmail,
 } from "@/email/email";
 
 export const auth = betterAuth({
@@ -18,6 +19,12 @@ export const auth = betterAuth({
     minPasswordLength: 8,
     maxPasswordLength: 128,
     resetPasswordTokenExpiresIn: 60 * 60 * 24 * 7,
+    sendResetPassword: async ({ user, url }) => {
+      await sendPasswordResetEmailEmail(user.email, url);
+    },
+    onPasswordReset: async ({ user }) => {
+      console.log(`Password for user ${user.email} has been reset.`);
+    },
   },
   emailVerification: {
     sendVerificationEmail: async ({

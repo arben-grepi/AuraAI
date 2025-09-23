@@ -6,6 +6,8 @@ export const {
   changeEmail,
   verifyEmail,
   sendVerificationEmail,
+  requestPasswordReset,
+  resetPassword,
 } = createAuthClient({
   baseURL: process.env.BETTER_AUTH_URL,
 });

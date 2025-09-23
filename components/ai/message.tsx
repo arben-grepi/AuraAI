@@ -3,9 +3,8 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 import { MarkdownContent } from "./markdown-content";
 import { motion } from "motion/react";
-import { Loader2 } from "lucide-react";
 
-const messageVariants = cva("flex w-full mb-4", {
+const messageVariants = cva("flex w-full min-w-0 mb-4", {
   variants: {
     variant: {
       user: "justify-end",
@@ -18,7 +17,7 @@ const messageVariants = cva("flex w-full mb-4", {
 });
 
 const messageContentVariants = cva(
-  "flex flex-col max-w-[80%] rounded-lg px-4 py-3 text-base font-sans",
+  "flex flex-col max-w-full sm:max-w-[80%] min-w-0 rounded-lg px-4 py-3 text-base font-sans",
   {
     variants: {
       variant: {
