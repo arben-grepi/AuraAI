@@ -178,8 +178,8 @@ export function ChatInterface({
           resize="smooth"
           initial="smooth"
         >
-          <div className="relative w-full flex flex-col overflow-hidden h-full">
-            <StickToBottom.Content className="flex flex-col gap-6 p-4 bg-background scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/40 scrollbar-thumb-rounded-full">
+          <div className="relative w-full flex flex-col overflow-hidden h-full min-w-0">
+            <StickToBottom.Content className="flex flex-col gap-6 p-4 bg-background scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/40 scrollbar-thumb-rounded-full min-w-0">
               <AnimatePresence mode="popLayout">
                 {messages.map((message, index) => (
                   <Message
@@ -196,18 +196,15 @@ export function ChatInterface({
                     }
                   />
                 ))}
+                {status === "submitted" && (
+                  <Message
+                    key="assistant-thinking"
+                    message=""
+                    variant="assistant"
+                    submitted
+                  />
+                )}
               </AnimatePresence>
-              {status === "submitted" && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  transition={{ duration: 0.3 }}
-                  className="flex justify-center"
-                >
-                  <Loader2 className="size-4 text-foreground group-hover:text-muted-foreground animate-spin" />
-                </motion.div>
-              )}
             </StickToBottom.Content>
             <ScrollToBottom />
           </div>

@@ -1,17 +1,54 @@
+"use client";
+
+import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { cn } from "@/lib/utils";
+import type { Pluggable } from "unified";
 
 interface MarkdownContentProps {
   content: string;
 }
 
 export function MarkdownContent({ content }: MarkdownContentProps) {
+  const [rehypeHighlight, setRehypeHighlight] =
+    React.useState<Pluggable | null>(null);
+
+  React.useEffect(() => {
+    let mounted = true;
+    async function load() {
+      try {
+        const mod = (await import("rehype-highlight")) as {
+          default: Pluggable;
+        };
+        if (mounted) setRehypeHighlight(() => mod.default);
+      } catch {
+        // no-op if unavailable,
+      }
+    }
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
-    <div className="text-base prose prose-invert max-w-none prose-pre:bg-muted prose-pre:border prose-pre:border-border prose-pre:rounded-lg prose-pre:p-4 prose-pre:my-4 prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none prose-p:my-3 prose-ul:my-3 prose-ol:my-3 prose-h1:my-4 prose-h2:my-4 prose-h3:my-3 prose-h4:my-3 prose-h5:my-3 prose-h6:my-3 prose-blockquote:my-4 prose-hr:my-6">
+    <div className="text-base prose prose-invert max-w-none sm:prose-base prose-sm w-full min-w-0 overflow-hidden prose-pre:bg-muted prose-pre:border prose-pre:border-border prose-pre:rounded-lg prose-pre:p-4 prose-pre:my-4 prose-pre:overflow-x-auto prose-pre:max-w-full prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none prose-p:my-3 prose-ul:my-3 prose-ol:my-3 prose-h1:my-4 prose-h2:my-4 prose-h3:my-3 prose-h4:my-3 prose-h5:my-3 prose-h6:my-3 prose-blockquote:my-4 prose-hr:my-6">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        rehypePlugins={rehypeHighlight ? [rehypeHighlight] : []}
         components={{
-          // Paragraph styling
+          img({ src, alt, ...props }) {
+            return (
+              // eslint-disable-next-line @next/next/no-img-element,
+              <img
+                src={src ?? ""}
+                alt={alt ?? ""}
+                className="max-w-full h-auto rounded-md border border-border my-3"
+                {...props}
+              />
+            );
+          },
           p({ children, ...props }) {
             return (
               <p
@@ -22,7 +59,6 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
               </p>
             );
           },
-          // Heading styles
           h1({ children, ...props }) {
             return (
               <h1
@@ -83,7 +119,6 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
               </h6>
             );
           },
-          // Strong/Bold styling
           strong({ children, ...props }) {
             return (
               <strong className="font-semibold text-foreground" {...props}>
@@ -91,7 +126,6 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
               </strong>
             );
           },
-          // Emphasis/Italic styling
           em({ children, ...props }) {
             return (
               <em className="italic text-foreground" {...props}>
@@ -99,7 +133,6 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
               </em>
             );
           },
-          // List styling
           ul({ children, ...props }) {
             return (
               <ul
@@ -127,7 +160,6 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
               </li>
             );
           },
-          // Blockquote styling
           blockquote({ children, ...props }) {
             return (
               <blockquote
@@ -138,11 +170,9 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
               </blockquote>
             );
           },
-          // Horizontal rule styling
           hr({ ...props }) {
             return <hr className="border-border my-6" {...props} />;
           },
-          // Link styling
           a({ children, href, ...props }) {
             return (
               <a
@@ -154,7 +184,6 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
               </a>
             );
           },
-          // Code styling
           code({ className, children, ...props }) {
             const inline = !className?.includes("language-");
             if (inline) {
@@ -168,9 +197,12 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
               );
             }
             return (
-              <pre className="bg-muted border border-border rounded-lg p-4 overflow-x-auto max-w-full my-4">
+              <pre className="bg-muted border border-border rounded-lg p-4 overflow-x-auto max-w-full my-4 w-full min-w-0">
                 <code
-                  className="text-sm break-words whitespace-pre-wrap text-foreground font-mono"
+                  className={cn(
+                    "text-sm font-mono whitespace-pre-wrap break-words min-w-0 block w-full",
+                    className,
+                  )}
                   {...props}
                 >
                   {children}
@@ -178,7 +210,6 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
               </pre>
             );
           },
-          // Table styling
           table({ children, ...props }) {
             return (
               <div className="overflow-x-auto my-4">

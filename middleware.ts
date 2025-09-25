@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 type Session = typeof auth.$Infer.Session;
 
+const loginRoutes = ["/sign-in", "/sign-up", "forgot-password"];
+
 export async function middleware(request: NextRequest) {
   const { data: session } = await betterFetch<Session>(
     "/api/auth/get-session",
