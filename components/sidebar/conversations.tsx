@@ -8,21 +8,19 @@ import { ConversationsSkeleton } from "./conversations-skeleton";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { MessageSquare, MoreHorizontal } from "lucide-react";
+import { Button } from "../ui/button";
+import { DeleteConvo } from "./delete-convo";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { Button } from "../ui/button";
-import { DeleteConvo } from "./delete-convo";
 
 export function Conversations() {
   const { data, isLoading } = useQuery({
     queryKey: ["conversations"],
     queryFn: async () => {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/ai/conversations`,
-      );
+      const response = await fetch(`/api/ai/conversations`);
       return response.json();
     },
     gcTime: 1000 * 60 * 5,
