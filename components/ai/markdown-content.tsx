@@ -1,12 +1,10 @@
 "use client";
 
 import React from "react";
-import { useTheme } from "next-themes";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import type { Pluggable } from "unified";
-import { CopyToClipboard } from "./copy-to-clipboard";
 
 interface MarkdownContentProps {
   content: string;
@@ -15,7 +13,6 @@ interface MarkdownContentProps {
 export function MarkdownContent({ content }: MarkdownContentProps) {
   const [rehypeHighlight, setRehypeHighlight] =
     React.useState<Pluggable | null>(null);
-  const { resolvedTheme } = useTheme();
 
   React.useEffect(() => {
     let mounted = true;
@@ -35,25 +32,7 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
     };
   }, []);
 
-  // Dynamically load a light/dark highlight.js theme based on current theme
-  React.useEffect(() => {
-    let cancelled = false;
-    async function loadTheme() {
-      try {
-        if (resolvedTheme === "dark") {
-          await import("highlight.js/styles/github-dark.css");
-        } else {
-          await import("highlight.js/styles/github.css");
-        }
-      } catch {
-        // ignore if CSS theme cannot be loaded
-      }
-    }
-    if (!cancelled) loadTheme();
-    return () => {
-      cancelled = true;
-    };
-  }, [resolvedTheme]);
+  // Syntax highlighting theme is imported globally via app/globals.css
 
   return (
     <div className="text-base prose dark:prose-invert max-w-none sm:prose-base prose-sm w-full min-w-0 overflow-hidden prose-pre:bg-muted prose-pre:border prose-pre:border-border prose-pre:rounded-lg prose-pre:my-4 prose-pre:overflow-x-auto prose-pre:max-w-full prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none prose-p:my-3 prose-ul:my-3 prose-ol:my-3 prose-h1:my-4 prose-h2:my-4 prose-h3:my-3 prose-h4:my-3 prose-h5:my-3 prose-h6:my-3 prose-blockquote:my-4 prose-hr:my-6">
