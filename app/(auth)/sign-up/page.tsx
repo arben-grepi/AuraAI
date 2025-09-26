@@ -127,8 +127,12 @@ export default function Page() {
                   </FormItem>
                 )}
               />
-              <Button className="w-full cursor-pointer" type="submit">
-                Sign up
+              <Button
+                className="w-full cursor-pointer"
+                disabled={form.formState.isSubmitting}
+                type="submit"
+              >
+                {form.formState.isSubmitting ? "Signing up..." : "Sign up"}
               </Button>
               <SidebarSeparator />
               <p className="text-center font-medium text-sm">

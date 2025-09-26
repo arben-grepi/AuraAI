@@ -97,8 +97,12 @@ export default function Page() {
                   </FormItem>
                 )}
               />
-              <Button className="w-full cursor-pointer" type="submit">
-                Sign in
+              <Button
+                className="w-full cursor-pointer"
+                disabled={form.formState.isSubmitting}
+                type="submit"
+              >
+                {form.formState.isSubmitting ? "Signing in..." : "Sign in"}
               </Button>
               <Link
                 className="text-sm font-medium text-primary hover:underline block text-center"
