@@ -9,12 +9,12 @@ export function DeleteConvo({ id }: { id: string }) {
   const { invalidateConversations } = useConversations();
 
   const handleDelete = async () => {
-    const result = await deleteConversation(id);
-    if (result.success) {
-      toast.success("Conversation deleted");
+    const { success, data, error } = await deleteConversation(id);
+    if (success) {
+      toast.success(data?.data || "Conversation deleted");
       invalidateConversations();
     } else {
-      toast.error(result.message);
+      toast.error(error || "Failed to delete conversation");
     }
   };
 

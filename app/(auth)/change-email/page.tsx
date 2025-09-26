@@ -30,11 +30,7 @@ export default function Page() {
             Manage your account and update your details below.
           </p>
         </div>
-        <form
-          className="max-w-[429px]
-        "
-          action={formAction}
-        >
+        <form className="max-w-[429px]" action={formAction}>
           <Label className="mb-2" htmlFor="email">
             New Email Address
           </Label>

@@ -16,14 +16,13 @@ export function NewChatButton() {
 
   const handleCreateConversation = async () => {
     startTransition(async () => {
-      const result = await createConversation();
-
-      if (result.success) {
+      const { success, data, error } = await createConversation();
+      if (success) {
         invalidateConversations();
-        toast.success(result.message);
-        router.push(`/chat/${result.id}`);
+        toast.success(data?.data || "Conversation created");
+        router.push(`/chat/${data?.id}`);
       } else {
-        toast.error(result.message);
+        toast.error(error || "Failed to create conversation");
       }
     });
   };

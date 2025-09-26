@@ -92,7 +92,9 @@ export async function signIn(
   };
 }
 
-export async function createConversation() {
+export async function createConversation(): Promise<
+  ActionResult<{ data: string; id: string }>
+> {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -109,16 +111,26 @@ export async function createConversation() {
   });
 
   if (!created) {
-    return { success: false, message: "Failed to create conversation" };
+    return {
+      success: false,
+      data: null,
+      error: "Failed to create conversation",
+    };
   }
 
   revalidateTag("conversations");
-  return { success: true, message: "Conversation created", id: created.id };
+  return {
+    success: true,
+    data: { data: "Conversation created", id: created.id },
+    error: null,
+  };
 }
 
-export async function deleteConversation(id: string) {
+export async function deleteConversation(
+  id: string,
+): Promise<ActionResult<{ data: string }>> {
   if (!id) {
-    return { success: false, message: "Conversation ID is required" };
+    return { success: false, data: null, error: "Conversation ID is required" };
   }
 
   const session = await auth.api.getSession({
@@ -126,7 +138,7 @@ export async function deleteConversation(id: string) {
   });
 
   if (!session) {
-    return { success: false, message: "Unauthorized" };
+    return { success: false, data: null, error: "Unauthorized" };
   }
 
   await prisma.conversation.delete({
@@ -138,7 +150,7 @@ export async function deleteConversation(id: string) {
 
   revalidateTag("conversations");
 
-  return { success: true, message: "Conversation deleted" };
+  return { success: true, data: { data: "Conversation deleted" }, error: null };
 }
 
 export async function requestPasswordReset(
