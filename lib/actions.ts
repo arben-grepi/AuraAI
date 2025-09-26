@@ -6,27 +6,25 @@ import { redirect } from "next/navigation";
 import prisma from "./prisma";
 import { headers } from "next/headers";
 import { revalidateTag } from "next/cache";
-
-interface State {
-  errorMessage: string | null;
-}
+import { ActionResult } from "./types";
+import {
+  signInSchema,
+  signUpSchema,
+  requestPasswordResetSchema,
+  resetPasswordSchema,
+} from "./schema";
+import { z } from "zod";
 
 export async function signUp(
-  prevState: State,
-  formData: FormData,
-): Promise<State> {
-  const rawFormData = {
-    email: formData.get("email") as string,
-    password: formData.get("password") as string,
-    firstName: formData.get("firstName") as string,
-    lastName: formData.get("lastName") as string,
-  };
+  values: z.infer<typeof signUpSchema>,
+): Promise<ActionResult<{ data: string }>> {
+  const validated = signUpSchema.safeParse(values);
 
-  const { email, password, firstName, lastName } = rawFormData;
-
-  if (!email || !password || !firstName || !lastName) {
-    return { errorMessage: "All fields are required" };
+  if (!validated.success) {
+    return { success: false, data: null, error: validated.error.message };
   }
+
+  const { email, password, firstName, lastName } = validated.data;
 
   try {
     await auth.api.signUpEmail({
@@ -38,29 +36,32 @@ export async function signUp(
     });
   } catch (error) {
     if (error instanceof APIError) {
-      return { errorMessage: error.message };
+      return { error: error.message, success: false, data: null };
     }
-    console.error("sign up with email and password has not worked", error);
-    return { errorMessage: "Could not sign up" };
+    console.error(
+      "[BETTER_AUTH] Sign up with email and password has not worked",
+      error,
+    );
+    return { error: "Could not sign up", success: false, data: null };
   }
 
-  redirect("/sign-in");
+  return {
+    success: true,
+    data: { data: "We sent you an email to verify your account" },
+    error: null,
+  };
 }
 
 export async function signIn(
-  prevState: State,
-  formData: FormData,
-): Promise<State> {
-  const rawFormData = {
-    email: formData.get("email") as string,
-    password: formData.get("password") as string,
-  };
+  values: z.infer<typeof signInSchema>,
+): Promise<ActionResult<{ data: string }>> {
+  const validated = signInSchema.safeParse(values);
 
-  const { email, password } = rawFormData;
-
-  if (!email || !password) {
-    return { errorMessage: "All fields are required" };
+  if (!validated.success) {
+    return { success: false, data: null, error: validated.error.message };
   }
+
+  const { email, password } = validated.data;
 
   try {
     await auth.api.signInEmail({
@@ -71,13 +72,24 @@ export async function signIn(
     });
   } catch (error) {
     if (error instanceof APIError) {
-      return { errorMessage: error.message };
+      return { error: error.message, success: false, data: null };
     }
-    console.error("sign in with email and password has not worked", error);
-    return { errorMessage: "Could not sign in" };
+    console.error(
+      "[BETTER_AUTH] Sign in with email and password has not worked",
+      error,
+    );
+    return {
+      error: "An unexpected error occurred",
+      success: false,
+      data: null,
+    };
   }
 
-  redirect("/chat");
+  return {
+    success: true,
+    data: { data: "You signed in successfully" },
+    error: null,
+  };
 }
 
 export async function createConversation() {
@@ -127,4 +139,81 @@ export async function deleteConversation(id: string) {
   revalidateTag("conversations");
 
   return { success: true, message: "Conversation deleted" };
+}
+
+export async function requestPasswordReset(
+  values: z.infer<typeof requestPasswordResetSchema>,
+  redirect: string,
+): Promise<ActionResult<{ data: string }>> {
+  const validated = requestPasswordResetSchema.safeParse({
+    email: values.email,
+  });
+
+  if (!validated.success) {
+    return { success: false, data: null, error: validated.error.message };
+  }
+
+  try {
+    await auth.api.requestPasswordReset({
+      body: {
+        email: validated.data.email,
+        redirectTo: redirect,
+      },
+    });
+    return {
+      success: true,
+      data: { data: "Password reset email sent" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error("[BETTER_AUTH] Request password reset has not worked", error);
+    return {
+      error: "Could not request password reset",
+      success: false,
+      data: null,
+    };
+  }
+}
+
+export async function resetPassword(
+  email: z.infer<typeof resetPasswordSchema>,
+  token: string,
+): Promise<ActionResult<{ data: string }>> {
+  const validated = resetPasswordSchema.safeParse({
+    newPassword: email.newPassword,
+  });
+
+  if (!validated.success) {
+    return { success: false, data: null, error: validated.error.message };
+  }
+  if (!token) {
+    return { success: false, data: null, error: "Can't reset password" };
+  }
+
+  try {
+    await auth.api.resetPassword({
+      body: {
+        newPassword: validated.data.newPassword,
+        token,
+      },
+    });
+    return {
+      success: true,
+      data: { data: "Password reset successfully" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error("[BETTER_AUTH] Reset password has not worked", error);
+    return {
+      error: "Could not reset password",
+      success: false,
+      data: null,
+    };
+  }
 }

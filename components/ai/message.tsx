@@ -3,6 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 import { MarkdownContent } from "./markdown-content";
 import { motion } from "motion/react";
+import { CopyToClipboard } from "./copy-to-clipboard";
 
 const messageVariants = cva("flex w-full min-w-0 mb-4", {
   variants: {
@@ -22,8 +23,7 @@ const messageContentVariants = cva(
     variants: {
       variant: {
         user: "items-end bg-card text-card-foreground leading-6",
-        assistant:
-          "items-start bg-muted text-card-foreground font-medium leading-relaxed",
+        assistant: "items-start text-card-foreground leading-relaxed",
       },
     },
     defaultVariants: {
@@ -104,9 +104,10 @@ function Message({
             ) : (
               <>
                 <MarkdownContent content={message} />
+                <CopyToClipboard text={message} />
                 {isStreaming && (
                   <motion.span
-                    className="inline-block w-2 h-4 bg-primary ml-1"
+                    className="inline-block w-2 h-2 bg-primary ml-1 rounded-full"
                     animate={{ opacity: [1, 0, 1] }}
                     transition={{
                       duration: 0.8,

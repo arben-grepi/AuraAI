@@ -6,9 +6,11 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Conversations } from "./sidebar/conversations";
 import { Suspense } from "react";
@@ -17,11 +19,12 @@ import { NavUser } from "./sidebar/nav-user";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { NewChatButton } from "./sidebar/new-chat-button";
+import Image from "next/image";
 
 const items = [
   {
     title: "Home",
-    url: "#",
+    url: "/",
     icon: Home,
   },
   {
@@ -56,8 +59,17 @@ export async function AppSidebar() {
   return (
     <Sidebar>
       <SidebarContent>
+        <SidebarHeader className="flex flex-row justify-between items-center p-4">
+          <Image
+            src="/logo.svg"
+            alt="Axiom"
+            width={32}
+            height={32}
+            className="block"
+          />
+          <SidebarTrigger />
+        </SidebarHeader>
         <SidebarGroup>
-          <SidebarGroupLabel>Application</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
@@ -70,6 +82,7 @@ export async function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              <SidebarGroupLabel>Chats</SidebarGroupLabel>
               <NewChatButton />
               <Suspense fallback={<ConversationsSkeleton />}>
                 <Conversations />

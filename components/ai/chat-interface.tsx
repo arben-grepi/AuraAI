@@ -11,6 +11,7 @@ import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useConversations } from "@/hooks/use-conversations";
+import { ChatHeader } from "./chat-header";
 
 interface ChatInterfaceProps {
   conversationId: string;
@@ -172,6 +173,7 @@ export function ChatInterface({
 
   return (
     <div className="mx-auto border border-border flex flex-col overflow-hidden w-[100%] h-screen">
+      <ChatHeader />
       <div className="flex-1 relative overflow-hidden">
         <StickToBottom
           className="h-full w-full"
