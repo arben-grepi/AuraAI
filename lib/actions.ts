@@ -12,6 +12,7 @@ import {
   signUpSchema,
   requestPasswordResetSchema,
   resetPasswordSchema,
+  createOrganizationSchema,
 } from "./schema";
 import { z } from "zod";
 
@@ -224,6 +225,83 @@ export async function resetPassword(
     console.error("[BETTER_AUTH] Reset password has not worked", error);
     return {
       error: "Could not reset password",
+      success: false,
+      data: null,
+    };
+  }
+}
+
+export async function createOrganization(
+  values: z.infer<typeof createOrganizationSchema>,
+): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const validated = createOrganizationSchema.safeParse(values);
+
+  if (!validated.success) {
+    return { success: false, data: null, error: validated.error.message };
+  }
+
+  const { name, slug, logo, keepCurrentActiveOrganization } = validated.data;
+
+  try {
+    const doesOrganizationExist = await auth.api.checkOrganizationSlug({
+      body: {
+        slug,
+      },
+    });
+    if (!doesOrganizationExist.status) {
+      return {
+        success: false,
+        data: null,
+        error: "Organization already exists",
+      };
+    }
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error(
+      "[BETTER_AUTH] Check organization slug has not worked",
+      error,
+    );
+    return {
+      error: "Could not check organization slug",
+      success: false,
+      data: null,
+    };
+  }
+
+  const metadata = { key: "someValue" };
+  try {
+    await auth.api.createOrganization({
+      body: {
+        name,
+        slug,
+        logo,
+        userId: session.user.id,
+        keepCurrentActiveOrganization,
+        metadata,
+      },
+    });
+    return {
+      success: true,
+      data: { data: "Organization created" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error("[BETTER_AUTH] Create organization has not worked", error);
+    return {
+      error: "Could not create organization",
       success: false,
       data: null,
     };

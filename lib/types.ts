@@ -12,3 +12,12 @@ export type ActionResult<TData = unknown, TError = string> = {
   data: TData | null;
   error: TError | null;
 };
+
+export type S3ObjectsAPIResponse = {
+  items: {
+    key: string;
+    size: number;
+    lastModified: string | null;
+    url: string;
+  }[];
+};
