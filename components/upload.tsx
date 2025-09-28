@@ -3,13 +3,16 @@
 import { useUploadFiles } from "better-upload/client";
 import { UploadDropzone } from "@/components/ui/upload-dropzone";
 import { toast } from "sonner";
+import { useEffect } from "react";
 
 export function Uploader({
   onUploadComplete,
+  onPendingChange,
 }: {
   onUploadComplete?: (fileUrls: string[]) => void;
+  onPendingChange?: (isPending: boolean) => void;
 }) {
-  const { control } = useUploadFiles({
+  const { control, isPending } = useUploadFiles({
     route: "upload",
     onUploadComplete: ({ files }) => {
       const fileUrls = files.map((file) => {
@@ -27,12 +30,17 @@ export function Uploader({
     },
   });
 
+  // Notify parent component when pending state changes
+  useEffect(() => {
+    onPendingChange?.(isPending);
+  }, [isPending, onPendingChange]);
+
   return (
     <UploadDropzone
       control={control}
       accept="image/*"
       description={{
-        maxFiles: 4,
+        maxFiles: 1,
         maxFileSize: "5MB",
         fileTypes: "JPEG, PNG, GIF",
       }}

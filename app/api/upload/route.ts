@@ -19,8 +19,6 @@ const router: Router = {
   routes: {
     upload: route({
       fileTypes: ["image/*"],
-      multipleFiles: true,
-      maxFiles: 4,
     }),
   },
 };

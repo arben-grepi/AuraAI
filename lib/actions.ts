@@ -15,6 +15,7 @@ import {
   createOrganizationSchema,
 } from "./schema";
 import { z } from "zod";
+import { generateSlug } from "./utils";
 
 export async function signUp(
   values: z.infer<typeof signUpSchema>,
@@ -248,8 +249,8 @@ export async function createOrganization(
     return { success: false, data: null, error: validated.error.message };
   }
 
-  const { name, slug, logo, keepCurrentActiveOrganization } = validated.data;
-
+  const { name, logo, keepCurrentActiveOrganization } = validated.data;
+  const slug = generateSlug(name);
   try {
     const doesOrganizationExist = await auth.api.checkOrganizationSlug({
       body: {
@@ -302,6 +303,40 @@ export async function createOrganization(
     console.error("[BETTER_AUTH] Create organization has not worked", error);
     return {
       error: "Could not create organization",
+      success: false,
+      data: null,
+    };
+  }
+}
+
+export async function deleteOrg(
+  id: string,
+): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  try {
+    const data = await auth.api.deleteOrganization({
+      body: {
+        organizationId: id,
+      },
+      headers: await headers(),
+    });
+    return {
+      success: true,
+      data: { data: "Organization deleted" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    return {
+      error: "Failed to delete organization",
       success: false,
       data: null,
     };

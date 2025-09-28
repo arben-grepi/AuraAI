@@ -8,6 +8,14 @@ const nextConfig: NextConfig = {
       fullUrl: true,
     },
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "kommun-ai.s3.us-east-1.amazonaws.com",
+      },
+    ],
+  },
 };
 
 export default withSentryConfig(nextConfig, {
