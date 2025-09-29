@@ -14,6 +14,14 @@ export default function IsOrgAdmin({ id }: { id: string }) {
       });
       return response.json();
     },
+    enabled: !!id,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchInterval: false,
+    refetchIntervalInBackground: false,
   });
   return (
     <div>

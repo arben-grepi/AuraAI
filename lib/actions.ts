@@ -320,7 +320,7 @@ export async function deleteOrg(
   }
 
   try {
-    const data = await auth.api.deleteOrganization({
+    await auth.api.deleteOrganization({
       body: {
         organizationId: id,
       },
@@ -337,6 +337,91 @@ export async function deleteOrg(
     }
     return {
       error: "Failed to delete organization",
+      success: false,
+      data: null,
+    };
+  }
+}
+
+export async function addMemberToOrg(
+  organizationId: string,
+  userId: string,
+  role: "owner" | "admin" | "member",
+): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  try {
+    await auth.api.addMember({
+      body: {
+        userId,
+        role: [role],
+        organizationId,
+      },
+    });
+    return {
+      success: true,
+      data: { data: "Member added to organization" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error(
+      "[BETTER_AUTH] Add member to organization has not worked",
+      error,
+    );
+    return {
+      error: "Could not add member to organization",
+      success: false,
+      data: null,
+    };
+  }
+}
+
+export async function removeMemberFromOrg({
+  idOrEmail,
+  organizationId,
+}: {
+  idOrEmail: string;
+  organizationId: string;
+}): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  try {
+    await auth.api.removeMember({
+      headers: await headers(),
+      body: {
+        memberIdOrEmail: idOrEmail,
+        organizationId,
+      },
+    });
+    return {
+      success: true,
+      data: { data: "Member removed from organization" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      const errorMessage = error.message || "Unknown API error occurred";
+      return { error: errorMessage, success: false, data: null };
+    }
+    console.error(
+      "[BETTER_AUTH] Remove member from organization has not worked",
+      error,
+    );
+    return {
+      error: "Could not remove member from organization",
       success: false,
       data: null,
     };

@@ -76,3 +76,27 @@ export type OrganizationMembersResponse = {
 export type OrganizationMembersAPIError = {
   error: string;
 };
+
+export type User = {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  email: string;
+  emailVerified: boolean;
+  name: string;
+  image: string | null | undefined;
+};
+
+export interface UsersWithRole extends User {
+  role?: string;
+  banned?: boolean | null;
+  banReason?: string | null;
+  banExpires?: Date | null;
+}
+
+export interface UsersWithRoleResponse {
+  users: UsersWithRole[];
+  total: number;
+  limit: number;
+  offset: number;
+}

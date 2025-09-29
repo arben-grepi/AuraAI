@@ -1,10 +1,14 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { OrganizationMember } from "@/lib/types";
 import AddMember from "./add-member";
+import { Button } from "../ui/button";
+import { toast } from "sonner";
+import { removeMemberFromOrg } from "@/lib/actions";
 
 export default function OrgMember({ id }: { id: string }) {
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["org-members", id],
     queryFn: async () => {
@@ -13,6 +17,14 @@ export default function OrgMember({ id }: { id: string }) {
       );
       return response.json();
     },
+    enabled: !!id,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchInterval: false,
+    refetchIntervalInBackground: false,
   });
 
   if (isLoading) {
@@ -22,6 +34,20 @@ export default function OrgMember({ id }: { id: string }) {
   if (data.error) {
     return <div>{data.error}</div>;
   }
+
+  const handleRemoveMember = async (member: OrganizationMember) => {
+    const response = await removeMemberFromOrg({
+      idOrEmail: member.user.email,
+      organizationId: id,
+    });
+    if (response.success) {
+      toast.success("Member removed from organization");
+      queryClient.invalidateQueries({ queryKey: ["org-members", id] });
+    } else {
+      const errorMessage = response.error || "Unknown error occurred";
+      toast.error(errorMessage);
+    }
+  };
 
   return (
     <div>
@@ -37,6 +63,7 @@ export default function OrgMember({ id }: { id: string }) {
             >
               <p>{member.user.name}</p>
               <p>{member.role}</p>
+              <Button onClick={() => handleRemoveMember(member)}>Remove</Button>
             </div>
           ))}
         </div>
