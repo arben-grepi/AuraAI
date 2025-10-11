@@ -12,8 +12,10 @@ import {
   signUpSchema,
   requestPasswordResetSchema,
   resetPasswordSchema,
+  createOrganizationSchema,
 } from "./schema";
 import { z } from "zod";
+import { generateSlug } from "./utils";
 
 export async function signUp(
   values: z.infer<typeof signUpSchema>,
@@ -224,6 +226,202 @@ export async function resetPassword(
     console.error("[BETTER_AUTH] Reset password has not worked", error);
     return {
       error: "Could not reset password",
+      success: false,
+      data: null,
+    };
+  }
+}
+
+export async function createOrganization(
+  values: z.infer<typeof createOrganizationSchema>,
+): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const validated = createOrganizationSchema.safeParse(values);
+
+  if (!validated.success) {
+    return { success: false, data: null, error: validated.error.message };
+  }
+
+  const { name, logo, keepCurrentActiveOrganization } = validated.data;
+  const slug = generateSlug(name);
+  try {
+    const doesOrganizationExist = await auth.api.checkOrganizationSlug({
+      body: {
+        slug,
+      },
+    });
+    if (!doesOrganizationExist.status) {
+      return {
+        success: false,
+        data: null,
+        error: "Organization already exists",
+      };
+    }
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error(
+      "[BETTER_AUTH] Check organization slug has not worked",
+      error,
+    );
+    return {
+      error: "Could not check organization slug",
+      success: false,
+      data: null,
+    };
+  }
+
+  const metadata = { key: "someValue" };
+  try {
+    await auth.api.createOrganization({
+      body: {
+        name,
+        slug,
+        logo,
+        userId: session.user.id,
+        keepCurrentActiveOrganization,
+        metadata,
+      },
+    });
+    return {
+      success: true,
+      data: { data: "Organization created" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error("[BETTER_AUTH] Create organization has not worked", error);
+    return {
+      error: "Could not create organization",
+      success: false,
+      data: null,
+    };
+  }
+}
+
+export async function deleteOrg(
+  id: string,
+): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  try {
+    await auth.api.deleteOrganization({
+      body: {
+        organizationId: id,
+      },
+      headers: await headers(),
+    });
+    return {
+      success: true,
+      data: { data: "Organization deleted" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    return {
+      error: "Failed to delete organization",
+      success: false,
+      data: null,
+    };
+  }
+}
+
+export async function addMemberToOrg(
+  organizationId: string,
+  userId: string,
+  role: "owner" | "admin" | "member",
+): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  try {
+    await auth.api.addMember({
+      body: {
+        userId,
+        role: [role],
+        organizationId,
+      },
+    });
+    return {
+      success: true,
+      data: { data: "Member added to organization" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error(
+      "[BETTER_AUTH] Add member to organization has not worked",
+      error,
+    );
+    return {
+      error: "Could not add member to organization",
+      success: false,
+      data: null,
+    };
+  }
+}
+
+export async function removeMemberFromOrg({
+  idOrEmail,
+  organizationId,
+}: {
+  idOrEmail: string;
+  organizationId: string;
+}): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  try {
+    await auth.api.removeMember({
+      headers: await headers(),
+      body: {
+        memberIdOrEmail: idOrEmail,
+        organizationId,
+      },
+    });
+    return {
+      success: true,
+      data: { data: "Member removed from organization" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      const errorMessage = error.message || "Unknown API error occurred";
+      return { error: errorMessage, success: false, data: null };
+    }
+    console.error(
+      "[BETTER_AUTH] Remove member from organization has not worked",
+      error,
+    );
+    return {
+      error: "Could not remove member from organization",
       success: false,
       data: null,
     };

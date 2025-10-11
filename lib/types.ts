@@ -1,3 +1,5 @@
+import { UploadHookControl } from "better-upload/client";
+
 export type SignUpForm = {
   email: string;
   password: string;
@@ -11,4 +13,108 @@ export type ActionResult<TData = unknown, TError = string> = {
   success: boolean;
   data: TData | null;
   error: TError | null;
+};
+
+export type S3ObjectsAPIResponse = {
+  items: {
+    key: string;
+    size: number;
+    lastModified: string | null;
+    url: string;
+  }[];
+};
+
+export type Organization = {
+  id: string;
+  name: string;
+  slug: string;
+  logo: string;
+  createdAt: string;
+  updatedAt: string;
+  metadata: { [key: string]: string };
+};
+
+export type OrganizationMembersFilter = {
+  organizationId: string;
+  limit: number;
+  offset: number;
+  sortBy: string;
+  sortDirection: string;
+  filterField: string;
+  filterOperator: OrganizationMemberFilterOperators;
+  filterValue: string;
+};
+
+export type OrganizationMemberFilterOperators =
+  | "eq"
+  | "ne"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte"
+  | "in"
+  | "nin"
+  | "contains";
+
+export type OrganizationMember = {
+  id: string;
+  organizationId: string;
+  userId: string;
+  role: string;
+  createdAt: Date;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    image: string | null | undefined;
+  };
+};
+
+export type OrganizationMembersResponse = {
+  members: OrganizationMember[];
+  total: number;
+};
+
+export type OrganizationMembersAPIError = {
+  error: string;
+};
+
+export type User = {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  email: string;
+  emailVerified: boolean;
+  name: string;
+  image: string | null | undefined;
+};
+
+export interface UsersWithRole extends User {
+  role?: string;
+  banned?: boolean | null;
+  banReason?: string | null;
+  banExpires?: Date | null;
+}
+
+export interface UsersWithRoleResponse {
+  users: UsersWithRole[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export type UploadDropzoneProps = {
+  control: UploadHookControl<true>;
+  accept?: string;
+  metadata?: Record<string, unknown>;
+  description?:
+    | {
+        fileTypes?: string;
+        maxFileSize?: string;
+        maxFiles?: number;
+      }
+    | string;
+  uploadOverride?: (
+    ...args: Parameters<UploadHookControl<true>["upload"]>
+  ) => void;
 };

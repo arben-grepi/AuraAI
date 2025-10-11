@@ -3,6 +3,19 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  logging: {
+    fetches: {
+      fullUrl: true,
+    },
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "kommun-ai.s3.us-east-1.amazonaws.com",
+      },
+    ],
+  },
 };
 
 export default withSentryConfig(nextConfig, {

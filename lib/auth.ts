@@ -2,7 +2,7 @@ import { betterAuth, User } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import prisma from "./prisma";
 import { nextCookies } from "better-auth/next-js";
-import { openAPI } from "better-auth/plugins";
+import { openAPI, organization, admin } from "better-auth/plugins";
 import {
   sendChangeEmailVerificationEmail,
   sendEmailVerificationEmail,
@@ -52,5 +52,5 @@ export const auth = betterAuth({
     process.env.NODE_ENV === "production"
       ? process.env.BETTER_AUTH_URL
       : "http://localhost:3000",
-  plugins: [nextCookies(), openAPI()],
+  plugins: [nextCookies(), openAPI(), organization(), admin()],
 });

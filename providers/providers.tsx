@@ -21,7 +21,7 @@ export function Providers({ children }: ProvidersProps) {
     >
       <QueryClientProvider client={queryClient}>
         {children}
-        <ReactQueryDevtools initialIsOpen={true} />
+        {/* <ReactQueryDevtools position="left" initialIsOpen={false} /> */}
       </QueryClientProvider>
     </ThemeProvider>
   );

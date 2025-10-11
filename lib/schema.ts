@@ -23,3 +23,9 @@ export const requestPasswordResetSchema = z.object({
 export const resetPasswordSchema = z.object({
   newPassword: z.string().min(8, { error: "Password is required" }),
 });
+
+export const createOrganizationSchema = z.object({
+  name: z.string().min(1, { error: "Name is required" }),
+  logo: z.string().min(1, { error: "Logo is required" }),
+  keepCurrentActiveOrganization: z.boolean().optional(),
+});
