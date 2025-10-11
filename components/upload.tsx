@@ -30,7 +30,6 @@ export function Uploader({
     },
   });
 
-  // Notify parent component when pending state changes
   useEffect(() => {
     onPendingChange?.(isPending);
   }, [isPending, onPendingChange]);

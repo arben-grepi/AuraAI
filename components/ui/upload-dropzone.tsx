@@ -1,26 +1,8 @@
 import { cn } from "@/lib/utils";
-import type { UploadHookControl } from "better-upload/client";
 import { Loader2, Upload } from "lucide-react";
 import { useId } from "react";
 import { useDropzone } from "react-dropzone";
-
-type UploadDropzoneProps = {
-  control: UploadHookControl<true>;
-  accept?: string;
-  metadata?: Record<string, unknown>;
-  description?:
-    | {
-        fileTypes?: string;
-        maxFileSize?: string;
-        maxFiles?: number;
-      }
-    | string;
-  uploadOverride?: (
-    ...args: Parameters<UploadHookControl<true>["upload"]>
-  ) => void;
-
-  // Add any additional props you need.
-};
+import { UploadDropzoneProps } from "@/lib/types";
 
 export function UploadDropzone({
   control: { upload, isPending },

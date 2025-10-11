@@ -172,7 +172,7 @@ export function ChatInterface({
   }
 
   return (
-    <div className="mx-auto border border-border flex flex-col overflow-hidden w-[100%] h-screen">
+    <div className="mx-auto flex flex-col overflow-hidden w-[100%] h-screen relative">
       <ChatHeader />
       <div className="flex-1 relative overflow-hidden">
         <StickToBottom
@@ -180,33 +180,35 @@ export function ChatInterface({
           resize="smooth"
           initial="smooth"
         >
-          <div className="relative w-full flex flex-col overflow-hidden h-full min-w-0">
-            <StickToBottom.Content className="flex flex-col gap-6 p-4 bg-background scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/40 scrollbar-thumb-rounded-full min-w-0">
-              <AnimatePresence mode="popLayout">
-                {messages.map((message, index) => (
-                  <Message
-                    key={message.id}
-                    message={message.parts
-                      .map((part) => (part.type === "text" ? part.text : ""))
-                      .join("")}
-                    variant={message.role === "user" ? "user" : "assistant"}
-                    submitted={status === "submitted"}
-                    isStreaming={
-                      message.role === "assistant" &&
-                      status === "streaming" &&
-                      index === messages.length - 1
-                    }
-                  />
-                ))}
-                {status === "submitted" && (
-                  <Message
-                    key="assistant-thinking"
-                    message=""
-                    variant="assistant"
-                    submitted
-                  />
-                )}
-              </AnimatePresence>
+          <div className="pt-4 relative w-full flex flex-col overflow-hidden h-full min-w-0">
+            <StickToBottom.Content className="flex flex-col gap-6 bg-background scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/40 scrollbar-thumb-rounded-full min-w-0">
+              <div className="max-w-3xl mx-auto w-full">
+                <AnimatePresence mode="popLayout">
+                  {messages.map((message, index) => (
+                    <Message
+                      key={message.id}
+                      message={message.parts
+                        .map((part) => (part.type === "text" ? part.text : ""))
+                        .join("")}
+                      variant={message.role === "user" ? "user" : "assistant"}
+                      submitted={status === "submitted"}
+                      isStreaming={
+                        message.role === "assistant" &&
+                        status === "streaming" &&
+                        index === messages.length - 1
+                      }
+                    />
+                  ))}
+                  {status === "submitted" && (
+                    <Message
+                      key="assistant-thinking"
+                      message=""
+                      variant="assistant"
+                      submitted
+                    />
+                  )}
+                </AnimatePresence>
+              </div>
             </StickToBottom.Content>
             <ScrollToBottom />
           </div>
@@ -216,12 +218,14 @@ export function ChatInterface({
         </StickToBottom>
       </div>
 
-      <div className="flex-shrink-0">
-        <ChatInput
-          loading={status === "streaming" || status === "submitted"}
-          addMessage={addMessage}
-          onStop={stopRequest}
-        />
+      <div className="w-full bg-gradient-to-t from-white dark:from-background from-80% to-transparent">
+        <div className="max-w-3xl mx-auto w-full">
+          <ChatInput
+            loading={status === "streaming" || status === "submitted"}
+            addMessage={addMessage}
+            onStop={stopRequest}
+          />
+        </div>
       </div>
     </div>
   );
@@ -235,7 +239,7 @@ function ScrollToBottom() {
       {!isAtBottom && (
         <motion.button
           key="scroll-button"
-          className="absolute bottom-4 left-1/2 cursor-pointer transform -translate-x-1/2 z-10 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-2 shadow-lg"
+          className="absolute bottom-8 left-1/2 cursor-pointer transform -translate-x-1/2 z-10 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-2 shadow-lg"
           onClick={() => scrollToBottom()}
           title="Scroll to bottom"
           initial={{ opacity: 0, y: 0, scale: 0.8 }}

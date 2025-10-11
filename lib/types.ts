@@ -1,3 +1,5 @@
+import { UploadHookControl } from "better-upload/client";
+
 export type SignUpForm = {
   email: string;
   password: string;
@@ -100,3 +102,19 @@ export interface UsersWithRoleResponse {
   limit: number;
   offset: number;
 }
+
+export type UploadDropzoneProps = {
+  control: UploadHookControl<true>;
+  accept?: string;
+  metadata?: Record<string, unknown>;
+  description?:
+    | {
+        fileTypes?: string;
+        maxFileSize?: string;
+        maxFiles?: number;
+      }
+    | string;
+  uploadOverride?: (
+    ...args: Parameters<UploadHookControl<true>["upload"]>
+  ) => void;
+};
