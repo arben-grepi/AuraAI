@@ -1,8 +1,14 @@
 import { openai } from "@ai-sdk/openai";
-import { streamText, UIMessage, convertToModelMessages } from "ai";
+import {
+  streamText,
+  UIMessage,
+  convertToModelMessages,
+  smoothStream,
+} from "ai";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
+import { generateTitleFromUserMessage } from "@/lib/actions";
 
 export const runtime = "nodejs"; // ensure Node (not Edge) for Prisma
 export const maxDuration = 30;
@@ -19,9 +25,27 @@ export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return new Response("Unauthorized", { status: 401 });
 
-  const lastMessage = messages[messages.length - 1];
+  const doesExist = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    select: { id: true },
+  });
 
-  // Fire-and-forget user message insert (don’t block stream)
+  const lastMessage = messages[messages.length - 1] as UIMessage | undefined;
+
+  if (!doesExist && lastMessage) {
+    const title = await generateTitleFromUserMessage({
+      message: lastMessage,
+    });
+
+    await prisma.conversation.create({
+      data: {
+        id: conversationId,
+        userId: session.user.id,
+        title,
+      },
+    });
+  }
+
   if (lastMessage?.role === "user") {
     const content = lastMessage.parts
       .map((p) => (p.type === "text" ? p.text : ""))
@@ -41,32 +65,25 @@ export async function POST(req: Request) {
     });
   }
 
-  // Start streaming immediately
   const result = streamText({
     model: openai("gpt-4.1-nano"),
     messages: convertToModelMessages(messages),
-
-    // Don’t await DB here; schedule it and let the HTTP stream close freely.
+    experimental_transform: smoothStream({ chunking: "word" }),
     onFinish: (r) => {
-      const payload = {
-        conversationId,
-        role: "assistant" as const,
-        content: r.text,
-        parts: [{ type: "text", text: r.text, state: "done" }] as const,
-      };
-      queueMicrotask(() => {
-        prisma.message
-          .create({
-            data: {
-              ...payload,
-              parts: JSON.parse(JSON.stringify(payload.parts)),
-            },
-          })
-          .catch((e) => console.error("assistant save failed", e));
-      });
+      fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/ai/persist-message`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          conversationId,
+          role: "assistant",
+          content: r.text,
+          parts: [{ type: "text", text: r.text, state: "done" }],
+        }),
+      }).catch(console.error);
     },
   });
 
-  // Return the stream now; DB writes continue in background
   return result.toUIMessageStreamResponse();
 }

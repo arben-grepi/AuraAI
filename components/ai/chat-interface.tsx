@@ -7,11 +7,12 @@ import { Message } from "./message";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { ArrowDown, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { useConversations } from "@/hooks/use-conversations";
 import { ChatHeader } from "./chat-header";
+import { v4 as uuidv4 } from "uuid";
+import { toast } from "sonner";
 
 interface ChatInterfaceProps {
   conversationId: string;
@@ -27,33 +28,51 @@ export function ChatInterface({
   conversationId,
   initialMessages,
 }: ChatInterfaceProps) {
-  const router = useRouter();
-  const hasSentInitialRef = useRef(false);
   const { invalidateConversations } = useConversations();
 
+  const [convId, setConvId] = useState<string | undefined>(
+    conversationId || undefined,
+  );
+
+  const pendingMessageRef = useRef<string | null>(null);
+
   useEffect(() => {
-    hasSentInitialRef.current = false;
+    if (conversationId && conversationId !== convId) {
+      setConvId(conversationId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
   const { messages, setMessages, sendMessage, status, stop } = useChat({
-    id: conversationId || undefined,
+    id: convId,
     transport: new DefaultChatTransport({
       api: "/api/ai/chat",
-      body: {
-        conversationId: conversationId,
-      },
+      body: { conversationId: convId },
     }),
+    onFinish: invalidateConversations,
+    onError: (error) => {
+      toast.error(error.message);
+    },
   });
 
+  useEffect(() => {
+    if (convId && pendingMessageRef.current) {
+      const msg = pendingMessageRef.current;
+      pendingMessageRef.current = null;
+      sendMessage({ text: msg });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [convId]);
+
   const { data: messagesData, isLoading } = useQuery({
-    queryKey: ["messages", conversationId],
+    queryKey: ["messages", convId],
     queryFn: async () => {
       const response = await fetch(
-        `/api/ai/chat/messages?conversationId=${conversationId}`,
+        `/api/ai/chat/messages?conversationId=${convId}`,
       );
       const data = await response.json();
 
-      const formattedMessages = data.map(
+      const formatted = data.map(
         (msg: {
           id: string;
           role: string;
@@ -62,94 +81,49 @@ export function ChatInterface({
           createdAt: string;
         }) => ({
           id: msg.id,
-          role: msg.role,
+          role: msg.role as "user" | "assistant",
           parts: msg.parts || [{ type: "text", text: msg.content }],
           createdAt: msg.createdAt,
         }),
       );
 
-      return formattedMessages;
+      return formatted;
     },
-    enabled: !!conversationId,
+    enabled: !!convId,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
 
   useEffect(() => {
-    if (initialMessages && initialMessages.length > 0) {
+    if (initialMessages?.length) {
       setMessages(initialMessages as unknown as typeof messages);
     }
   }, [initialMessages, setMessages]);
 
   useEffect(() => {
-    if (conversationId && messagesData && messagesData.length > 0) {
-      const uniqueMessages = messagesData.filter(
-        (message: { id: string }, index: number, self: { id: string }[]) =>
-          index === self.findIndex((m: { id: string }) => m.id === message.id),
+    if (convId && messagesData?.length) {
+      const unique = messagesData.filter(
+        (m: { id: string }, i: number, arr: { id: string }[]) =>
+          i === arr.findIndex((x) => x.id === m.id),
       );
       setMessages((current) => {
         const seen = new Set<string>(current.map((m) => m.id));
         const merged = [...current];
-        for (const m of uniqueMessages as unknown as typeof current) {
+        for (const m of unique as unknown as typeof current) {
           if (!seen.has(m.id)) merged.push(m);
         }
         return merged;
       });
     }
-  }, [conversationId, messagesData, setMessages]);
-
-  useEffect(() => {
-    if (
-      conversationId &&
-      !hasSentInitialRef.current &&
-      (messages.length === 0 || messages[messages.length - 1]?.role !== "user")
-    ) {
-      const pendingMessage = localStorage.getItem("pendingMessage");
-      if (pendingMessage) {
-        try {
-          const messageData = JSON.parse(pendingMessage);
-          hasSentInitialRef.current = true;
-          sendMessage({ text: messageData.text });
-          localStorage.removeItem("pendingMessage");
-        } catch (error) {
-          console.error("Failed to parse pending message:", error);
-          localStorage.removeItem("pendingMessage");
-        }
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId, messages.length]);
+  }, [convId, messagesData, setMessages]);
 
   function addMessage(message: string) {
     async function ensureConversationAndSend() {
-      const id = conversationId;
-      if (!id) {
-        localStorage.setItem(
-          "pendingMessage",
-          JSON.stringify({ text: message }),
-        );
-
-        try {
-          const response = await fetch("/api/ai/conversations", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              title: message.slice(0, 80) || "New chat",
-            }),
-          });
-
-          if (!response.ok) {
-            console.error("Failed to create conversation");
-            return;
-          }
-
-          const data = await response.json();
-          // Invalidate conversations cache to refresh the sidebar
-          invalidateConversations();
-          router.replace(`/chat/${data.id}`);
-        } catch (error) {
-          console.error("Error creating conversation:", error);
-        }
+      if (!convId) {
+        const newId = uuidv4();
+        pendingMessageRef.current = message;
+        setConvId(newId);
+        window.history.replaceState({}, "", `/chat/${newId}`);
         return;
       }
       sendMessage({ text: message });
@@ -161,7 +135,7 @@ export function ChatInterface({
     stop();
   }
 
-  if (isLoading) {
+  if (isLoading && convId) {
     return (
       <div className="mx-auto border border-border flex flex-col overflow-hidden w-[100%] h-screen">
         <div className="flex-1 flex items-center justify-center">
