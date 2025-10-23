@@ -77,7 +77,7 @@ model Verification {
 }
 
 model Conversation {
-  id        String    @id @default(cuid())
+  id        String    @id @default(uuid())
   title     String?
   userId    String
   createdAt DateTime  @default(now())
@@ -89,7 +89,7 @@ model Conversation {
 }
 
 model Message {
-  id             String       @id @default(cuid())
+  id             String       @id @default(uuid())
   conversationId String
   role           String
   content        String

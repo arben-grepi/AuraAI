@@ -59,7 +59,7 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
       className={cn(
         "w-full flex justify-between items-center py-2 px-3 rounded-md transition-all duration-200 group cursor-pointer",
         isActive
-          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium border-sidebar-accent-foreground"
+          ? "bg-white font-normal border-sidebar-accent-foreground"
           : "hover:bg-sidebar-accent/50",
       )}
     >
@@ -67,11 +67,9 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
         href={`/chat/${conversation.id}`}
         className={cn(
           "flex-1 truncate flex items-center gap-2 min-w-0 cursor-pointer",
-          isActive && "text-sidebar-accent-foreground",
         )}
       >
-        <MessageSquare className={cn("h-3 w-3 flex-shrink-0")} />
-        <span className="truncate">{conversation.title}</span>
+        <span className="truncate leading-5 ">{conversation.title}</span>
       </Link>
       <div className="flex-shrink-0">
         <DropdownMenu>
