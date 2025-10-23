@@ -5,8 +5,6 @@ import {
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 
 export const runtime = "nodejs";
 

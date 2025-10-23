@@ -7,7 +7,6 @@ import { useQuery } from "@tanstack/react-query";
 import { ConversationsSkeleton } from "./conversations-skeleton";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { MessageSquare, MoreHorizontal } from "lucide-react";
 import { Button } from "../ui/button";
 import { DeleteConvo } from "./delete-convo";
 import {
@@ -15,6 +14,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+import { MoreHorizontal } from "lucide-react";
 
 export function Conversations() {
   const { data, isLoading } = useQuery({

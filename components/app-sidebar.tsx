@@ -18,7 +18,6 @@ import { ConversationsSkeleton } from "./sidebar/conversations-skeleton";
 import { NavUser } from "./sidebar/nav-user";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { NewChatButton } from "./sidebar/new-chat-button";
 import Image from "next/image";
 
 const items = [

@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { Conversation } from "@/app/generated/prisma";
 
 export function useConversations() {
   const queryClient = useQueryClient();
@@ -15,7 +16,7 @@ export function useConversations() {
     });
   };
 
-  const setConversationsData = (data: any) => {
+  const setConversationsData = (data: Conversation[]) => {
     queryClient.setQueryData(["conversations"], data);
   };
 

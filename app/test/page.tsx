@@ -28,7 +28,7 @@ export default function Page() {
       e.preventDefault(); // allows drop
     };
 
-    const onDragLeave = (_e: DragEvent) => {
+    const onDragLeave = () => {
       dragCounter.current = Math.max(0, dragCounter.current - 1);
       if (dragCounter.current === 0) {
         setIsDragActive(false);
@@ -81,7 +81,15 @@ export default function Page() {
       window.removeEventListener("dragleave", onDragLeave);
       window.removeEventListener("drop", onDrop);
     };
-  }, []);
+  }, [
+    uploadedFiles,
+    MAX_FILES,
+    MAX_FILE_SIZE,
+    setUploadedFiles,
+    setFilePreviews,
+    allowedTypes,
+    filePreviews,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -126,6 +134,7 @@ export default function Page() {
           </button>
           <p className="text-white">{file.name}</p>
           {filePreviews[file.name] ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={filePreviews[file.name]}
               alt={file.name}
