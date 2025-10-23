@@ -18,12 +18,13 @@ const messageVariants = cva("flex w-full min-w-0 mb-4", {
 });
 
 const messageContentVariants = cva(
-  "flex flex-col max-w-full sm:max-w-[80%] min-w-0 rounded-lg px-4 py-3 text-base font-sans",
+  "flex flex-col max-w-full sm:max-w-[80%] min-w-0 rounded-full px-4 py-3 text-base",
   {
     variants: {
       variant: {
-        user: "items-end bg-card text-card-foreground leading-6",
-        assistant: "items-start text-card-foreground leading-relaxed",
+        user: "items-end bg-card text-card-foreground leading-6 font-normal bg-zinc-50",
+        assistant:
+          "items-start text-card-foreground leading-relaxed font-normal",
       },
     },
     defaultVariants: {
@@ -121,7 +122,7 @@ function Message({
           </motion.div>
         ) : (
           <motion.div
-            className="whitespace-pre-wrap font-sans"
+            className="whitespace-pre-wrap"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3, delay: 0.1 }}

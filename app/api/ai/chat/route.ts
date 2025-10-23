@@ -4,13 +4,14 @@ import {
   UIMessage,
   convertToModelMessages,
   smoothStream,
+  ModelMessage, // <- for typing, optional
 } from "ai";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 import { generateTitleFromUserMessage } from "@/lib/actions";
 
-export const runtime = "nodejs"; // ensure Node (not Edge) for Prisma
+export const runtime = "nodejs";
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
@@ -33,16 +34,9 @@ export async function POST(req: Request) {
   const lastMessage = messages[messages.length - 1] as UIMessage | undefined;
 
   if (!doesExist && lastMessage) {
-    const title = await generateTitleFromUserMessage({
-      message: lastMessage,
-    });
-
+    const title = await generateTitleFromUserMessage({ message: lastMessage });
     await prisma.conversation.create({
-      data: {
-        id: conversationId,
-        userId: session.user.id,
-        title,
-      },
+      data: { id: conversationId, userId: session.user.id, title },
     });
   }
 
@@ -50,7 +44,6 @@ export async function POST(req: Request) {
     const content = lastMessage.parts
       .map((p) => (p.type === "text" ? p.text : ""))
       .join("");
-
     queueMicrotask(() => {
       prisma.message
         .create({
@@ -65,16 +58,37 @@ export async function POST(req: Request) {
     });
   }
 
+  // 1) Convert UI messages → Model messages
+  // const modelMessages = convertToModelMessages(messages);
+
+  // // 2) Append a hard-coded image message (vision-capable models need this shape)
+  // const imageUrl =
+  //   "https://github.com/vercel/ai/blob/main/examples/ai-core/data/comic-cat.png?raw=true";
+
+  // const imagePrompt: ModelMessage = {
+  //   role: "user",
+  //   content: [
+  //     { type: "text", text: "Describe this image in detail." },
+  //     {
+  //       type: "image",
+  //       image: imageUrl, // can also be buffer/arraybuffer/base64 string
+  //       // optional provider options per-part:
+  //       // providerOptions: { openai: { imageDetail: "low" } },
+  //     },
+  //   ],
+  // };
+
+  // modelMessages.push(imagePrompt);
+
   const result = streamText({
-    model: openai("gpt-4.1-nano"),
+    model: openai("gpt-4o"),
     messages: convertToModelMessages(messages),
     experimental_transform: smoothStream({ chunking: "word" }),
+    //When the streaming is finished we save the last ai message to the db
     onFinish: (r) => {
       fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/ai/persist-message`, {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           conversationId,
           role: "assistant",

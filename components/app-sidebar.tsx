@@ -1,4 +1,4 @@
-import { Calendar, File, Home, Search, Settings } from "lucide-react";
+import { PenLine, Search } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -23,29 +23,15 @@ import Image from "next/image";
 
 const items = [
   {
-    title: "Home",
+    title: "New Chat",
     url: "/",
-    icon: Home,
+    icon: PenLine,
   },
   {
-    title: "Files",
-    url: "/files",
-    icon: File,
-  },
-  {
-    title: "Calendar",
-    url: "#",
-    icon: Calendar,
-  },
-  {
-    title: "Search",
-    url: "#",
+    title: "Search Chats",
+    url: "/search",
     icon: Search,
-  },
-  {
-    title: "Settings",
-    url: "#",
-    icon: Settings,
+    variant: "white",
   },
 ];
 
@@ -57,14 +43,14 @@ export async function AppSidebar() {
   const { name, email, image } = session?.user || {};
 
   return (
-    <Sidebar>
+    <Sidebar className="border-none">
       <SidebarContent>
-        <SidebarHeader className="flex flex-row justify-between items-center p-4">
+        <SidebarHeader className="flex flex-row justify-between items-center ">
           <Image
             src="/logo.svg"
             alt="Axiom"
-            width={32}
-            height={32}
+            width={24}
+            height={24}
             className="block"
           />
           <SidebarTrigger />
@@ -74,7 +60,10 @@ export async function AppSidebar() {
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton
+                    className={`${item.variant === "white" ? "bg-white shadow-sm" : ""}`}
+                    asChild
+                  >
                     <a href={item.url}>
                       <item.icon />
                       <span>{item.title}</span>
@@ -83,7 +72,6 @@ export async function AppSidebar() {
                 </SidebarMenuItem>
               ))}
               <SidebarGroupLabel>Chats</SidebarGroupLabel>
-              <NewChatButton />
               <Suspense fallback={<ConversationsSkeleton />}>
                 <Conversations />
               </Suspense>

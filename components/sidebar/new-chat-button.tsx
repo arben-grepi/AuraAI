@@ -28,7 +28,7 @@ export function NewChatButton() {
   };
 
   return (
-    <SidebarMenuItem className="my-2">
+    <SidebarMenuItem className="">
       <SidebarMenuButton asChild>
         <Button
           className="cursor-pointer w-full"
