@@ -50,7 +50,7 @@ export async function POST(req: Request) {
             conversationId,
             role: "user",
             content,
-            parts: JSON.parse(JSON.stringify(lastMessage.parts)),
+            parts: structuredClone(lastMessage.parts ?? []),
           },
         })
         .catch((e) => console.error("user save failed", e));

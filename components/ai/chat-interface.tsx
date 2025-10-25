@@ -1,27 +1,26 @@
 "use client";
 
-import { ChatInput } from "./chat-input";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Message } from "./message";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { ArrowDown, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useConversations } from "@/hooks/use-conversations";
 import { ChatHeader } from "./chat-header";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
 
+import { ChatInput } from "./chat-input";
+import { Message } from "./message";
+import type { ChatFilePart, ChatMessage, StoredChatMessage } from "./types";
+import { toChatMessage } from "./types";
+
 interface ChatInterfaceProps {
   conversationId: string;
-  initialMessages?: Array<{
-    id: string;
-    role: "user" | "assistant";
-    parts: Array<{ type: string; text: string }>;
-    createdAt?: string;
-  }>;
+  initialMessages?: ChatMessage[];
 }
 
 export function ChatInterface({
@@ -34,21 +33,27 @@ export function ChatInterface({
     conversationId || undefined,
   );
 
-  const pendingMessageRef = useRef<string | null>(null);
+  const pendingMessageRef = useRef<{
+    text?: string;
+    files: File[];
+  } | null>(null);
 
   useEffect(() => {
     if (conversationId && conversationId !== convId) {
       setConvId(conversationId);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId]);
+  }, [conversationId, convId]);
 
-  const { messages, setMessages, sendMessage, status, stop } = useChat({
-    id: convId,
-    transport: new DefaultChatTransport({
+  const transport = useMemo(() => {
+    return new DefaultChatTransport({
       api: "/api/ai/chat",
       body: { conversationId: convId },
-    }),
+    });
+  }, [convId]);
+
+  const { messages, setMessages, sendMessage, status, stop } = useChat<ChatMessage>({
+    id: convId,
+    transport,
     onFinish: invalidateConversations,
     onError: (error) => {
       toast.error(error.message);
@@ -57,12 +62,11 @@ export function ChatInterface({
 
   useEffect(() => {
     if (convId && pendingMessageRef.current) {
-      const msg = pendingMessageRef.current;
+      const pending = pendingMessageRef.current;
       pendingMessageRef.current = null;
-      sendMessage({ text: msg });
+      void handleSendMessage(pending);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [convId]);
+  }, [convId, handleSendMessage]);
 
   const { data: messagesData, isLoading } = useQuery({
     queryKey: ["messages", convId],
@@ -70,24 +74,9 @@ export function ChatInterface({
       const response = await fetch(
         `/api/ai/chat/messages?conversationId=${convId}`,
       );
-      const data = await response.json();
+      const data: StoredChatMessage[] = await response.json();
 
-      const formatted = data.map(
-        (msg: {
-          id: string;
-          role: string;
-          content: string;
-          parts?: Array<{ type: string; text: string }>;
-          createdAt: string;
-        }) => ({
-          id: msg.id,
-          role: msg.role as "user" | "assistant",
-          parts: msg.parts || [{ type: "text", text: msg.content }],
-          createdAt: msg.createdAt,
-        }),
-      );
-
-      return formatted;
+      return data.map((msg) => toChatMessage(msg));
     },
     enabled: !!convId,
     refetchOnWindowFocus: false,
@@ -96,7 +85,7 @@ export function ChatInterface({
 
   useEffect(() => {
     if (initialMessages?.length) {
-      setMessages(initialMessages as unknown as typeof messages);
+      setMessages(initialMessages);
     }
   }, [initialMessages, setMessages]);
 
@@ -109,7 +98,7 @@ export function ChatInterface({
       setMessages((current) => {
         const seen = new Set<string>(current.map((m) => m.id));
         const merged = [...current];
-        for (const m of unique as unknown as typeof current) {
+        for (const m of unique) {
           if (!seen.has(m.id)) merged.push(m);
         }
         return merged;
@@ -117,23 +106,55 @@ export function ChatInterface({
     }
   }, [convId, messagesData, setMessages]);
 
-  function addMessage(message: string) {
-    async function ensureConversationAndSend() {
+  const handleSendMessage = useCallback(
+    async ({ text, files }: { text?: string; files: File[] }) => {
+      const trimmedText = text?.trim();
+
+      if (!trimmedText && files.length === 0) return;
+
+      const send = async () => {
+        const fileParts = files.length ? await filesToChatFileParts(files) : undefined;
+
+        const payload:
+          | { text: string; files?: ChatFilePart[] }
+          | { files: ChatFilePart[] }
+          | undefined = (() => {
+          if (fileParts?.length && trimmedText) {
+            return { text: trimmedText, files: fileParts };
+          }
+          if (fileParts?.length) {
+            return { files: fileParts };
+          }
+          if (trimmedText) {
+            return { text: trimmedText };
+          }
+          return undefined;
+        })();
+
+        if (!payload) return;
+
+        await sendMessage(payload as Parameters<typeof sendMessage>[0]);
+      };
+
       if (!convId) {
         const newId = uuidv4();
-        pendingMessageRef.current = message;
+        pendingMessageRef.current = { text: trimmedText, files: [...files] };
         setConvId(newId);
         window.history.replaceState({}, "", `/chat/${newId}`);
         return;
       }
-      sendMessage({ text: message });
-    }
-    ensureConversationAndSend();
-  }
+
+      await send();
+    },
+    [convId, sendMessage],
+  );
 
   function stopRequest() {
     stop();
   }
+
+  const waitingForAssistant =
+    status === "submitted" && messages[messages.length - 1]?.role !== "assistant";
 
   if (isLoading && convId) {
     return (
@@ -161,11 +182,8 @@ export function ChatInterface({
                   {messages.map((message, index) => (
                     <Message
                       key={message.id}
-                      message={message.parts
-                        .map((part) => (part.type === "text" ? part.text : ""))
-                        .join("")}
+                      message={message}
                       variant={message.role === "user" ? "user" : "assistant"}
-                      submitted={status === "submitted"}
                       isStreaming={
                         message.role === "assistant" &&
                         status === "streaming" &&
@@ -173,10 +191,9 @@ export function ChatInterface({
                       }
                     />
                   ))}
-                  {status === "submitted" && (
+                  {waitingForAssistant && (
                     <Message
                       key="assistant-thinking"
-                      message=""
                       variant="assistant"
                       submitted
                     />
@@ -196,12 +213,38 @@ export function ChatInterface({
         <div className="max-w-3xl mx-auto w-full">
           <ChatInput
             loading={status === "streaming" || status === "submitted"}
-            addMessage={addMessage}
+            onSend={handleSendMessage}
             onStop={stopRequest}
           />
         </div>
       </div>
     </div>
+  );
+}
+
+async function filesToChatFileParts(files: File[]): Promise<ChatFilePart[]> {
+  return Promise.all(
+    files.map(
+      (file) =>
+        new Promise<ChatFilePart>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result;
+            if (typeof result !== "string") {
+              reject(new Error("Failed to read file content"));
+              return;
+            }
+            resolve({
+              type: "file",
+              mediaType: file.type || "application/octet-stream",
+              filename: file.name,
+              url: result,
+            });
+          };
+          reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
+          reader.readAsDataURL(file);
+        }),
+    ),
   );
 }
 
