@@ -24,13 +24,13 @@ const s3 = new S3Client({
 });
 
 export async function POST(request: Request) {
-  // const session = await auth.api.getSession({
-  //   headers: await headers(),
-  // });
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
 
-  // if (!session) {
-  //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  // }
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   if (request.body === null) {
     return NextResponse.json({ error: "Empty request body" }, { status: 400 });

@@ -11,11 +11,11 @@ export default function Page() {
   );
   const dragCounter = useRef(0);
 
-  const allowedTypes = ["image/png", "application/pdf"];
   const MAX_FILE_SIZE = 5 * 1024 * 1024;
   const MAX_FILES = 5;
 
   useEffect(() => {
+    const allowedTypes = ["image/png", "application/pdf"];
     const onDragEnter = (e: DragEvent) => {
       if (!e.dataTransfer) return;
       if (!e.dataTransfer.types.includes("Files")) return;
@@ -87,7 +87,6 @@ export default function Page() {
     MAX_FILE_SIZE,
     setUploadedFiles,
     setFilePreviews,
-    allowedTypes,
     filePreviews,
   ]);
 

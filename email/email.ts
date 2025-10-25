@@ -23,7 +23,8 @@ export async function sendPasswordResetEmail(userEmail: string, url: string) {
   });
 
   if (error) {
-    return console.error({ error });
+    console.error({ error });
+    throw new Error(`Failed to send password reset email: ${error.message}`);
   }
 
   return { data };
@@ -48,7 +49,8 @@ export async function sendEmailVerificationEmail(
   });
 
   if (error) {
-    return console.error({ error });
+    console.error({ error });
+    throw new Error(`Failed to send email verification: ${error.message}`);
   }
 
   return { data };
@@ -73,7 +75,10 @@ export async function sendChangeEmailVerificationEmail(
   });
 
   if (error) {
-    return console.error({ error });
+    console.error({ error });
+    throw new Error(
+      `Failed to send change email verification: ${error.message}`,
+    );
   }
 
   return { data };
@@ -98,7 +103,8 @@ export async function sendPasswordResetEmailEmail(
   });
 
   if (error) {
-    return console.error({ error });
+    console.error({ error });
+    throw new Error(`Failed to send password reset email: ${error.message}`);
   }
 
   return { data };

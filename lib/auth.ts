@@ -52,5 +52,12 @@ export const auth = betterAuth({
     process.env.NODE_ENV === "production"
       ? process.env.BETTER_AUTH_URL
       : "http://localhost:3000",
-  plugins: [nextCookies(), openAPI(), organization(), admin()],
+  plugins: [
+    nextCookies(),
+    openAPI(),
+    organization(),
+    admin({
+      adminUserIds: ["6QM8A57yYbPj8goypG72aJSEZFix6dvP"],
+    }),
+  ],
 });

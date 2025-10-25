@@ -4,7 +4,6 @@ import {
   UIMessage,
   convertToModelMessages,
   smoothStream,
-  ModelMessage, // <- for typing, optional
 } from "ai";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";

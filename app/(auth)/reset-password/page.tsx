@@ -3,16 +3,10 @@
 import { useState, useEffect, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { resetPassword } from "@/lib/actions";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -94,7 +88,7 @@ function ResetPasswordForm() {
 
   if (isValidToken === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col gap-6 justify-center items-center h-screen bg-neutral-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
           <p className="mt-2 text-muted-foreground">Validating token...</p>
@@ -105,34 +99,20 @@ function ResetPasswordForm() {
 
   if (isValidToken === false) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
+      <div className="flex flex-col gap-6 justify-center items-center h-screen bg-neutral-50">
+        <Card className="max-w-[350px] w-full border-none shadow-none bg-neutral-50 p-0">
           <CardHeader className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Link href="/sign-in">
-                <Button variant="ghost" size="sm">
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-              </Link>
-              <div>
-                <CardTitle className="text-2xl">Invalid Token</CardTitle>
-                <CardDescription>
-                  The password reset link is invalid or has expired.
-                </CardDescription>
-              </div>
-            </div>
+            <p className="form-title">Invalid Token</p>
+            <p className="form-description">
+              The password reset link is invalid or has expired.
+            </p>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              <Link href="/forgot-password">
-                <Button className="w-full">Request New Reset Link</Button>
-              </Link>
-              <Link href="/sign-in">
-                <Button variant="outline" className="w-full">
-                  Back to Sign In
-                </Button>
-              </Link>
-            </div>
+            <Link href="/forgot-password">
+              <Button className="form-submit-button user-select-none mt-4">
+                Request New Reset Link
+              </Button>
+            </Link>
           </CardContent>
         </Card>
       </div>
@@ -140,22 +120,22 @@ function ResetPasswordForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-neutral-50">
+      <Card className="max-w-[350px] w-full border-none shadow-none bg-neutral-50 p-0">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl">Reset Password</CardTitle>
-          <CardDescription>Enter your new password below.</CardDescription>
+          <p className="form-title">Reset Password</p>
+          <p className="form-description">Enter your new password below.</p>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(handleSubmit)}
-              className="space-y-4"
+              className="space-y-7"
             >
               <FormField
                 name="newPassword"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="relative">
                     <FormLabel>New Password</FormLabel>
                     <div className="relative">
                       <FormControl>
@@ -163,6 +143,7 @@ function ResetPasswordForm() {
                           id="password"
                           type={showPassword ? "text" : "password"}
                           placeholder="Enter new password"
+                          className="form-input"
                           disabled={form.formState.isSubmitting}
                           {...field}
                         />
@@ -171,7 +152,7 @@ function ResetPasswordForm() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent cursor-pointer"
                         onClick={() => setShowPassword(!showPassword)}
                         disabled={form.formState.isSubmitting}
                       >
@@ -182,7 +163,7 @@ function ResetPasswordForm() {
                         )}
                       </Button>
                     </div>
-                    <FormMessage />
+                    <FormMessage className="form-message" />
                   </FormItem>
                 )}
               />
@@ -190,7 +171,7 @@ function ResetPasswordForm() {
               <FormField
                 name="confirmPassword"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="relative">
                     <FormLabel>Confirm Password</FormLabel>
                     <div className="relative">
                       <FormControl>
@@ -198,6 +179,7 @@ function ResetPasswordForm() {
                           id="confirmPassword"
                           type={showConfirmPassword ? "text" : "password"}
                           placeholder="Confirm new password"
+                          className="form-input"
                           disabled={form.formState.isSubmitting}
                           {...field}
                         />
@@ -206,7 +188,7 @@ function ResetPasswordForm() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent cursor-pointer"
                         onClick={() =>
                           setShowConfirmPassword(!showConfirmPassword)
                         }
@@ -219,26 +201,20 @@ function ResetPasswordForm() {
                         )}
                       </Button>
                     </div>
-                    <FormMessage />
+                    <FormMessage className="form-message" />
                   </FormItem>
                 )}
               />
 
               <Button
                 type="submit"
-                className="w-full"
+                className="form-submit-button user-select-none mt-4"
                 disabled={form.formState.isSubmitting}
               >
                 {form.formState.isSubmitting
                   ? "Resetting..."
                   : "Reset Password"}
               </Button>
-
-              <div className="text-center text-sm">
-                <Link href="/sign-in" className="text-primary hover:underline">
-                  Back to Sign In
-                </Link>
-              </div>
             </form>
           </Form>
         </CardContent>
