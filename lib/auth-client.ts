@@ -10,6 +10,9 @@ export const {
   requestPasswordReset,
   resetPassword,
 } = createAuthClient({
-  baseURL: process.env.BETTER_AUTH_URL,
+  baseURL:
+    process.env.NODE_ENV === "production"
+      ? process.env.BETTER_AUTH_URL
+      : "http://localhost:3000",
   plugins: [organizationClient(), adminClient()],
 });

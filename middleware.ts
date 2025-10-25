@@ -17,7 +17,7 @@ export async function middleware(request: NextRequest) {
   const { data: session } = await betterFetch<Session>(
     "/api/auth/get-session",
     {
-      baseURL: request.nextUrl.origin,
+      baseURL: process.env.BETTER_AUTH_URL || request.nextUrl.origin,
       headers: {
         cookie: request.headers.get("cookie") || "",
       },
@@ -68,3 +68,6 @@ export const config = {
     "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
+
+// Use Node.js runtime to avoid edge runtime fetch issues
+export const runtime = "nodejs";
