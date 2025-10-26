@@ -4,14 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "prisma generate && next build --turbopack",
+    "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "postinstall": "npx prisma migrate deploy && npx prisma generate"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.29",

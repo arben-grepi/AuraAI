@@ -51,14 +51,60 @@ export function ChatInterface({
     });
   }, [convId]);
 
-  const { messages, setMessages, sendMessage, status, stop } = useChat<ChatMessage>({
-    id: convId,
-    transport,
-    onFinish: invalidateConversations,
-    onError: (error) => {
-      toast.error(error.message);
+  const { messages, setMessages, sendMessage, status, stop } =
+    useChat<ChatMessage>({
+      id: convId,
+      transport,
+      onFinish: invalidateConversations,
+      onError: (error) => {
+        toast.error(error.message);
+      },
+    });
+
+  const handleSendMessage = useCallback(
+    async ({ text, files }: { text?: string; files: File[] }) => {
+      const trimmedText = text?.trim();
+
+      if (!trimmedText && files.length === 0) return;
+
+      const send = async () => {
+        const fileParts = files.length
+          ? await filesToChatFileParts(files)
+          : undefined;
+
+        const payload:
+          | { text: string; files?: ChatFilePart[] }
+          | { files: ChatFilePart[] }
+          | undefined = (() => {
+          if (fileParts?.length && trimmedText) {
+            return { text: trimmedText, files: fileParts };
+          }
+          if (fileParts?.length) {
+            return { files: fileParts };
+          }
+          if (trimmedText) {
+            return { text: trimmedText };
+          }
+          return undefined;
+        })();
+
+        if (!payload) return;
+
+        await sendMessage(payload as Parameters<typeof sendMessage>[0]);
+      };
+
+      if (!convId) {
+        const newId = uuidv4();
+        pendingMessageRef.current = { text: trimmedText, files: [...files] };
+        setConvId(newId);
+        window.history.replaceState({}, "", `/chat/${newId}`);
+        return;
+      }
+
+      await send();
     },
-  });
+    [convId, sendMessage],
+  );
 
   useEffect(() => {
     if (convId && pendingMessageRef.current) {
@@ -106,55 +152,13 @@ export function ChatInterface({
     }
   }, [convId, messagesData, setMessages]);
 
-  const handleSendMessage = useCallback(
-    async ({ text, files }: { text?: string; files: File[] }) => {
-      const trimmedText = text?.trim();
-
-      if (!trimmedText && files.length === 0) return;
-
-      const send = async () => {
-        const fileParts = files.length ? await filesToChatFileParts(files) : undefined;
-
-        const payload:
-          | { text: string; files?: ChatFilePart[] }
-          | { files: ChatFilePart[] }
-          | undefined = (() => {
-          if (fileParts?.length && trimmedText) {
-            return { text: trimmedText, files: fileParts };
-          }
-          if (fileParts?.length) {
-            return { files: fileParts };
-          }
-          if (trimmedText) {
-            return { text: trimmedText };
-          }
-          return undefined;
-        })();
-
-        if (!payload) return;
-
-        await sendMessage(payload as Parameters<typeof sendMessage>[0]);
-      };
-
-      if (!convId) {
-        const newId = uuidv4();
-        pendingMessageRef.current = { text: trimmedText, files: [...files] };
-        setConvId(newId);
-        window.history.replaceState({}, "", `/chat/${newId}`);
-        return;
-      }
-
-      await send();
-    },
-    [convId, sendMessage],
-  );
-
   function stopRequest() {
     stop();
   }
 
   const waitingForAssistant =
-    status === "submitted" && messages[messages.length - 1]?.role !== "assistant";
+    status === "submitted" &&
+    messages[messages.length - 1]?.role !== "assistant";
 
   if (isLoading && convId) {
     return (
@@ -241,7 +245,8 @@ async function filesToChatFileParts(files: File[]): Promise<ChatFilePart[]> {
               url: result,
             });
           };
-          reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
+          reader.onerror = () =>
+            reject(reader.error ?? new Error("Failed to read file"));
           reader.readAsDataURL(file);
         }),
     ),

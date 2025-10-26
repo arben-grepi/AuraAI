@@ -10,6 +10,9 @@ import { cn } from "@/lib/utils";
 import { v4 as uuidv4 } from "uuid";
 
 import { ChatUploaderWrapper } from "./chat-uploader-wrapper";
+import { toast } from "sonner";
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 interface ChatInputProps {
   onSend: (payload: { text?: string; files: File[] }) => Promise<void> | void;
@@ -24,7 +27,12 @@ interface ComposerAttachment {
   previewUrl: string;
 }
 
-export function ChatInput({ onSend, loading, onStop, className }: ChatInputProps) {
+export function ChatInput({
+  onSend,
+  loading,
+  onStop,
+  className,
+}: ChatInputProps) {
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -49,11 +57,34 @@ export function ChatInput({ onSend, loading, onStop, className }: ChatInputProps
   const addFiles = useCallback((incoming: File[]) => {
     if (!incoming.length) return;
 
+    const validFiles: File[] = [];
+    const invalidFiles: string[] = [];
+
+    for (const file of incoming) {
+      if (file.size > MAX_FILE_SIZE) {
+        invalidFiles.push(file.name);
+      } else {
+        validFiles.push(file);
+      }
+    }
+
+    // Show error message for files that are too large
+    if (invalidFiles.length > 0) {
+      const fileList = invalidFiles.join(", ");
+      toast.error(
+        `${invalidFiles.length} file${invalidFiles.length > 1 ? "s are" : " is"} too large. Maximum file size is 5MB: ${fileList}`,
+      );
+    }
+
+    if (!validFiles.length) return;
+
     setAttachments((prev) => {
       const next = [...prev];
-      const existingKeys = new Set(prev.map((item) => getAttachmentKey(item.file)));
+      const existingKeys = new Set(
+        prev.map((item) => getAttachmentKey(item.file)),
+      );
 
-      for (const file of incoming) {
+      for (const file of validFiles) {
         const key = getAttachmentKey(file);
         if (existingKeys.has(key)) continue;
         existingKeys.add(key);
@@ -122,7 +153,8 @@ export function ChatInput({ onSend, loading, onStop, className }: ChatInputProps
   const handleDragLeave = (event: React.DragEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    if ((event.target as HTMLElement).contains(event.relatedTarget as Node)) return;
+    if ((event.target as HTMLElement).contains(event.relatedTarget as Node))
+      return;
     setIsDragging(false);
   };
 
@@ -155,20 +187,24 @@ export function ChatInput({ onSend, loading, onStop, className }: ChatInputProps
     const trimmed = message.trim();
     if (!trimmed && attachments.length === 0) return;
 
+    const filesToSend = attachments.map((item) => item.file);
+
+    setMessage("");
+    clearAttachments();
+
     try {
       await onSend({
         text: trimmed,
-        files: attachments.map((item) => item.file),
+        files: filesToSend,
       });
-      setMessage("");
-      clearAttachments();
     } catch (error) {
-      // Let the upstream hook surface the error.
       console.error(error);
     }
   };
 
-  const handleTextareaKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleTextareaKeyDown = (
+    event: React.KeyboardEvent<HTMLTextAreaElement>,
+  ) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       formRef.current?.requestSubmit();
@@ -221,13 +257,6 @@ export function ChatInput({ onSend, loading, onStop, className }: ChatInputProps
             className="placeholder:text-gray-400 rounded-[24px] text-base border-none shadow-none focus-visible:ring-0 resize-none overflow-y-auto scrollbar-clean max-h-[280px] leading-6 py-4 px-4 bg-transparent"
           />
         </ComposerContent>
-
-        <ComposerSubmit
-          loading={loading}
-          onStop={onStop}
-          canSubmit={canSubmit}
-        />
-
         <button
           type="button"
           onClick={handlePickFiles}
@@ -404,7 +433,10 @@ function getAttachmentKey(file: File) {
 function formatFileSize(bytes: number) {
   if (bytes === 0) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
-  const index = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  const index = Math.min(
+    units.length - 1,
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+  );
   const value = bytes / Math.pow(1024, index);
   return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
 }
