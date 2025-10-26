@@ -1,4 +1,5 @@
 import { ChatInterface } from "@/components/ai/chat-interface";
+import { toChatMessage } from "@/components/ai/types";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -15,30 +16,15 @@ export default async function Page(props: PageProps<"/chat/[id]">) {
     orderBy: { createdAt: "asc" },
   });
 
-  const initialMessages = messages.map((msg) => {
-    const rawParts = msg.parts as unknown as Array<{
-      type: string;
-      text?: string;
-    }> | null;
-    const parts =
-      Array.isArray(rawParts) && rawParts.length > 0
-        ? rawParts.map((p) =>
-            p && p.type === "text"
-              ? { type: "text" as const, text: p.text ?? "" }
-              : { type: "text" as const, text: "" },
-          )
-        : [{ type: "text" as const, text: msg.content }];
-
-    return {
+  const initialMessages = messages.map((msg) =>
+    toChatMessage({
       id: msg.id,
-      role: msg.role === "user" ? "user" : "assistant",
-      parts,
-    } as {
-      id: string;
-      role: "user" | "assistant";
-      parts: Array<{ type: "text"; text: string }>;
-    };
-  });
+      role: msg.role,
+      content: msg.content,
+      parts: msg.parts,
+      createdAt: msg.createdAt.toISOString(),
+    }),
+  );
 
   return (
     <div className="flex items-center justify-center min-h-screen w-[100%]">
