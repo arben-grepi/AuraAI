@@ -57,7 +57,11 @@ export const auth = betterAuth({
     openAPI(),
     organization(),
     admin({
-      adminUserIds: ["6QM8A57yYbPj8goypG72aJSEZFix6dvP"],
+      adminUserIds: [
+        "6QM8A57yYbPj8goypG72aJSEZFix6dvP",
+        "kXIEWnHCjQk5zRQA91vPuo8E00uLXiLD",
+        "FRF5DuwtW4nwKZLHVQPhK6nuaTXi3jTL",
+      ],
     }),
   ],
 });
