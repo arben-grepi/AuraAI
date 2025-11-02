@@ -1,5 +1,6 @@
 import { createAuthClient } from "better-auth/react";
 import { organizationClient, adminClient } from "better-auth/client/plugins";
+
 export const {
   signIn,
   signUp,
@@ -9,6 +10,7 @@ export const {
   sendVerificationEmail,
   requestPasswordReset,
   resetPassword,
+  organization,
 } = createAuthClient({
   baseURL:
     process.env.NODE_ENV === "production"

@@ -166,9 +166,12 @@ export default function Page() {
                         />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-foreground text-lg truncate">
+                        <a
+                          href={`/admin/org/${organization.slug}`}
+                          className="font-semibold text-foreground text-lg truncate"
+                        >
                           {organization.name}
-                        </h3>
+                        </a>
                         <p className="text-sm text-muted-foreground truncate">
                           {organization.slug}
                         </p>

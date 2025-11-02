@@ -1,8 +1,8 @@
 import { betterFetch } from "@better-fetch/fetch";
-import type { auth } from "@/lib/auth";
+import type { auth as AuthType } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 
-type Session = typeof auth.$Infer.Session;
+type Session = typeof AuthType.$Infer.Session;
 
 const loginRoutes = [
   "/sign-in",
@@ -42,13 +42,67 @@ export async function middleware(request: NextRequest) {
   }
 
   // Check admin routes
-  // if (pathname.startsWith("/admin")) {
-  //   // Check if user has admin role
-  //   if (session.user.role !== "admin") {
-  //     return NextResponse.redirect(new URL("/", request.url));
+  if (pathname.startsWith("/admin")) {
+    // Check if user has admin role
+    if (session.user.role !== "admin") {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+    // Allow admin users to proceed
+    return NextResponse.next();
+  }
+
+  // Check org edit routes
+  // if (pathname.startsWith("/org/") && pathname !== "/org") {
+  //   console.log("Checking org edit routes");
+  //   // Extract slug from pathname (e.g., /org/my-slug/general -> my-slug)
+  //   const pathParts = pathname.split("/");
+  //   if (pathParts.length >= 3 && pathParts[1] === "org") {
+  //     const slug = pathParts[2];
+  //     console.log("Slug:", slug);
+  //     try {
+  //       // Get organization by slug via API (Edge-compatible)
+  //       const orgResponse = await betterFetch<{ id: string }>(
+  //         `/api/org?slug=${slug}`,
+  //         {
+  //           baseURL: request.nextUrl.origin,
+  //           headers: {
+  //             cookie: request.headers.get("cookie") || "",
+  //           },
+  //         },
+  //       );
+  //       console.log("Org response:", orgResponse);
+  //       if (!orgResponse?.data?.id) {
+  //         return NextResponse.redirect(new URL("/", request.url));
+  //       }
+
+  //       // Check user's membership via API
+  //       const membersResponse = await betterFetch<{
+  //         members: Array<{ user: { id: string }; role: string }>;
+  //       }>(`/api/admin/organizations/members?org=${orgResponse.data.id}`, {
+  //         baseURL: request.nextUrl.origin,
+  //         headers: {
+  //           cookie: request.headers.get("cookie") || "",
+  //         },
+  //       });
+  //       console.log("Members response:", membersResponse);
+  //       // Check if user is owner or admin
+  //       const userMember = membersResponse?.data?.members?.find(
+  //         (member) => member.user.id === session.user.id,
+  //       );
+  //       console.log("User member:", userMember);
+  //       if (
+  //         !userMember ||
+  //         (userMember.role !== "owner" && userMember.role !== "admin")
+  //       ) {
+  //         console.log("User is not owner or admin, redirecting to home");
+  //         return NextResponse.redirect(new URL("/", request.url));
+  //       }
+  //     } catch {
+  //       // If there's an error checking membership, deny access
+  //       console.log("Error checking membership, redirecting to home");
+  //       return NextResponse.redirect(new URL("/", request.url));
+  //     }
   //   }
-  //   // Allow admin users to proceed
-  //   return NextResponse.next();
   // }
 
   // Allow access to all other routes
@@ -68,6 +122,3 @@ export const config = {
     "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
-
-// Use Node.js runtime to avoid edge runtime fetch issues
-export const runtime = "nodejs";
