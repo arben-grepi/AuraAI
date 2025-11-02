@@ -46,8 +46,7 @@ export function ChatInput({
   const dropZoneClassName = useMemo(
     () =>
       cn(
-        "flex items-end relative z-10 justify-center w-full px-2 py-2 gap-2 rounded-[30px] mb-4 border border-border bg-transparent transition",
-        "shadow-[0_0_25px_-5px_#6AA9D240,0_0_35px_-5px_#EBD0F940,0_0_40px_-10px_#C1E6FF40,0_0_50px_-15px_#C6E5F540]",
+        "flex items-end relative z-20 justify-center w-full px-2 py-2 gap-2 rounded-[30px] mb-4 border border-border bg-white transition",
         isDragging ? "ring-2 ring-primary/50 border-primary/40" : "ring-0",
         className,
       ),
@@ -221,52 +220,54 @@ export function ChatInput({
         onChange={handleFilesChanged}
         accept="image/png,image/webp,image/jpeg,application/pdf"
       />
-
-      <ComposerForm
-        ref={formRef}
-        className={dropZoneClassName}
-        onSubmit={handleSubmit}
-        onDragEnter={handleDragEnter}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={(event) => {
-          const target = event.target as HTMLElement;
-          const clickable = target.closest(
-            "textarea,button,[role='button'],[data-no-open]",
-          );
-          if (!clickable) {
-            handlePickFiles();
-          }
-        }}
-        aria-label="Message input and file drop zone"
-      >
-        <ComposerContent>
-          <ComposerAttachments
-            attachments={attachments}
-            onRemove={removeAttachment}
-          />
-
-          <Textarea
-            placeholder="Ask me anything…"
-            value={message}
-            onKeyDown={handleTextareaKeyDown}
-            data-no-open
-            onChange={(event) => setMessage(event.target.value)}
-            disabled={loading}
-            className="placeholder:text-gray-400 rounded-[24px] text-base border-none shadow-none focus-visible:ring-0 resize-none overflow-y-auto scrollbar-clean max-h-[280px] leading-6 py-4 px-4 bg-transparent"
-          />
-        </ComposerContent>
-        <button
-          type="button"
-          onClick={handlePickFiles}
-          data-no-open
-          className="absolute bottom-2.5 right-2.5 cursor-pointer h-8 w-8 rounded-full border bg-white border-border flex items-center justify-center hover:bg-muted transition"
-          title="Upload file"
+      <div className="relative z-0">
+        <ComposerForm
+          ref={formRef}
+          className={dropZoneClassName}
+          onSubmit={handleSubmit}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          // onClick={(event) => {
+          //   const target = event.target as HTMLElement;
+          //   const clickable = target.closest(
+          //     "textarea,button,[role='button'],[data-no-open]",
+          //   );
+          //   if (!clickable) {
+          //     handlePickFiles();
+          //   }
+          // }}
+          aria-label="Message input and file drop zone"
         >
-          <Plus className="w-4 h-4" />
-        </button>
-      </ComposerForm>
+          <ComposerContent>
+            <ComposerAttachments
+              attachments={attachments}
+              onRemove={removeAttachment}
+            />
+
+            <Textarea
+              placeholder="Ask me anything…"
+              value={message}
+              onKeyDown={handleTextareaKeyDown}
+              data-no-open
+              onChange={(event) => setMessage(event.target.value)}
+              disabled={loading}
+              className="placeholder:text-gray-400 rounded-[24px] text-base border-none shadow-none focus-visible:ring-0 resize-none overflow-y-auto scrollbar-clean max-h-[280px] leading-6 py-4 px-4 bg-transparent"
+            />
+          </ComposerContent>
+          <button
+            type="button"
+            onClick={handlePickFiles}
+            data-no-open
+            className="absolute bottom-2.5 right-2.5 cursor-pointer h-8 w-8 rounded-full border bg-white border-border flex items-center justify-center hover:bg-muted transition"
+            title="Upload file"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </ComposerForm>
+        <div className="min-h-[90px] absolute top-0 border-zinc-200 border w-full rounded-lg bg-linear-to-r from-[#6AA9D2]/50 via-[#EBD0F9] to-[#C6E5F5] z-0 blur-xl animate-pulse"></div>
+      </div>
     </ChatUploaderWrapper>
   );
 }

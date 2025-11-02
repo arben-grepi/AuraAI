@@ -162,9 +162,36 @@ export function ChatInterface({
 
   if (isLoading && convId) {
     return (
-      <div className="mx-auto border border-border flex flex-col overflow-hidden w-[100%] h-screen">
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="size-4 animate-spin" />
+      <div className="mx-auto flex flex-col overflow-hidden w-[100%] h-screen relative">
+        <ChatHeader />
+        <div className="flex-1 relative overflow-hidden">
+          <StickToBottom
+            className="h-full w-full"
+            resize="smooth"
+            initial="smooth"
+          >
+            <div className="pt-4 relative w-full flex flex-col overflow-hidden h-full min-w-0">
+              <StickToBottom.Content className="flex flex-col gap-6 bg-background scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/40 scrollbar-thumb-rounded-full min-w-0">
+                <div className="max-w-3xl mx-auto w-full">
+                  <AnimatePresence mode="popLayout"></AnimatePresence>
+                </div>
+              </StickToBottom.Content>
+              <ScrollToBottom />
+            </div>
+            <AnimatePresence>
+              <ScrollToBottom />
+            </AnimatePresence>
+          </StickToBottom>
+        </div>
+
+        <div className="w-full bg-gradient-to-t from-white dark:from-background from-80% to-transparent">
+          <div className="max-w-3xl mx-auto w-full">
+            <ChatInput
+              loading={status === "streaming" || status === "submitted"}
+              onSend={handleSendMessage}
+              onStop={stopRequest}
+            />
+          </div>
         </div>
       </div>
     );

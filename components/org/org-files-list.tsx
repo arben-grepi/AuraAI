@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleArrowUp, File, Trash2, Upload, X } from "lucide-react";
+import { CircleArrowUp, File, Loader2, Trash2, Upload, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { useRef, useState } from "react";
@@ -323,8 +323,14 @@ const ListItem = ({
           className="bg-destructive/10 text-destructive cursor-pointer hover:bg-destructive/20 transition-all duration-200"
           onClick={handleDelete}
         >
-          Remove
-          <Trash2 />
+          {isDeleting ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <div>
+              Remove
+              <Trash2 />
+            </div>
+          )}
         </Button>
       </div>
     </div>
