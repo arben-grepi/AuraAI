@@ -1,20 +1,48 @@
 import prisma from "@/lib/prisma";
 
 async function makeDefaultUserAdmin() {
-  const data = await prisma.user.findFirst({
-    where: {
-      email: "ledionrestelica7@gmail.com",
-    },
-  });
-  if (!data) {
-    console.log("User not found");
+  const emails = ["ledionrestelica7@gmail.com", "ledionres@gmail.com"];
+
+  if (emails.length !== 2) {
+    console.log("Please provide exactly 2 email addresses");
     return;
   }
-  await prisma.user.update({
-    where: { id: data.id },
-    data: { role: "admin" },
+
+  const users = await prisma.user.findMany({
+    where: {
+      email: {
+        in: emails,
+      },
+    },
   });
-  console.log("User updated");
+
+  if (users.length === 0) {
+    console.log("No users found");
+    return;
+  }
+
+  if (users.length < 2) {
+    console.log(`Only found ${users.length} user(s), expected 2`);
+    const foundEmails = users.map((u) => u.email);
+    const missingEmails = emails.filter((e) => !foundEmails.includes(e));
+    console.log("Missing emails:", missingEmails);
+    return;
+  }
+
+  // Update both users
+  await Promise.all(
+    users.map((user) =>
+      prisma.user.update({
+        where: { id: user.id },
+        data: { role: "admin" },
+      }),
+    ),
+  );
+
+  console.log(`Updated ${users.length} user(s) to admin role`);
+  users.forEach((user) => {
+    console.log(`- ${user.email} (${user.id})`);
+  });
 }
 
 makeDefaultUserAdmin()
