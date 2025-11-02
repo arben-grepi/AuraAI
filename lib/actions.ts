@@ -447,3 +447,50 @@ export async function generateTitleFromUserMessage({
 
   return title;
 }
+
+export async function deleteResource(
+  id: string,
+): Promise<ActionResult<{ data: string }>> {
+  if (!id) {
+    return { success: false, data: null, error: "Resource ID is required" };
+  }
+
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const resource = await prisma.resource.findUnique({
+    where: { id },
+    select: { id: true, organizationId: true },
+  });
+
+  if (!resource) {
+    return { success: false, data: null, error: "Resource not found" };
+  }
+
+  if (resource.organizationId) {
+    const member = await prisma.member.findFirst({
+      where: {
+        organizationId: resource.organizationId,
+        userId: session.user.id,
+      },
+    });
+
+    if (!member && session.user.role !== "admin") {
+      return { success: false, data: null, error: "Unauthorized" };
+    }
+  }
+
+  const deleted = await prisma.resource.deleteMany({
+    where: { id },
+  });
+
+  if (deleted.count === 0) {
+    return { success: false, data: null, error: "Failed to delete resource" };
+  }
+
+  return { success: true, data: { data: "Resource deleted" }, error: null };
+}

@@ -17,6 +17,7 @@ import {
 } from "../ui/dialog";
 import { toast } from "sonner";
 import TagInput from "./tag-input";
+import { deleteResource } from "@/lib/actions";
 
 const filters = [
   {
@@ -276,6 +277,26 @@ const ListItem = ({
   name: string;
   tags: string[];
 }) => {
+  const queryClient = useQueryClient();
+  const [isDeleting, setIsDeleting] = useState(false);
+  const handleDelete = async () => {
+    try {
+      setIsDeleting(true);
+      const deletion = await deleteResource(id);
+      if (deletion.success) {
+        toast.success(deletion.data?.data || "Resource deleted");
+        queryClient.invalidateQueries({ queryKey: ["files"] });
+      } else {
+        toast.error(deletion.error || "Failed to delete resource");
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete resource",
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
   return (
     <div className="w-full py-4 px-2.5 rounded-[12px] border-b border-zinc-100 flex  items-center cursor-pointer hover:bg-zinc-100 transition-all duration-200">
       <div className="flex gap-2.5 flex-1">
@@ -300,7 +321,7 @@ const ListItem = ({
       <div className="">
         <Button
           className="bg-destructive/10 text-destructive cursor-pointer hover:bg-destructive/20 transition-all duration-200"
-          onClick={() => alert("Delete" + id)}
+          onClick={handleDelete}
         >
           Remove
           <Trash2 />
