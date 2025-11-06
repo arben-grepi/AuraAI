@@ -37,6 +37,8 @@ export async function POST(req: Request) {
     }
 
     const uploadFile = validated.data.file as File;
+    const fileType = (uploadFile.type || "").toLowerCase();
+    const fileName = uploadFile.name.toLowerCase();
 
     if (uploadFile.size > MAX_FILE_SIZE) {
       return NextResponse.json(
@@ -53,11 +55,12 @@ export async function POST(req: Request) {
       "image/webp",
     ];
 
-    if (
-      uploadFile.type &&
-      !allowedTypes.includes(uploadFile.type) &&
-      !uploadFile.name.endsWith(".txt")
-    ) {
+    const isAllowedType =
+      (fileType && allowedTypes.includes(fileType)) ||
+      fileName.endsWith(".txt") ||
+      fileName.endsWith(".pdf");
+
+    if (!isAllowedType) {
       return NextResponse.json(
         { error: "Unsupported file type" },
         { status: 415 },
@@ -85,7 +88,7 @@ export async function POST(req: Request) {
         Bucket: bucket,
         Key: key,
         Body: Buffer.from(arrayBuffer),
-        ContentType: uploadFile.type || "application/octet-stream",
+        ContentType: fileType || "application/octet-stream",
       }),
     );
 
@@ -96,7 +99,7 @@ export async function POST(req: Request) {
       success: true,
       url,
       objectKey: key,
-      mediaType: uploadFile.type || "application/octet-stream",
+      mediaType: fileType || "application/octet-stream",
       size: uploadFile.size,
       organizationId: orgId ?? null,
     });

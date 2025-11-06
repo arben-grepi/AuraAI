@@ -1,21 +1,12 @@
 // app/api/ai/chat/route.ts
 import { openai } from "@ai-sdk/openai";
-import {
-  streamText,
-  UIMessage,
-  convertToModelMessages,
-  smoothStream,
-  tool,
-  zodSchema,
-} from "ai";
+import { streamText, UIMessage, convertToModelMessages, smoothStream } from "ai";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 import { generateTitleFromUserMessage } from "@/lib/actions";
 import { retrieveContext } from "@/lib/rag";
-import { ingestFileToRag } from "@/lib/rag-ingest";
 import { extractText } from "@/lib/file-extraction";
-import { z } from "zod";
 import { getS3BucketName, getS3Client } from "@/lib/s3";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 
@@ -28,7 +19,7 @@ You are Kommun's retrieval-augmented assistant.
 ## Core Behaviors
 - Always read the "Context documents" message. If it is empty, acknowledge that no internal sources were retrieved before answering.
 - Prioritize grounded, reference-backed reasoning. Use general knowledge only to bridge gaps or provide light explanation.
-- When file parts are present in the conversation, inspect their metadata. If a document contains durable knowledge that will help future questions, call the **ingest_document** tool before answering.
+- When attachments are summarized for you, review their previews and incorporate any relevant details into your response.
 
 ## RAG Workflow
 1. Review the latest user request and the retrieved snippets.
@@ -126,33 +117,12 @@ export async function POST(req: Request) {
     normalizeAttachment(part, organizationId),
   );
 
-  const metadataByObjectKey = new Map<string, AttachmentMetadata>();
-  const metadataByUrl = new Map<string, AttachmentMetadata>();
-
-  for (const attachment of normalizedAttachments) {
-    const { metadata, part } = attachment;
-    if (metadata.objectKey) {
-      metadataByObjectKey.set(metadata.objectKey, metadata);
-    }
-    if (part.url) {
-      metadataByUrl.set(part.url, metadata);
-    }
-  }
-
   const attachmentsMessage = normalizedAttachments.length
     ? await buildAttachmentContext({
         attachments: normalizedAttachments,
         organizationId,
       })
     : null;
-
-  const tools = {
-    ingest_document: createIngestDocumentTool({
-      defaultOrganizationId: organizationId,
-      metadataByObjectKey,
-      metadataByUrl,
-    }),
-  } as const;
 
   const requestMessages = messages.map(({ id, ...rest }) => rest) as Array<
     Omit<UIMessage, "id">
@@ -204,7 +174,6 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: openai("gpt-4o"),
-    tools,
     messages: finalMessages,
     experimental_transform: smoothStream({ chunking: "word" }),
     onFinish: (r) => {
@@ -245,17 +214,17 @@ async function buildAttachmentContext({
   const header = `Uploaded attachments (active organization: ${
     organizationId ?? "none"
   }):`;
-  const footer =
-    "\n\nUse the ingest_document tool when a document should be stored for future conversations. Provide a concise reason in the tool call.";
 
   const body = summaries.join("\n\n");
+  const note =
+    "\n\nPreviews are truncated for brevity. Reference them when forming your response.";
 
   return {
     role: "assistant" as const,
     parts: [
       {
         type: "text" as const,
-        text: `${header}\n\n${body}${footer}`,
+        text: `${header}\n\n${body}${note}`,
       },
     ],
   } satisfies Omit<UIMessage, "id">;
@@ -301,12 +270,6 @@ interface AttachmentMetadata {
   objectKey?: string;
   size?: number;
   organizationId?: string | null;
-}
-
-interface CreateIngestDocumentToolArgs {
-  defaultOrganizationId?: string | null;
-  metadataByObjectKey: Map<string, AttachmentMetadata>;
-  metadataByUrl: Map<string, AttachmentMetadata>;
 }
 
 interface NormalizedAttachment {
@@ -363,106 +326,6 @@ function extractKommunMetadata(
   } satisfies AttachmentMetadata;
 }
 
-function coalesceOrganizationId(
-  ...ids: Array<string | null | undefined>
-): string | undefined {
-  for (const id of ids) {
-    if (typeof id === "string" && id.trim().length > 0) {
-      return id;
-    }
-  }
-
-  return undefined;
-}
-
-function createIngestDocumentTool({
-  defaultOrganizationId,
-  metadataByObjectKey,
-  metadataByUrl,
-}: CreateIngestDocumentToolArgs) {
-  return tool({
-    description:
-      "Store a user-provided document in the knowledge base when it contains reusable knowledge for future conversations.",
-    inputSchema: zodSchema(
-      z.object({
-        url: z.string().url(),
-        fileName: z.string(),
-        mediaType: z.string().optional(),
-        objectKey: z.string().optional(),
-        organizationId: z.string().optional(),
-        reason: z.string().min(8),
-        tags: z.array(z.string()).optional(),
-      }),
-    ),
-    execute: async ({
-      url,
-      fileName,
-      mediaType,
-      objectKey,
-      organizationId,
-      reason,
-      tags = [],
-    }) => {
-      const resolvedOrganizationId = coalesceOrganizationId(
-        organizationId,
-        objectKey
-          ? metadataByObjectKey.get(objectKey)?.organizationId
-          : undefined,
-        metadataByUrl.get(url)?.organizationId,
-        defaultOrganizationId,
-      );
-
-      if (!resolvedOrganizationId) {
-        return {
-          status: "skipped",
-          message:
-            "No organizationId provided and no organization context was available. Unable to store the document.",
-        };
-      }
-
-      try {
-        const file = await downloadAttachment({
-          url,
-          fileName,
-          mediaType: mediaType ?? "application/octet-stream",
-          objectKey,
-        });
-
-        const normalizedReason = reason
-          .replace(/\s+/g, " ")
-          .trim()
-          .slice(0, 80);
-        const uniqueTags = Array.from(
-          new Set(
-            [...tags, "source:chat", `reason:${normalizedReason || "unspecified"}`],
-          ),
-        );
-
-        const result = await ingestFileToRag({
-          file,
-          organizationId: resolvedOrganizationId,
-          tags: uniqueTags,
-        });
-
-        return {
-          status: "stored",
-          resourceId: result.resourceId,
-          chunks: result.chunksStored,
-        } as const;
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to ingest document";
-        return {
-          status: "error",
-          message,
-        } as const;
-      }
-    },
-  });
-}
-
 async function buildAttachmentPreview(
   part: MessageFilePart,
   objectKey?: string,
@@ -498,8 +361,8 @@ async function buildAttachmentPreview(
 }
 
 function canExtractText(part: MessageFilePart): boolean {
-  const mediaType = part.mediaType ?? "";
-  const filename = part.filename ?? "";
+  const mediaType = (part.mediaType ?? "").toLowerCase();
+  const filename = (part.filename ?? "").toLowerCase();
 
   return (
     mediaType === "text/plain" ||

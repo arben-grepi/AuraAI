@@ -160,8 +160,10 @@ export async function extractTextFromPDF(file: File): Promise<string> {
  * Note: This function must only be used in server-side code (API routes, server components)
  */
 export async function extractText(file: File): Promise<string> {
-  const isTXT = file.type === "text/plain" || file.name.endsWith(".txt");
-  const isPDF = file.type === "application/pdf" || file.name.endsWith(".pdf");
+  const fileType = (file.type || "").toLowerCase();
+  const fileName = file.name.toLowerCase();
+  const isTXT = fileType === "text/plain" || fileName.endsWith(".txt");
+  const isPDF = fileType === "application/pdf" || fileName.endsWith(".pdf");
 
   if (isTXT) {
     return extractTextFromTXT(file);

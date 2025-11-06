@@ -33,7 +33,7 @@ const messageContentVariants = cva(
       variant: {
         user: "items-end bg-card text-card-foreground leading-6 font-normal bg-zinc-50",
         assistant:
-          "items-start text-card-foreground leading-relaxed font-normal",
+          "items-start text-card-foreground leading-6 font-normal",
       },
     },
     defaultVariants: {

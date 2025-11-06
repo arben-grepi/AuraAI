@@ -128,9 +128,12 @@ export function ChatInput({
           continue;
         }
 
+        const normalizedType = (file.type || "").toLowerCase();
+        const normalizedName = file.name.toLowerCase();
         const allowed =
-          ALLOWED_MEDIA_TYPES.includes(file.type) ||
-          file.name.endsWith(".txt");
+          (normalizedType && ALLOWED_MEDIA_TYPES.includes(normalizedType)) ||
+          normalizedName.endsWith(".txt") ||
+          normalizedName.endsWith(".pdf");
 
         if (!allowed) {
           unsupported.push(file.name);
@@ -643,7 +646,7 @@ async function uploadAttachmentToS3(
 }
 
 function isImageType(mediaType: string) {
-  return mediaType.startsWith("image/");
+  return mediaType.toLowerCase().startsWith("image/");
 }
 
 function getFileFingerprint(file: File) {
