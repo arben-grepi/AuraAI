@@ -284,9 +284,16 @@ async function buildAttachmentContext({
   parts,
   organizationId,
 }: BuildAttachmentContextArgs): Promise<Omit<UIMessage, "id">> {
-  const summaries = await Promise.all(
-    parts.map((part, index) => summarizeAttachment(part, index, organizationId)),
-  );
+  const summaries: string[] = [];
+  for (let index = 0; index < parts.length; index++) {
+    const part = parts[index];
+    const summary = await summarizeAttachmentWithTimeout(
+      part,
+      index,
+      organizationId,
+    );
+    summaries.push(summary);
+  }
 
   const header = `Uploaded attachments (active organization: ${
     organizationId ?? "none"
@@ -307,7 +314,7 @@ async function buildAttachmentContext({
   } satisfies Omit<UIMessage, "id">;
 }
 
-async function summarizeAttachment(
+async function summarizeAttachmentWithTimeout(
   part: MessageFilePart,
   index: number,
   organizationId?: string | null,
@@ -328,7 +335,18 @@ async function summarizeAttachment(
     part.url ?? "(missing url)"
   }`;
 
-  const preview = await buildAttachmentPreview(part, metadata.objectKey);
+  let preview: string;
+
+  try {
+    preview = await withTimeout(
+      buildAttachmentPreview(part, metadata.objectKey),
+      ATTACHMENT_PREVIEW_TIMEOUT_MS,
+      "Preview unavailable: timed out while preparing document preview.",
+    );
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown error";
+    preview = `Preview unavailable: ${reason}`;
+  }
 
   return `${baseLine}\n${preview}`;
 }
@@ -429,6 +447,40 @@ function normalizePreviewText(text: string): string {
 }
 
 const PREVIEW_CHAR_LIMIT = 1200;
+
+const ATTACHMENT_PREVIEW_TIMEOUT_MS = 5000;
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  fallback: T,
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => resolve(fallback), ms);
+  });
+
+  try {
+    return await Promise.race([
+      promise
+        .then((value) => {
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
+          return value;
+        })
+        .catch((error) => {
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
+          throw error;
+        }),
+      timeoutPromise,
+    ]);
+  } finally {
+    promise.catch(() => undefined);
+  }
+}
 
 function truncatePreview(text: string): string {
   if (text.length <= PREVIEW_CHAR_LIMIT) {
