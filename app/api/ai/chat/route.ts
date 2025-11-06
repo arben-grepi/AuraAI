@@ -14,6 +14,7 @@ import { headers } from "next/headers";
 import { generateTitleFromUserMessage } from "@/lib/actions";
 import { retrieveContext } from "@/lib/rag";
 import { ingestFileToRag } from "@/lib/rag-ingest";
+import { extractText } from "@/lib/file-extraction";
 import { z } from "zod";
 import { getS3BucketName, getS3Client } from "@/lib/s3";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
@@ -197,63 +198,12 @@ export async function POST(req: Request) {
     (part): part is MessageFilePart => part.type === "file",
   );
 
-  const attachmentsMessage =
-    fileParts.length > 0
-      ? {
-          role: "assistant" as const,
-          parts: [
-            {
-              type: "text" as const,
-              text:
-                `Uploaded attachments (active organization: ${
-                  organizationId ?? "none"
-                }):\n` +
-                fileParts
-                  .map((part, index) => {
-                  const providerMetadata =
-                    part.providerMetadata &&
-                    typeof part.providerMetadata === "object" &&
-                    part.providerMetadata !== null
-                      ? (part.providerMetadata as Record<
-                          string,
-                          unknown
-                        >)
-                      : {};
-                  const kommunMetadata =
-                    providerMetadata.kommun &&
-                    typeof providerMetadata.kommun === "object" &&
-                    providerMetadata.kommun !== null
-                      ? (providerMetadata.kommun as Record<
-                          string,
-                          unknown
-                        >)
-                      : providerMetadata;
-                  const objectKey =
-                    typeof kommunMetadata.objectKey === "string"
-                      ? kommunMetadata.objectKey
-                      : "none";
-                  const sizeLabel =
-                    typeof kommunMetadata.size === "number"
-                      ? `${kommunMetadata.size} bytes`
-                      : "unknown size";
-                  const providerOrgValue = kommunMetadata.organizationId;
-                    const providerOrg =
-                      typeof providerOrgValue === "string"
-                        ? providerOrgValue
-                        : providerOrgValue === null
-                          ? "null"
-                          : organizationId ?? "unknown";
-
-                    return `${index + 1}. ${part.filename ?? "attachment"} • ${
-                      part.mediaType ?? "unknown"
-                    } • ${sizeLabel} • objectKey:${objectKey} • organizationId:${providerOrg} • url:${part.url}`;
-                  })
-                  .join("\n") +
-                "\nUse the ingest_document tool when a document should be stored for future conversations. Provide a concise reason in the tool call.",
-            },
-          ],
-        }
-      : null;
+  const attachmentsMessage = fileParts.length
+    ? await buildAttachmentContext({
+        parts: fileParts,
+        organizationId,
+      })
+    : null;
 
   const requestMessages = messages.map(({ id, ...rest }) => rest) as Array<
     Omit<UIMessage, "id">
@@ -323,6 +273,169 @@ export async function POST(req: Request) {
   });
 
   return result.toUIMessageStreamResponse();
+}
+
+interface BuildAttachmentContextArgs {
+  parts: MessageFilePart[];
+  organizationId?: string | null;
+}
+
+async function buildAttachmentContext({
+  parts,
+  organizationId,
+}: BuildAttachmentContextArgs): Promise<Omit<UIMessage, "id">> {
+  const summaries = await Promise.all(
+    parts.map((part, index) => summarizeAttachment(part, index, organizationId)),
+  );
+
+  const header = `Uploaded attachments (active organization: ${
+    organizationId ?? "none"
+  }):`;
+  const footer =
+    "\n\nUse the ingest_document tool when a document should be stored for future conversations. Provide a concise reason in the tool call.";
+
+  const body = summaries.join("\n\n");
+
+  return {
+    role: "assistant" as const,
+    parts: [
+      {
+        type: "text" as const,
+        text: `${header}\n\n${body}${footer}`,
+      },
+    ],
+  } satisfies Omit<UIMessage, "id">;
+}
+
+async function summarizeAttachment(
+  part: MessageFilePart,
+  index: number,
+  organizationId?: string | null,
+): Promise<string> {
+  const metadata = extractKommunMetadata(part, organizationId);
+
+  const sizeLabel =
+    typeof metadata.size === "number" ? `${metadata.size} bytes` : "unknown size";
+  const objectKeyLabel = metadata.objectKey ?? "none";
+  const providerOrgLabel =
+    metadata.organizationId === null
+      ? "null"
+      : metadata.organizationId ?? "unknown";
+
+  const baseLine = `${index + 1}. ${part.filename ?? "attachment"} • ${
+    part.mediaType ?? "unknown"
+  } • ${sizeLabel} • objectKey:${objectKeyLabel} • organizationId:${providerOrgLabel} • url:${
+    part.url ?? "(missing url)"
+  }`;
+
+  const preview = await buildAttachmentPreview(part, metadata.objectKey);
+
+  return `${baseLine}\n${preview}`;
+}
+
+interface AttachmentMetadata {
+  objectKey?: string;
+  size?: number;
+  organizationId?: string | null;
+}
+
+function extractKommunMetadata(
+  part: MessageFilePart,
+  fallbackOrganizationId?: string | null,
+): AttachmentMetadata {
+  const providerMetadata =
+    part.providerMetadata &&
+    typeof part.providerMetadata === "object" &&
+    part.providerMetadata !== null
+      ? (part.providerMetadata as Record<string, unknown>)
+      : {};
+
+  const kommunMetadata =
+    providerMetadata.kommun &&
+    typeof providerMetadata.kommun === "object" &&
+    providerMetadata.kommun !== null
+      ? (providerMetadata.kommun as Record<string, unknown>)
+      : providerMetadata;
+
+  const organizationIdValue = kommunMetadata.organizationId;
+  const organizationId =
+    typeof organizationIdValue === "string"
+      ? organizationIdValue
+      : organizationIdValue === null
+        ? null
+        : fallbackOrganizationId;
+
+  return {
+    objectKey:
+      typeof kommunMetadata.objectKey === "string"
+        ? kommunMetadata.objectKey
+        : undefined,
+    size:
+      typeof kommunMetadata.size === "number"
+        ? kommunMetadata.size
+        : undefined,
+    organizationId,
+  } satisfies AttachmentMetadata;
+}
+
+async function buildAttachmentPreview(
+  part: MessageFilePart,
+  objectKey?: string,
+): Promise<string> {
+  if (!part.url) {
+    return "Preview unavailable: attachment is missing a download URL.";
+  }
+
+  if (!canExtractText(part)) {
+    return "Preview unavailable: attachment is not a supported text document.";
+  }
+
+  try {
+    const file = await downloadAttachment({
+      url: part.url,
+      fileName: part.filename ?? "attachment",
+      mediaType: part.mediaType ?? "application/octet-stream",
+      objectKey,
+    });
+
+    const text = await extractText(file);
+    const normalized = normalizePreviewText(text);
+
+    if (!normalized) {
+      return "Preview unavailable: no readable text was extracted from the attachment.";
+    }
+
+    return `Preview:\n${truncatePreview(normalized)}`;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown error";
+    return `Preview unavailable: ${reason}`;
+  }
+}
+
+function canExtractText(part: MessageFilePart): boolean {
+  const mediaType = part.mediaType ?? "";
+  const filename = part.filename ?? "";
+
+  return (
+    mediaType === "text/plain" ||
+    mediaType === "application/pdf" ||
+    filename.endsWith(".txt") ||
+    filename.endsWith(".pdf")
+  );
+}
+
+function normalizePreviewText(text: string): string {
+  return text.replace(/\r\n/g, "\n").trim();
+}
+
+const PREVIEW_CHAR_LIMIT = 1200;
+
+function truncatePreview(text: string): string {
+  if (text.length <= PREVIEW_CHAR_LIMIT) {
+    return text;
+  }
+
+  return `${text.slice(0, PREVIEW_CHAR_LIMIT)}…`;
 }
 
 interface DownloadAttachmentArgs {
