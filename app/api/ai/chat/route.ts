@@ -259,11 +259,48 @@ export async function POST(req: Request) {
     Omit<UIMessage, "id">
   >;
 
+  const sanitizedRequestMessages = requestMessages.map((message) => {
+    const nonFileParts = message.parts?.filter((part) => part.type !== "file");
+
+    if (nonFileParts && nonFileParts.length > 0) {
+      return { ...message, parts: nonFileParts };
+    }
+
+    if (message.role === "user") {
+      return {
+        ...message,
+        parts: [
+          {
+            type: "text" as const,
+            text: "[User uploaded attachments for review]",
+          },
+        ],
+      } satisfies Omit<UIMessage, "id">;
+    }
+
+    if (message.role === "assistant") {
+      return {
+        ...message,
+        parts: [
+          {
+            type: "text" as const,
+            text: "[Assistant processed attachment metadata]",
+          },
+        ],
+      } satisfies Omit<UIMessage, "id">;
+    }
+
+    return {
+      ...message,
+      parts: [{ type: "text" as const, text: "" }],
+    } satisfies Omit<UIMessage, "id">;
+  });
+
   const finalMessages = convertToModelMessages([
     baseSystem,
     contextMsg,
     ...(attachmentsMessage ? [attachmentsMessage] : []),
-    ...requestMessages,
+    ...sanitizedRequestMessages,
   ]);
 
   const result = streamText({
