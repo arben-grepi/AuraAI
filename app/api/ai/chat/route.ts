@@ -210,19 +210,33 @@ export async function POST(req: Request) {
                 }):\n` +
                 fileParts
                   .map((part, index) => {
-                    const metadata = (part.providerMetadata ?? {}) as Record<
-                      string,
-                      unknown
-                    >;
-                    const objectKey =
-                      typeof metadata.objectKey === "string"
-                        ? metadata.objectKey
-                        : "none";
-                    const sizeLabel =
-                      typeof metadata.size === "number"
-                        ? `${metadata.size} bytes`
-                        : "unknown size";
-                    const providerOrgValue = metadata.organizationId;
+                  const providerMetadata =
+                    part.providerMetadata &&
+                    typeof part.providerMetadata === "object" &&
+                    part.providerMetadata !== null
+                      ? (part.providerMetadata as Record<
+                          string,
+                          unknown
+                        >)
+                      : {};
+                  const kommunMetadata =
+                    providerMetadata.kommun &&
+                    typeof providerMetadata.kommun === "object" &&
+                    providerMetadata.kommun !== null
+                      ? (providerMetadata.kommun as Record<
+                          string,
+                          unknown
+                        >)
+                      : providerMetadata;
+                  const objectKey =
+                    typeof kommunMetadata.objectKey === "string"
+                      ? kommunMetadata.objectKey
+                      : "none";
+                  const sizeLabel =
+                    typeof kommunMetadata.size === "number"
+                      ? `${kommunMetadata.size} bytes`
+                      : "unknown size";
+                  const providerOrgValue = kommunMetadata.organizationId;
                     const providerOrg =
                       typeof providerOrgValue === "string"
                         ? providerOrgValue

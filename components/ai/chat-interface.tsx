@@ -271,12 +271,23 @@ function attachmentsToChatFileParts(
   attachments: UploadedAttachment[],
 ): ChatFilePart[] {
   return attachments.map((attachment) => {
-    const providerMetadata = {
+    const kommunMetadata: Record<string, unknown> = {
       storageProvider: "s3",
-      objectKey: attachment.objectKey,
       size: attachment.size,
-      organizationId: attachment.organizationId ?? undefined,
-    } satisfies Record<string, unknown>;
+    };
+
+    if (attachment.objectKey) {
+      kommunMetadata.objectKey = attachment.objectKey;
+    }
+
+    if (attachment.organizationId !== undefined) {
+      kommunMetadata.organizationId =
+        attachment.organizationId ?? null;
+    }
+
+    const providerMetadata = {
+      kommun: kommunMetadata,
+    } satisfies Record<string, Record<string, unknown>>;
 
     return {
       type: "file",
