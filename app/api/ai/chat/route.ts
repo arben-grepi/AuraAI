@@ -177,18 +177,21 @@ export async function POST(req: Request) {
   );
 
   const baseSystem = {
-    role: "system",
-    content: systemPrompt,
-  } as const;
+    role: "system" as const,
+    parts: [{ type: "text" as const, text: systemPrompt }],
+  } satisfies Omit<UIMessage, "id">;
 
   const contextMsg = {
     role: "assistant" as const,
-    content: context
-      ?
-          `Context documents (top-k):\n\n${context}\n\nInstruction: cite snippet markers like [[1]] when you reference them and avoid speculation.`
-      :
-          "No matching internal documents were retrieved. If you answer, make it clear you are relying on general knowledge.",
-  };
+    parts: [
+      {
+        type: "text" as const,
+        text: context
+          ? `Context documents (top-k):\n\n${context}\n\nInstruction: cite snippet markers like [[1]] when you reference them and avoid speculation.`
+          : "No matching internal documents were retrieved. If you answer, make it clear you are relying on general knowledge.",
+      },
+    ],
+  } satisfies Omit<UIMessage, "id">;
 
   const fileParts = (lastMessage?.parts ?? []).filter(
     (part): part is MessageFilePart => part.type === "file",
@@ -198,47 +201,56 @@ export async function POST(req: Request) {
     fileParts.length > 0
       ? {
           role: "assistant" as const,
-          content:
-            `Uploaded attachments (active organization: ${
-              organizationId ?? "none"
-            }):\n` +
-            fileParts
-              .map((part, index) => {
-                const metadata = (part.providerMetadata ?? {}) as Record<
-                  string,
-                  unknown
-                >;
-                const objectKey =
-                  typeof metadata.objectKey === "string"
-                    ? metadata.objectKey
-                    : "none";
-                const sizeLabel =
-                  typeof metadata.size === "number"
-                    ? `${metadata.size} bytes`
-                    : "unknown size";
-                const providerOrgValue = metadata.organizationId;
-                const providerOrg =
-                  typeof providerOrgValue === "string"
-                    ? providerOrgValue
-                    : providerOrgValue === null
-                      ? "null"
-                      : organizationId ?? "unknown";
+          parts: [
+            {
+              type: "text" as const,
+              text:
+                `Uploaded attachments (active organization: ${
+                  organizationId ?? "none"
+                }):\n` +
+                fileParts
+                  .map((part, index) => {
+                    const metadata = (part.providerMetadata ?? {}) as Record<
+                      string,
+                      unknown
+                    >;
+                    const objectKey =
+                      typeof metadata.objectKey === "string"
+                        ? metadata.objectKey
+                        : "none";
+                    const sizeLabel =
+                      typeof metadata.size === "number"
+                        ? `${metadata.size} bytes`
+                        : "unknown size";
+                    const providerOrgValue = metadata.organizationId;
+                    const providerOrg =
+                      typeof providerOrgValue === "string"
+                        ? providerOrgValue
+                        : providerOrgValue === null
+                          ? "null"
+                          : organizationId ?? "unknown";
 
-                return `${index + 1}. ${part.filename ?? "attachment"} • ${
-                  part.mediaType ?? "unknown"
-                } • ${sizeLabel} • objectKey:${objectKey} • organizationId:${providerOrg} • url:${part.url}`;
-              })
-              .join("\n") +
-            "\nUse the ingest_document tool when a document should be stored for future conversations. Provide a concise reason in the tool call.",
+                    return `${index + 1}. ${part.filename ?? "attachment"} • ${
+                      part.mediaType ?? "unknown"
+                    } • ${sizeLabel} • objectKey:${objectKey} • organizationId:${providerOrg} • url:${part.url}`;
+                  })
+                  .join("\n") +
+                "\nUse the ingest_document tool when a document should be stored for future conversations. Provide a concise reason in the tool call.",
+            },
+          ],
         }
       : null;
 
-  const finalMessages = [
+  const requestMessages = messages.map(({ id, ...rest }) => rest) as Array<
+    Omit<UIMessage, "id">
+  >;
+
+  const finalMessages = convertToModelMessages([
     baseSystem,
     contextMsg,
     ...(attachmentsMessage ? [attachmentsMessage] : []),
-    ...convertToModelMessages(messages),
-  ];
+    ...requestMessages,
+  ]);
 
   const result = streamText({
     model: openai("gpt-4o"),
