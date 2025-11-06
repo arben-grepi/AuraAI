@@ -6,6 +6,7 @@ import {
   convertToModelMessages,
   smoothStream,
   tool,
+  zodSchema,
 } from "ai";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
@@ -46,15 +47,17 @@ type MessageFilePart = Extract<UIMessage["parts"][number], { type: "file" }>;
 const ingestDocumentTool = tool({
   description:
     "Store a user-provided document in the knowledge base when it contains reusable knowledge for future conversations.",
-  parameters: z.object({
-    url: z.string().url(),
-    fileName: z.string(),
-    mediaType: z.string().optional(),
-    objectKey: z.string().optional(),
-    organizationId: z.string().optional(),
-    reason: z.string().min(8),
-    tags: z.array(z.string()).optional(),
-  }),
+  parameters: zodSchema(
+    z.object({
+      url: z.string().url(),
+      fileName: z.string(),
+      mediaType: z.string().optional(),
+      objectKey: z.string().optional(),
+      organizationId: z.string().optional(),
+      reason: z.string().min(8),
+      tags: z.array(z.string()).optional(),
+    }),
+  ),
   execute: async ({
     url,
     fileName,
