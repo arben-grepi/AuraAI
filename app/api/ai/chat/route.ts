@@ -47,7 +47,7 @@ type MessageFilePart = Extract<UIMessage["parts"][number], { type: "file" }>;
 const ingestDocumentTool = tool({
   description:
     "Store a user-provided document in the knowledge base when it contains reusable knowledge for future conversations.",
-  parameters: zodSchema(
+  inputSchema: zodSchema(
     z.object({
       url: z.string().url(),
       fileName: z.string(),
