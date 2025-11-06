@@ -45,82 +45,6 @@ You are Kommun's retrieval-augmented assistant.
 
 type MessageFilePart = Extract<UIMessage["parts"][number], { type: "file" }>;
 
-const ingestDocumentTool = tool({
-  description:
-    "Store a user-provided document in the knowledge base when it contains reusable knowledge for future conversations.",
-  inputSchema: zodSchema(
-    z.object({
-      url: z.string().url(),
-      fileName: z.string(),
-      mediaType: z.string().optional(),
-      objectKey: z.string().optional(),
-      organizationId: z.string().optional(),
-      reason: z.string().min(8),
-      tags: z.array(z.string()).optional(),
-    }),
-  ),
-  execute: async ({
-    url,
-    fileName,
-    mediaType,
-    objectKey,
-    organizationId,
-    reason,
-    tags = [],
-  }) => {
-    if (!organizationId) {
-      return {
-        status: "skipped",
-        message: "No organizationId provided. Unable to store the document.",
-      };
-    }
-
-    try {
-      const file = await downloadAttachment({
-        url,
-        fileName,
-        mediaType: mediaType ?? "application/octet-stream",
-        objectKey,
-      });
-
-      const normalizedReason = reason
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 80);
-      const uniqueTags = Array.from(
-        new Set(
-          [...tags, "source:chat", `reason:${normalizedReason || "unspecified"}`],
-        ),
-      );
-
-      const result = await ingestFileToRag({
-        file,
-        organizationId,
-        tags: uniqueTags,
-      });
-
-      return {
-        status: "stored",
-        resourceId: result.resourceId,
-        chunks: result.chunksStored,
-      };
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to ingest document";
-      return {
-        status: "error",
-        message,
-      };
-    }
-  },
-});
-
-const availableTools = {
-  ingest_document: ingestDocumentTool,
-};
-
 export async function POST(req: Request) {
   const {
     conversationId,
@@ -198,12 +122,37 @@ export async function POST(req: Request) {
     (part): part is MessageFilePart => part.type === "file",
   );
 
-  const attachmentsMessage = fileParts.length
+  const normalizedAttachments = fileParts.map((part) =>
+    normalizeAttachment(part, organizationId),
+  );
+
+  const metadataByObjectKey = new Map<string, AttachmentMetadata>();
+  const metadataByUrl = new Map<string, AttachmentMetadata>();
+
+  for (const attachment of normalizedAttachments) {
+    const { metadata, part } = attachment;
+    if (metadata.objectKey) {
+      metadataByObjectKey.set(metadata.objectKey, metadata);
+    }
+    if (part.url) {
+      metadataByUrl.set(part.url, metadata);
+    }
+  }
+
+  const attachmentsMessage = normalizedAttachments.length
     ? await buildAttachmentContext({
-        parts: fileParts,
+        attachments: normalizedAttachments,
         organizationId,
       })
     : null;
+
+  const tools = {
+    ingest_document: createIngestDocumentTool({
+      defaultOrganizationId: organizationId,
+      metadataByObjectKey,
+      metadataByUrl,
+    }),
+  } as const;
 
   const requestMessages = messages.map(({ id, ...rest }) => rest) as Array<
     Omit<UIMessage, "id">
@@ -255,7 +204,7 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: openai("gpt-4o"),
-    tools: availableTools,
+    tools,
     messages: finalMessages,
     experimental_transform: smoothStream({ chunking: "word" }),
     onFinish: (r) => {
@@ -276,21 +225,19 @@ export async function POST(req: Request) {
 }
 
 interface BuildAttachmentContextArgs {
-  parts: MessageFilePart[];
+  attachments: NormalizedAttachment[];
   organizationId?: string | null;
 }
 
 async function buildAttachmentContext({
-  parts,
+  attachments,
   organizationId,
 }: BuildAttachmentContextArgs): Promise<Omit<UIMessage, "id">> {
   const summaries: string[] = [];
-  for (let index = 0; index < parts.length; index++) {
-    const part = parts[index];
+  for (let index = 0; index < attachments.length; index++) {
     const summary = await summarizeAttachmentWithTimeout(
-      part,
+      attachments[index],
       index,
-      organizationId,
     );
     summaries.push(summary);
   }
@@ -315,11 +262,10 @@ async function buildAttachmentContext({
 }
 
 async function summarizeAttachmentWithTimeout(
-  part: MessageFilePart,
+  attachment: NormalizedAttachment,
   index: number,
-  organizationId?: string | null,
 ): Promise<string> {
-  const metadata = extractKommunMetadata(part, organizationId);
+  const { part, metadata } = attachment;
 
   const sizeLabel =
     typeof metadata.size === "number" ? `${metadata.size} bytes` : "unknown size";
@@ -355,6 +301,27 @@ interface AttachmentMetadata {
   objectKey?: string;
   size?: number;
   organizationId?: string | null;
+}
+
+interface CreateIngestDocumentToolArgs {
+  defaultOrganizationId?: string | null;
+  metadataByObjectKey: Map<string, AttachmentMetadata>;
+  metadataByUrl: Map<string, AttachmentMetadata>;
+}
+
+interface NormalizedAttachment {
+  part: MessageFilePart;
+  metadata: AttachmentMetadata;
+}
+
+function normalizeAttachment(
+  part: MessageFilePart,
+  fallbackOrganizationId?: string | null,
+): NormalizedAttachment {
+  return {
+    part,
+    metadata: extractKommunMetadata(part, fallbackOrganizationId),
+  } satisfies NormalizedAttachment;
 }
 
 function extractKommunMetadata(
@@ -394,6 +361,106 @@ function extractKommunMetadata(
         : undefined,
     organizationId,
   } satisfies AttachmentMetadata;
+}
+
+function coalesceOrganizationId(
+  ...ids: Array<string | null | undefined>
+): string | undefined {
+  for (const id of ids) {
+    if (typeof id === "string" && id.trim().length > 0) {
+      return id;
+    }
+  }
+
+  return undefined;
+}
+
+function createIngestDocumentTool({
+  defaultOrganizationId,
+  metadataByObjectKey,
+  metadataByUrl,
+}: CreateIngestDocumentToolArgs) {
+  return tool({
+    description:
+      "Store a user-provided document in the knowledge base when it contains reusable knowledge for future conversations.",
+    inputSchema: zodSchema(
+      z.object({
+        url: z.string().url(),
+        fileName: z.string(),
+        mediaType: z.string().optional(),
+        objectKey: z.string().optional(),
+        organizationId: z.string().optional(),
+        reason: z.string().min(8),
+        tags: z.array(z.string()).optional(),
+      }),
+    ),
+    execute: async ({
+      url,
+      fileName,
+      mediaType,
+      objectKey,
+      organizationId,
+      reason,
+      tags = [],
+    }) => {
+      const resolvedOrganizationId = coalesceOrganizationId(
+        organizationId,
+        objectKey
+          ? metadataByObjectKey.get(objectKey)?.organizationId
+          : undefined,
+        metadataByUrl.get(url)?.organizationId,
+        defaultOrganizationId,
+      );
+
+      if (!resolvedOrganizationId) {
+        return {
+          status: "skipped",
+          message:
+            "No organizationId provided and no organization context was available. Unable to store the document.",
+        };
+      }
+
+      try {
+        const file = await downloadAttachment({
+          url,
+          fileName,
+          mediaType: mediaType ?? "application/octet-stream",
+          objectKey,
+        });
+
+        const normalizedReason = reason
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 80);
+        const uniqueTags = Array.from(
+          new Set(
+            [...tags, "source:chat", `reason:${normalizedReason || "unspecified"}`],
+          ),
+        );
+
+        const result = await ingestFileToRag({
+          file,
+          organizationId: resolvedOrganizationId,
+          tags: uniqueTags,
+        });
+
+        return {
+          status: "stored",
+          resourceId: result.resourceId,
+          chunks: result.chunksStored,
+        } as const;
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to ingest document";
+        return {
+          status: "error",
+          message,
+        } as const;
+      }
+    },
+  });
 }
 
 async function buildAttachmentPreview(
