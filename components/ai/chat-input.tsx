@@ -4,27 +4,40 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowRight, File as FileIcon, Plus, X } from "lucide-react";
+import { ArrowRight, File as FileIcon, Loader2, Plus, X } from "lucide-react";
 import { Textarea } from "../ui/textarea";
 import { cn } from "@/lib/utils";
 import { v4 as uuidv4 } from "uuid";
 
 import { ChatUploaderWrapper } from "./chat-uploader-wrapper";
 import { toast } from "sonner";
+import { UploadedAttachment } from "./types";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_MEDIA_TYPES = [
+  "application/pdf",
+  "text/plain",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+];
 
 interface ChatInputProps {
-  onSend: (payload: { text?: string; files: File[] }) => Promise<void> | void;
+  onSend: (
+    payload: { text?: string; attachments: UploadedAttachment[] },
+  ) => Promise<void> | void;
   loading: boolean;
   onStop?: () => void;
   className?: string;
 }
 
-interface ComposerAttachment {
-  id: string;
-  file: File;
-  previewUrl: string;
+type ComposerAttachmentStatus = "uploading" | "ready" | "error";
+
+interface ComposerAttachment extends UploadedAttachment {
+  status: ComposerAttachmentStatus;
+  previewUrl?: string;
+  error?: string;
+  fingerprint: string;
 }
 
 export function ChatInput({
@@ -41,7 +54,15 @@ export function ChatInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const attachmentsRef = useRef<ComposerAttachment[]>([]);
 
-  const canSubmit = message.trim().length > 0 || attachments.length > 0;
+  const hasReadyAttachments = attachments.some(
+    (attachment) => attachment.status === "ready",
+  );
+  const isUploading = attachments.some(
+    (attachment) => attachment.status === "uploading",
+  );
+
+  const canSubmit =
+    (message.trim().length > 0 || hasReadyAttachments) && !isUploading;
 
   const dropZoneClassName = useMemo(
     () =>
@@ -53,56 +74,130 @@ export function ChatInput({
     [className, isDragging],
   );
 
-  const addFiles = useCallback((incoming: File[]) => {
-    if (!incoming.length) return;
+  const uploadAndFinalize = useCallback((file: File, attachmentId: string) => {
+    void (async () => {
+      try {
+        const result = await uploadAttachmentToS3(file);
 
-    const validFiles: File[] = [];
-    const invalidFiles: string[] = [];
+        setAttachments((prev) =>
+          prev.map((item) => {
+            if (item.id !== attachmentId) return item;
+            const mediaType = result.mediaType || item.mediaType;
+            const previewUrl =
+              item.previewUrl ??
+              (isImageType(mediaType) ? result.url : item.previewUrl);
 
-    for (const file of incoming) {
-      if (file.size > MAX_FILE_SIZE) {
-        invalidFiles.push(file.name);
-      } else {
+            return {
+              ...item,
+              url: result.url,
+              objectKey: result.objectKey,
+              organizationId: result.organizationId ?? item.organizationId,
+              status: "ready" as const,
+              mediaType,
+              size: result.size ?? item.size,
+              previewUrl,
+            };
+          }),
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Upload failed";
+        setAttachments((prev) =>
+          prev.map((item) =>
+            item.id === attachmentId
+              ? { ...item, status: "error", error: message }
+              : item,
+          ),
+        );
+        toast.error(message);
+      }
+    })();
+  }, []);
+
+  const addFiles = useCallback(
+    (incoming: File[]) => {
+      if (!incoming.length) return;
+
+      const validFiles: File[] = [];
+      const tooLarge: string[] = [];
+      const unsupported: string[] = [];
+
+      for (const file of incoming) {
+        if (file.size > MAX_FILE_SIZE) {
+          tooLarge.push(file.name);
+          continue;
+        }
+
+        const allowed =
+          ALLOWED_MEDIA_TYPES.includes(file.type) ||
+          file.name.endsWith(".txt");
+
+        if (!allowed) {
+          unsupported.push(file.name);
+          continue;
+        }
+
         validFiles.push(file);
       }
-    }
 
-    // Show error message for files that are too large
-    if (invalidFiles.length > 0) {
-      const fileList = invalidFiles.join(", ");
-      toast.error(
-        `${invalidFiles.length} file${invalidFiles.length > 1 ? "s are" : " is"} too large. Maximum file size is 5MB: ${fileList}`,
-      );
-    }
-
-    if (!validFiles.length) return;
-
-    setAttachments((prev) => {
-      const next = [...prev];
-      const existingKeys = new Set(
-        prev.map((item) => getAttachmentKey(item.file)),
-      );
-
-      for (const file of validFiles) {
-        const key = getAttachmentKey(file);
-        if (existingKeys.has(key)) continue;
-        existingKeys.add(key);
-        next.push({
-          id: uuidv4(),
-          file,
-          previewUrl: URL.createObjectURL(file),
-        });
+      if (tooLarge.length) {
+        const fileList = tooLarge.join(", ");
+        toast.error(
+          `${tooLarge.length} file${tooLarge.length > 1 ? "s are" : " is"} too large. Maximum file size is 5MB: ${fileList}`,
+        );
       }
 
-      return next;
-    });
-  }, []);
+      if (unsupported.length) {
+        const fileList = unsupported.join(", ");
+        toast.error(
+          `${unsupported.length} unsupported file${unsupported.length > 1 ? "s" : ""}: ${fileList}`,
+        );
+      }
+
+      if (!validFiles.length) return;
+
+      const existingFingerprints = new Set(
+        attachmentsRef.current.map((item) => item.fingerprint),
+      );
+
+      const pendingAttachments: ComposerAttachment[] = [];
+
+      for (const file of validFiles) {
+        const fingerprint = getFileFingerprint(file);
+        if (existingFingerprints.has(fingerprint)) continue;
+        existingFingerprints.add(fingerprint);
+
+        const id = uuidv4();
+        const previewUrl = isImageType(file.type)
+          ? URL.createObjectURL(file)
+          : undefined;
+
+        pendingAttachments.push({
+          id,
+          name: file.name,
+          mediaType: file.type || "application/octet-stream",
+          size: file.size,
+          url: "",
+          objectKey: undefined,
+          organizationId: undefined,
+          status: "uploading",
+          previewUrl,
+          fingerprint,
+        });
+
+        uploadAndFinalize(file, id);
+      }
+
+      if (pendingAttachments.length) {
+        setAttachments((prev) => [...prev, ...pendingAttachments]);
+      }
+    },
+    [uploadAndFinalize],
+  );
 
   const clearAttachments = useCallback(() => {
     setAttachments((prev) => {
-      for (const attachment of prev) {
-        URL.revokeObjectURL(attachment.previewUrl);
-      }
+      prev.forEach((attachment) => revokePreviewUrl(attachment.previewUrl));
       return [];
     });
   }, []);
@@ -111,7 +206,7 @@ export function ChatInput({
     setAttachments((prev) => {
       const target = prev.find((item) => item.id === id);
       if (target) {
-        URL.revokeObjectURL(target.previewUrl);
+        revokePreviewUrl(target.previewUrl);
       }
       return prev.filter((item) => item.id !== id);
     });
@@ -124,7 +219,7 @@ export function ChatInput({
   useEffect(() => {
     return () => {
       attachmentsRef.current.forEach((attachment) =>
-        URL.revokeObjectURL(attachment.previewUrl),
+        revokePreviewUrl(attachment.previewUrl),
       );
     };
   }, []);
@@ -183,21 +278,33 @@ export function ChatInput({
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    if (isUploading) {
+      toast.info("Please wait for file uploads to finish.");
+      return;
+    }
+
     const trimmed = message.trim();
-    if (!trimmed && attachments.length === 0) return;
+    const readyAttachments = attachments.filter(
+      (attachment) => attachment.status === "ready" && attachment.url,
+    );
 
-    const filesToSend = attachments.map((item) => item.file);
+    if (!trimmed && readyAttachments.length === 0) return;
 
+    const previousMessage = message;
     setMessage("");
-    clearAttachments();
 
     try {
       await onSend({
-        text: trimmed,
-        files: filesToSend,
+        text: trimmed || undefined,
+        attachments: readyAttachments.map(toUploadedAttachment),
       });
+      clearAttachments();
     } catch (error) {
       console.error(error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to send message.",
+      );
+      setMessage(previousMessage);
     }
   };
 
@@ -218,7 +325,7 @@ export function ChatInput({
         multiple
         className="hidden"
         onChange={handleFilesChanged}
-        accept="image/png,image/webp,image/jpeg,application/pdf"
+        accept="image/png,image/webp,image/jpeg,application/pdf,text/plain,.txt"
       />
       <div className="relative z-0">
         <ComposerForm
@@ -329,23 +436,42 @@ function AttachmentPreview({
   attachment: ComposerAttachment;
   onRemove: (id: string) => void;
 }) {
-  const fileKey = getAttachmentKey(attachment.file);
-  const isImage = attachment.file.type.startsWith("image/");
-  const sanitizedName = sanitizeFileName(attachment.file.name);
+  const isImage = isImageType(attachment.mediaType);
+  const sanitizedName = sanitizeFileName(attachment.name);
+  const displayUrl = attachment.previewUrl ?? attachment.url;
+  const isUploading = attachment.status === "uploading";
+  const isError = attachment.status === "error";
+  const errorMessage = attachment.error ?? "Upload failed";
 
   return isImage ? (
-    <div className="relative" key={fileKey}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={attachment.previewUrl}
-        alt={sanitizedName}
-        className="rounded-[6px] object-cover w-[100px] h-[100px]"
-      />
+    <div className="relative" key={attachment.id}>
+      {displayUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={displayUrl}
+          alt={sanitizedName}
+          className="rounded-[6px] object-cover w-[100px] h-[100px]"
+        />
+      ) : (
+        <div className="rounded-[6px] w-[100px] h-[100px] bg-muted flex items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      {isUploading && (
+        <div className="absolute inset-0 bg-black/40 rounded-[6px] flex items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-white" />
+        </div>
+      )}
+      {isError && (
+        <div className="absolute bottom-1 left-1 right-1 text-[11px] text-white bg-red-500/90 rounded px-1 py-0.5">
+          {errorMessage}
+        </div>
+      )}
       <button
         type="button"
         className="absolute top-1 right-1 w-4 h-4 rounded-full bg-gray-100 hover:bg-gray-200 transition cursor-pointer flex items-center justify-center"
         onClick={() => onRemove(attachment.id)}
-        aria-label={`Remove ${attachment.file.name}`}
+        aria-label={`Remove ${attachment.name}`}
         data-no-open
       >
         <X className="w-3 h-3" />
@@ -353,25 +479,33 @@ function AttachmentPreview({
     </div>
   ) : (
     <div
-      key={fileKey}
+      key={attachment.id}
       className="flex p-2 shadow-sm w-fit rounded-[8px] cursor-pointer group relative h-fit bg-background/60"
     >
       <div className="flex justify-center items-center w-10 h-10 rounded-[6px] bg-neutral-100 mr-2">
         <FileIcon className="w-4 h-4" />
       </div>
-      <div className="flex flex-col gap-1">
-        <div className="text-sm font-medium truncate max-w-[140px]">
+      <div className="flex flex-col gap-1 pr-4">
+        <div className="text-sm font-medium truncate max-w-[160px]">
           {sanitizedName}
         </div>
         <div className="text-xs text-muted-foreground">
-          {formatFileSize(attachment.file.size)}
+          {formatFileSize(attachment.size)}
         </div>
+        {isUploading && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" /> Uploading…
+          </div>
+        )}
+        {isError && (
+          <div className="text-xs text-red-600">{errorMessage}</div>
+        )}
       </div>
       <button
         type="button"
         className="absolute top-1 right-1 w-4 h-4 rounded-full bg-gray-100 group-hover:flex hidden transition cursor-pointer items-center justify-center"
         onClick={() => onRemove(attachment.id)}
-        aria-label={`Remove ${attachment.file.name}`}
+        aria-label={`Remove ${attachment.name}`}
         data-no-open
       >
         <X className="w-3 h-3" />
@@ -427,10 +561,6 @@ function ComposerSubmit({
   );
 }
 
-function getAttachmentKey(file: File) {
-  return `${file.name}-${file.size}-${file.lastModified}`;
-}
-
 function formatFileSize(bytes: number) {
   if (bytes === 0) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
@@ -447,4 +577,81 @@ function sanitizeFileName(fileName: string) {
     .replace(/[<>:"/\\|?*]/g, "")
     .replace(/\.\./g, "")
     .substring(0, 100);
+}
+
+function toUploadedAttachment(
+  attachment: ComposerAttachment,
+): UploadedAttachment {
+  const { id, name, url, mediaType, size, objectKey, organizationId } =
+    attachment;
+
+  return {
+    id,
+    name,
+    url,
+    mediaType,
+    size,
+    objectKey,
+    organizationId,
+  };
+}
+
+interface AttachmentUploadResult {
+  url: string;
+  objectKey?: string;
+  mediaType: string;
+  size: number;
+  organizationId?: string | null;
+}
+
+async function uploadAttachmentToS3(
+  file: File,
+): Promise<AttachmentUploadResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch("/api/ai/chat/attachments", {
+    method: "POST",
+    body: formData,
+  });
+
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch (error) {
+    if (!response.ok) {
+      throw new Error("Upload failed");
+    }
+    throw error;
+  }
+
+  if (!response.ok) {
+    const errorMessage =
+      typeof data === "object" && data && "error" in data
+        ? String((data as { error: unknown }).error)
+        : "Upload failed";
+    throw new Error(errorMessage);
+  }
+
+  const result = data as AttachmentUploadResult;
+
+  if (!result.url) {
+    throw new Error("Upload response missing file URL");
+  }
+
+  return result;
+}
+
+function isImageType(mediaType: string) {
+  return mediaType.startsWith("image/");
+}
+
+function getFileFingerprint(file: File) {
+  return `${file.name}-${file.size}-${file.lastModified}`;
+}
+
+function revokePreviewUrl(previewUrl?: string) {
+  if (previewUrl && previewUrl.startsWith("blob:")) {
+    URL.revokeObjectURL(previewUrl);
+  }
 }

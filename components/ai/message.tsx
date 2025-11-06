@@ -27,7 +27,7 @@ const messageVariants = cva("flex w-full min-w-0 mb-4", {
 });
 
 const messageContentVariants = cva(
-  "flex flex-col max-w-full sm:max-w-[80%] min-w-0 rounded-2xl px-4 py-3 text-base",
+  "flex flex-col max-w-full sm:max-w-[80%] min-w-0 rounded-2xl px-4 py-3 text-base break-words whitespace-pre-wrap",
   {
     variants: {
       variant: {
@@ -170,12 +170,16 @@ function Message({
               </motion.div>
             ) : (
               <motion.div
-                className="text-right"
+                className="w-full text-left"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.3, delay: 0.1 }}
               >
-                {textContent.trim().length > 0 && textContent}
+                {textContent.trim().length > 0 && (
+                  <span className="block whitespace-pre-wrap break-words">
+                    {textContent}
+                  </span>
+                )}
               </motion.div>
             )}
           </motion.div>

@@ -8,6 +8,16 @@ export type ChatFilePart = Extract<ChatMessagePart, FileUIPart>;
 
 export type ChatTextPart = Extract<ChatMessagePart, TextUIPart>;
 
+export type UploadedAttachment = {
+  id: string;
+  name: string;
+  url: string;
+  mediaType: string;
+  size: number;
+  objectKey?: string;
+  organizationId?: string | null;
+};
+
 export type StoredChatMessage = {
   id: string;
   role: string;

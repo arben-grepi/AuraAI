@@ -15,7 +15,12 @@ import { toast } from "sonner";
 
 import { ChatInput } from "./chat-input";
 import { Message } from "./message";
-import type { ChatFilePart, ChatMessage, StoredChatMessage } from "./types";
+import type {
+  ChatFilePart,
+  ChatMessage,
+  StoredChatMessage,
+  UploadedAttachment,
+} from "./types";
 import { toChatMessage } from "./types";
 
 interface ChatInterfaceProps {
@@ -35,7 +40,7 @@ export function ChatInterface({
 
   const pendingMessageRef = useRef<{
     text?: string;
-    files: File[];
+    attachments: UploadedAttachment[];
   } | null>(null);
 
   useEffect(() => {
@@ -62,14 +67,20 @@ export function ChatInterface({
     });
 
   const handleSendMessage = useCallback(
-    async ({ text, files }: { text?: string; files: File[] }) => {
+    async ({
+      text,
+      attachments,
+    }: {
+      text?: string;
+      attachments: UploadedAttachment[];
+    }) => {
       const trimmedText = text?.trim();
 
-      if (!trimmedText && files.length === 0) return;
+      if (!trimmedText && attachments.length === 0) return;
 
       const send = async () => {
-        const fileParts = files.length
-          ? await filesToChatFileParts(files)
+        const fileParts = attachments.length
+          ? attachmentsToChatFileParts(attachments)
           : undefined;
 
         const payload:
@@ -95,7 +106,10 @@ export function ChatInterface({
 
       if (!convId) {
         const newId = uuidv4();
-        pendingMessageRef.current = { text: trimmedText, files: [...files] };
+        pendingMessageRef.current = {
+          text: trimmedText,
+          attachments: [...attachments],
+        };
         setConvId(newId);
         window.history.replaceState({}, "", `/chat/${newId}`);
         return;
@@ -253,31 +267,25 @@ export function ChatInterface({
   );
 }
 
-async function filesToChatFileParts(files: File[]): Promise<ChatFilePart[]> {
-  return Promise.all(
-    files.map(
-      (file) =>
-        new Promise<ChatFilePart>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result;
-            if (typeof result !== "string") {
-              reject(new Error("Failed to read file content"));
-              return;
-            }
-            resolve({
-              type: "file",
-              mediaType: file.type || "application/octet-stream",
-              filename: file.name,
-              url: result,
-            });
-          };
-          reader.onerror = () =>
-            reject(reader.error ?? new Error("Failed to read file"));
-          reader.readAsDataURL(file);
-        }),
-    ),
-  );
+function attachmentsToChatFileParts(
+  attachments: UploadedAttachment[],
+): ChatFilePart[] {
+  return attachments.map((attachment) => {
+    const providerMetadata = {
+      storageProvider: "s3",
+      objectKey: attachment.objectKey,
+      size: attachment.size,
+      organizationId: attachment.organizationId ?? undefined,
+    } satisfies Record<string, unknown>;
+
+    return {
+      type: "file",
+      mediaType: attachment.mediaType || "application/octet-stream",
+      filename: attachment.name,
+      url: attachment.url,
+      providerMetadata,
+    } satisfies ChatFilePart;
+  });
 }
 
 function ScrollToBottom() {

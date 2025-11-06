@@ -5,56 +5,117 @@ import {
   UIMessage,
   convertToModelMessages,
   smoothStream,
+  tool,
 } from "ai";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 import { generateTitleFromUserMessage } from "@/lib/actions";
 import { retrieveContext } from "@/lib/rag";
+import { ingestFileToRag } from "@/lib/rag-ingest";
+import { z } from "zod";
+import { getS3BucketName, getS3Client } from "@/lib/s3";
+import { GetObjectCommand } from "@aws-sdk/client-s3";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const systemPrompt = `
-You are an advanced Retrieval-Augmented Generation (RAG) assistant designed to provide accurate, comprehensive, and insightful answers.
+You are Kommun's retrieval-augmented assistant.
 
-### Core Objective
-Use the retrieved context not just to restate facts, but to explain, connect, and interpret information — helping the user deeply understand the underlying meaning, implications, and relationships within the data.
+## Core Behaviors
+- Always read the "Context documents" message. If it is empty, acknowledge that no internal sources were retrieved before answering.
+- Prioritize grounded, reference-backed reasoning. Use general knowledge only to bridge gaps or provide light explanation.
+- When file parts are present in the conversation, inspect their metadata. If a document contains durable knowledge that will help future questions, call the **ingest_document** tool before answering.
 
-### Behavioral Directives
-1. **Grounded Insight:** Always base reasoning and evidence on the retrieved context. Use your general knowledge only to clarify, expand, or logically connect details.
-2. **Depth over Brevity:** Go beyond short factual statements. Provide thoughtful, structured, and insightful explanations that help the user learn or make better decisions.
-3. **Holistic Thinking:** Combine data points, identify trends, summarize key takeaways, and highlight cause-and-effect relationships when relevant.
-4. **Transparency:** If information is partial, state what’s known and what’s uncertain, then infer possible explanations clearly labeled as “interpretation” or “likely meaning.”
-5. **Tone:** Sound like an intelligent, well-informed analyst or internal expert — confident but never overreaching.
-6. **Integrity:** Never fabricate data or sources. Only generate insights that can logically be drawn from the retrieved material.
+## RAG Workflow
+1. Review the latest user request and the retrieved snippets.
+2. Synthesize the most relevant facts, citing the snippet markers like [[1]] whenever you reference them.
+3. Explain implications, risks, or next steps when useful. Clearly label speculation as interpretation.
+4. If nothing relevant was retrieved, say so and rely on general knowledge only if it is trustworthy.
 
-### Response Framework
-When responding:
-- **Step 1: Answer Directly.**
-  Start with a concise, clear summary of the answer.
-- **Step 2: Expand with Insight.**
-  Discuss *why* it matters, *how* it connects to other information, or *what patterns or implications* exist.
-- **Step 3: Support with Evidence.**
-  Cite relevant numbers, policies, or excerpts from the context.
-- **Step 4: Conclude with Takeaway.**
-  Offer a short closing insight or recommendation (if appropriate).
-
-### Example
-**User:** “What do the sales figures say about NovaTech’s performance in 2024?”
-
-**You:**  
-NovaTech achieved $18.45 million in total revenue for 2024 — a 12.8% year-over-year increase.  
-This growth was driven by strong Q3 and Q4 performance in North America and Asia-Pacific, where NovaAI Platform sales achieved a 50% profit margin — the highest among all products.  
-
-Beyond raw numbers, this trend suggests successful product-market alignment in emerging tech markets and efficient scaling of the AI product line.  
-If sustained, these margins position NovaTech for accelerated international expansion in 2025.
-
-### Output Style
-- Use Markdown formatting (headings, lists, tables when needed).
-- Prioritize *clarity, depth, and usefulness*.
-- Every response should teach the user something new or unexpected about the topic.
+## Output Requirements
+- Use Markdown with headings and bullet lists for readability.
+- Keep answers concise but insightful. Focus on what helps the user act or decide.
+- Close with a short takeaway or recommended next action when appropriate.
+- Never invent sources or fabricate data.
 `;
+
+type MessageFilePart = Extract<UIMessage["parts"][number], { type: "file" }>;
+
+const ingestDocumentTool = tool({
+  description:
+    "Store a user-provided document in the knowledge base when it contains reusable knowledge for future conversations.",
+  parameters: z.object({
+    url: z.string().url(),
+    fileName: z.string(),
+    mediaType: z.string().optional(),
+    objectKey: z.string().optional(),
+    organizationId: z.string().optional(),
+    reason: z.string().min(8),
+    tags: z.array(z.string()).optional(),
+  }),
+  execute: async ({
+    url,
+    fileName,
+    mediaType,
+    objectKey,
+    organizationId,
+    reason,
+    tags = [],
+  }) => {
+    if (!organizationId) {
+      return {
+        status: "skipped",
+        message: "No organizationId provided. Unable to store the document.",
+      };
+    }
+
+    try {
+      const file = await downloadAttachment({
+        url,
+        fileName,
+        mediaType: mediaType ?? "application/octet-stream",
+        objectKey,
+      });
+
+      const normalizedReason = reason
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 80);
+      const uniqueTags = Array.from(
+        new Set(
+          [...tags, "source:chat", `reason:${normalizedReason || "unspecified"}`],
+        ),
+      );
+
+      const result = await ingestFileToRag({
+        file,
+        organizationId,
+        tags: uniqueTags,
+      });
+
+      return {
+        status: "stored",
+        resourceId: result.resourceId,
+        chunks: result.chunksStored,
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to ingest document";
+      return {
+        status: "error",
+        message,
+      };
+    }
+  },
+});
+
+const availableTools = {
+  ingest_document: ingestDocumentTool,
+};
 
 export async function POST(req: Request) {
   const {
@@ -106,7 +167,11 @@ export async function POST(req: Request) {
       .join("") ?? "";
 
   const organizationId = session.session?.activeOrganizationId;
-  const { context } = await retrieveContext(latestText, 6, organizationId);
+  const { context } = await retrieveContext(
+    latestText,
+    6,
+    organizationId,
+  );
 
   const baseSystem = {
     role: "system",
@@ -114,21 +179,67 @@ export async function POST(req: Request) {
   } as const;
 
   const contextMsg = {
-    role: "assistant",
-    content:
-      "Context documents (top-k):\n\n" +
-      context +
-      "\n\nInstruction: Prefer the most relevant snippets, and avoid speculation.",
-  } as const;
+    role: "assistant" as const,
+    content: context
+      ?
+          `Context documents (top-k):\n\n${context}\n\nInstruction: cite snippet markers like [[1]] when you reference them and avoid speculation.`
+      :
+          "No matching internal documents were retrieved. If you answer, make it clear you are relying on general knowledge.",
+  };
+
+  const fileParts = (lastMessage?.parts ?? []).filter(
+    (part): part is MessageFilePart => part.type === "file",
+  );
+
+  const attachmentsMessage =
+    fileParts.length > 0
+      ? {
+          role: "assistant" as const,
+          content:
+            `Uploaded attachments (active organization: ${
+              organizationId ?? "none"
+            }):\n` +
+            fileParts
+              .map((part, index) => {
+                const metadata = (part.providerMetadata ?? {}) as Record<
+                  string,
+                  unknown
+                >;
+                const objectKey =
+                  typeof metadata.objectKey === "string"
+                    ? metadata.objectKey
+                    : "none";
+                const sizeLabel =
+                  typeof metadata.size === "number"
+                    ? `${metadata.size} bytes`
+                    : "unknown size";
+                const providerOrgValue = metadata.organizationId;
+                const providerOrg =
+                  typeof providerOrgValue === "string"
+                    ? providerOrgValue
+                    : providerOrgValue === null
+                      ? "null"
+                      : organizationId ?? "unknown";
+
+                return `${index + 1}. ${part.filename ?? "attachment"} • ${
+                  part.mediaType ?? "unknown"
+                } • ${sizeLabel} • objectKey:${objectKey} • organizationId:${providerOrg} • url:${part.url}`;
+              })
+              .join("\n") +
+            "\nUse the ingest_document tool when a document should be stored for future conversations. Provide a concise reason in the tool call.",
+        }
+      : null;
 
   const finalMessages = [
     baseSystem,
     contextMsg,
+    ...(attachmentsMessage ? [attachmentsMessage] : []),
     ...convertToModelMessages(messages),
   ];
 
   const result = streamText({
     model: openai("gpt-4o"),
+    tools: availableTools,
     messages: finalMessages,
     experimental_transform: smoothStream({ chunking: "word" }),
     onFinish: (r) => {
@@ -146,4 +257,96 @@ export async function POST(req: Request) {
   });
 
   return result.toUIMessageStreamResponse();
+}
+
+interface DownloadAttachmentArgs {
+  url: string;
+  fileName: string;
+  mediaType: string;
+  objectKey?: string | null;
+}
+
+async function downloadAttachment({
+  url,
+  fileName,
+  mediaType,
+  objectKey,
+}: DownloadAttachmentArgs): Promise<File> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return new File([arrayBuffer], fileName, { type: mediaType });
+  } catch (httpError) {
+    if (!objectKey) {
+      throw httpError;
+    }
+
+    try {
+      const client = getS3Client();
+      const bucket = getS3BucketName();
+      const object = await client.send(
+        new GetObjectCommand({ Bucket: bucket, Key: objectKey }),
+      );
+
+      const body = object.Body;
+      if (!body) {
+        throw new Error("Attachment is empty");
+      }
+
+      const bytes = await readBody(body);
+      return new File([bytes], fileName, { type: mediaType });
+    } catch (s3Error) {
+      throw httpError instanceof Error ? httpError : s3Error;
+    }
+  }
+}
+
+async function readBody(body: unknown): Promise<Uint8Array> {
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "transformToByteArray" in body &&
+    typeof (body as { transformToByteArray: () => Promise<Uint8Array> })
+      .transformToByteArray === "function"
+  ) {
+    return (body as { transformToByteArray: () => Promise<Uint8Array> }).transformToByteArray();
+  }
+
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    Symbol.asyncIterator in (body as Record<symbol, unknown>)
+  ) {
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of body as AsyncIterable<
+      Buffer | Uint8Array | string
+    >) {
+      if (typeof chunk === "string") {
+        chunks.push(Buffer.from(chunk));
+      } else if (chunk instanceof Uint8Array) {
+        chunks.push(chunk);
+      } else {
+        chunks.push(Buffer.from(chunk));
+      }
+    }
+    return Buffer.concat(chunks);
+  }
+
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "arrayBuffer" in body &&
+    typeof (body as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer ===
+      "function"
+  ) {
+    const arrayBuffer = await (
+      body as { arrayBuffer: () => Promise<ArrayBuffer> }
+    ).arrayBuffer();
+    return new Uint8Array(arrayBuffer);
+  }
+
+  throw new Error("Unsupported attachment stream type");
 }

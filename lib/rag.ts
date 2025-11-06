@@ -7,6 +7,9 @@ function toPgVectorLiteral(vec: number[]) {
   return `'[${vec.join(",")}]'::vector`;
 }
 
+const MIN_SCORE = 0.72;
+const MAX_CONTEXT_CHARS = 1200;
+
 export async function retrieveContext(
   query: string,
   topK = 6,
@@ -21,6 +24,8 @@ export async function retrieveContext(
   const qvec = data[0].embedding as number[];
 
   const qvecLit = toPgVectorLiteral(qvec);
+
+  const retrievalLimit = Math.min(Math.max(topK * 3, topK), 18);
 
   let sqlQuery: string;
   let params: unknown[] = [];
@@ -37,7 +42,7 @@ export async function retrieveContext(
       ORDER BY e."embedding" <=> ${qvecLit} ASC
       LIMIT $2;
     `;
-    params = [organizationId, topK];
+    params = [organizationId, retrievalLimit];
   } else {
     sqlQuery = `
       SELECT
@@ -48,19 +53,32 @@ export async function retrieveContext(
       ORDER BY "embedding" <=> ${qvecLit} ASC
       LIMIT $1;
     `;
-    params = [topK];
+    params = [retrievalLimit];
   }
 
   const rows = await prisma.$queryRawUnsafe<
     { content: string; resource_id: string; score: number }[]
   >(sqlQuery, ...params);
 
-  const context = rows
-    .map(
-      (r, i) =>
-        `[[${i + 1} | resource:${r.resource_id} | score:${r.score.toFixed(3)}]]\n${r.content}`,
-    )
+  if (!rows.length) {
+    return { context: "", results: [] };
+  }
+
+  const filtered = rows.filter((row) => row.score >= MIN_SCORE);
+  const selected = (filtered.length ? filtered : rows).slice(0, topK);
+
+  const context = selected
+    .map((row, index) => {
+      const snippet =
+        row.content.length > MAX_CONTEXT_CHARS
+          ? `${row.content.slice(0, MAX_CONTEXT_CHARS)}…`
+          : row.content;
+
+      return `[[${index + 1} | resource:${row.resource_id} | score:${row.score.toFixed(
+        3,
+      )}]]\n${snippet}`;
+    })
     .join("\n\n---\n\n");
 
-  return { context, results: rows };
+  return { context, results: selected };
 }
