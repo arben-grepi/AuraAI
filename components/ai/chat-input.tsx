@@ -23,9 +23,10 @@ const ALLOWED_MEDIA_TYPES = [
 ];
 
 interface ChatInputProps {
-  onSend: (
-    payload: { text?: string; attachments: UploadedAttachment[] },
-  ) => Promise<void> | void;
+  onSend: (payload: {
+    text?: string;
+    attachments: UploadedAttachment[];
+  }) => Promise<void> | void;
   loading: boolean;
   onStop?: () => void;
   className?: string;
@@ -295,13 +296,13 @@ export function ChatInput({
 
     const previousMessage = message;
     setMessage("");
+    clearAttachments();
 
     try {
       await onSend({
         text: trimmed || undefined,
         attachments: readyAttachments.map(toUploadedAttachment),
       });
-      clearAttachments();
     } catch (error) {
       console.error(error);
       toast.error(
@@ -500,9 +501,7 @@ function AttachmentPreview({
             <Loader2 className="h-3 w-3 animate-spin" /> Uploading…
           </div>
         )}
-        {isError && (
-          <div className="text-xs text-red-600">{errorMessage}</div>
-        )}
+        {isError && <div className="text-xs text-red-600">{errorMessage}</div>}
       </div>
       <button
         type="button"
