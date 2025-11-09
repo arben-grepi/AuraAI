@@ -21,6 +21,12 @@ export function Conversations({ slug }: { slug: string }) {
     queryKey: ["conversations"],
     queryFn: async () => {
       const response = await fetch(`/api/ai/conversations`);
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          return [] as Conversation[];
+        }
+        throw new Error("Failed to fetch conversations");
+      }
       return response.json();
     },
     gcTime: 1000 * 60 * 5,
@@ -58,7 +64,7 @@ const ConversationItem = ({
   slug: string;
 }) => {
   const pathname = usePathname();
-  const isActive = pathname === `/org/${slug}/${conversation.id}`;
+  const isActive = pathname === `/org/${slug}/chat/${conversation.id}`;
 
   return (
     <div
@@ -70,7 +76,7 @@ const ConversationItem = ({
       )}
     >
       <Link
-        href={`/org/${slug}/${conversation.id}`}
+        href={`/org/${slug}/chat/${conversation.id}`}
         className={cn(
           "flex-1 truncate flex items-center gap-2 min-w-0 cursor-pointer",
         )}

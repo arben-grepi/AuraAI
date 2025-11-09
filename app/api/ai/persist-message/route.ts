@@ -1,4 +1,6 @@
 import prisma from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
 export async function POST(req: Request) {
   try {
@@ -8,6 +10,31 @@ export async function POST(req: Request) {
 
     if (!conversationId || !role || !content) {
       return new Response("Missing required fields", { status: 400 });
+    }
+
+    const session = await auth.api.getSession({ headers: await headers() });
+
+    if (!session) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+
+    const organizationId = session.session?.activeOrganizationId;
+
+    if (!organizationId) {
+      return new Response("No active organization", { status: 400 });
+    }
+
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        userId: session.user.id,
+        organizationId,
+      },
+      select: { id: true },
+    });
+
+    if (!conversation) {
+      return new Response("Conversation not found", { status: 404 });
     }
 
     await prisma.message.create({

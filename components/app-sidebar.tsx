@@ -20,20 +20,6 @@ import { headers } from "next/headers";
 import Image from "next/image";
 import prisma from "@/lib/prisma";
 
-const items = [
-  {
-    title: "New Chat",
-    url: "/",
-    icon: PenLine,
-  },
-  {
-    title: "Search Chats",
-    url: "/search",
-    icon: Search,
-    variant: "white",
-  },
-];
-
 export async function AppSidebar({ org }: { org: string }) {
   const session = await auth.api.getSession({
     headers: await headers(),
@@ -41,13 +27,32 @@ export async function AppSidebar({ org }: { org: string }) {
 
   const { name, email, image } = session?.user || {};
 
-  const organization = await prisma.organization.findUnique({
+  const organization = await prisma.organization.findFirst({
     where: {
       slug: org,
+      ...(session?.user.role === "admin"
+        ? {}
+        : { members: { some: { userId: session?.user.id ?? "" } } }),
     },
   });
 
-  console.log(organization);
+  if (!organization) {
+    return null;
+  }
+
+  const items = [
+    {
+      title: "New Chat",
+      url: `/org/${org}/chat`,
+      icon: PenLine,
+    },
+    {
+      title: "Search Chats",
+      url: "/search",
+      icon: Search,
+      variant: "white" as const,
+    },
+  ];
 
   return (
     <Sidebar className="border-none">

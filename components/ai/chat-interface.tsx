@@ -113,7 +113,7 @@ export function ChatInterface({
           attachments: [...attachments],
         };
         setConvId(newId);
-        window.history.replaceState({}, "", `${slug}/chat/${newId}`);
+        window.history.replaceState({}, "", `/org/${slug}/chat/${newId}`);
         return;
       }
 

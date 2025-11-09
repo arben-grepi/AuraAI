@@ -6,6 +6,7 @@ import crypto from "crypto";
 
 import { auth } from "@/lib/auth";
 import { getS3BucketName, getS3Client } from "@/lib/s3";
+import prisma from "@/lib/prisma";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
@@ -71,14 +72,34 @@ export async function POST(req: Request) {
     const client = getS3Client();
     const bucket = getS3BucketName();
 
-    const orgId =
-      formData.get("orgId")?.toString() ??
-      session.session?.activeOrganizationId ??
-      undefined;
+    const requestedOrgId = formData.get("orgId")?.toString();
+    const activeOrgId = session.session?.activeOrganizationId ?? undefined;
+    const targetOrgId = requestedOrgId ?? activeOrgId;
+
+    if (!targetOrgId) {
+      return NextResponse.json(
+        { error: "No organization selected" },
+        { status: 400 },
+      );
+    }
+
+    if (session.user.role !== "admin") {
+      const membership = await prisma.member.findFirst({
+        where: {
+          organizationId: targetOrgId,
+          userId: session.user.id,
+        },
+        select: { id: true },
+      });
+
+      if (!membership) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      }
+    }
 
     const key = [
       "chat-uploads",
-      orgId ?? session.user.id,
+      targetOrgId,
       crypto.randomUUID(),
       uploadFile.name.replace(/\s+/g, "-"),
     ].join("/");
@@ -101,7 +122,7 @@ export async function POST(req: Request) {
       objectKey: key,
       mediaType: fileType || "application/octet-stream",
       size: uploadFile.size,
-      organizationId: orgId ?? null,
+      organizationId: targetOrgId,
     });
   } catch (error) {
     console.error("Attachment upload failed", error);

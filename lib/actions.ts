@@ -19,6 +19,50 @@ import { generateSlug } from "./utils";
 import { UIMessage, generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
 
+async function getMembership(
+  organizationId: string,
+  userId: string,
+) {
+  return prisma.member.findFirst({
+    where: {
+      organizationId,
+      userId,
+    },
+    select: {
+      id: true,
+      role: true,
+    },
+  });
+}
+
+function hasOrgAdminPrivileges(
+  membershipRole: string | null | undefined,
+): boolean {
+  return membershipRole === "owner" || membershipRole === "admin";
+}
+
+async function userHasOrgAdminAccess({
+  organizationId,
+  userId,
+  sessionRole,
+}: {
+  organizationId: string;
+  userId: string;
+  sessionRole: string | null | undefined;
+}) {
+  if (sessionRole === "admin") {
+    return true;
+  }
+
+  const membership = await getMembership(organizationId, userId);
+
+  if (!membership) {
+    return false;
+  }
+
+  return hasOrgAdminPrivileges(membership.role ?? null);
+}
+
 export async function signUp(
   values: z.infer<typeof signUpSchema>,
 ): Promise<ActionResult<{ data: string }>> {
@@ -107,10 +151,29 @@ export async function createConversation(): Promise<
     return redirect("/sign-in");
   }
 
+  const organizationId = session.session?.activeOrganizationId;
+
+  if (!organizationId) {
+    return {
+      success: false,
+      data: null,
+      error: "No active organization selected",
+    };
+  }
+
+  if (session.user.role !== "admin") {
+    const membership = await getMembership(organizationId, session.user.id);
+
+    if (!membership) {
+      return { success: false, data: null, error: "Unauthorized" };
+    }
+  }
+
   const created = await prisma.conversation.create({
     data: {
       title: "New chat",
       userId: session.user.id,
+      organizationId,
     },
   });
 
@@ -145,11 +208,35 @@ export async function deleteConversation(
     return { success: false, data: null, error: "Unauthorized" };
   }
 
-  await prisma.conversation.delete({
+  const organizationId = session.session?.activeOrganizationId;
+
+  if (!organizationId) {
+    return { success: false, data: null, error: "No active organization selected" };
+  }
+
+  if (session.user.role !== "admin") {
+    const membership = await getMembership(organizationId, session.user.id);
+
+    if (!membership) {
+      return { success: false, data: null, error: "Unauthorized" };
+    }
+  }
+
+  const conversation = await prisma.conversation.findFirst({
     where: {
       id,
       userId: session.user.id,
+      organizationId,
     },
+    select: { id: true },
+  });
+
+  if (!conversation) {
+    return { success: false, data: null, error: "Conversation not found" };
+  }
+
+  await prisma.conversation.delete({
+    where: { id: conversation.id },
   });
 
   revalidateTag("conversations");
@@ -245,6 +332,10 @@ export async function createOrganization(
     return { success: false, data: null, error: "Unauthorized" };
   }
 
+  if (session.user.role !== "admin") {
+    return { success: false, data: null, error: "Insufficient permissions" };
+  }
+
   const validated = createOrganizationSchema.safeParse(values);
 
   if (!validated.success) {
@@ -337,6 +428,10 @@ export async function deleteOrg(
     return { success: false, data: null, error: "Unauthorized" };
   }
 
+  if (session.user.role !== "admin") {
+    return { success: false, data: null, error: "Insufficient permissions" };
+  }
+
   try {
     await auth.api.deleteOrganization({
       body: {
@@ -371,6 +466,16 @@ export async function addMemberToOrg(
   });
   if (!session) {
     return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const canManageMembers = await userHasOrgAdminAccess({
+    organizationId,
+    userId: session.user.id,
+    sessionRole: session.user.role,
+  });
+
+  if (!canManageMembers) {
+    return { success: false, data: null, error: "Insufficient permissions" };
   }
 
   try {
@@ -414,6 +519,16 @@ export async function removeMemberFromOrg({
   });
   if (!session) {
     return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const canManageMembers = await userHasOrgAdminAccess({
+    organizationId,
+    userId: session.user.id,
+    sessionRole: session.user.role,
+  });
+
+  if (!canManageMembers) {
+    return { success: false, data: null, error: "Insufficient permissions" };
   }
 
   try {
@@ -460,6 +575,16 @@ export async function updateMemberRole({
   });
   if (!session) {
     return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const canManageMembers = await userHasOrgAdminAccess({
+    organizationId,
+    userId: session.user.id,
+    sessionRole: session.user.role,
+  });
+
+  if (!canManageMembers) {
+    return { success: false, data: null, error: "Insufficient permissions" };
   }
 
   try {
@@ -567,6 +692,41 @@ export async function createOrgUser({
     return { success: false, data: null, error: validated.error.message };
   }
 
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const organization = await prisma.organization.findUnique({
+    where: { slug },
+    select: { id: true },
+  });
+
+  if (!organization) {
+    return {
+      success: false,
+      data: null,
+      error: "Organization not found",
+    };
+  }
+
+  const canManageMembers = await userHasOrgAdminAccess({
+    organizationId: organization.id,
+    userId: session.user.id,
+    sessionRole: session.user.role,
+  });
+
+  if (!canManageMembers) {
+    return {
+      success: false,
+      data: null,
+      error: "Insufficient permissions",
+    };
+  }
+
   const { email, password, firstName, lastName } = validated.data;
 
   try {
@@ -584,19 +744,6 @@ export async function createOrgUser({
         success: false,
         data: null,
         error: "Failed to create user",
-      };
-    }
-
-    const organization = await prisma.organization.findUnique({
-      where: { slug },
-      select: { id: true },
-    });
-
-    if (!organization) {
-      return {
-        success: false,
-        data: null,
-        error: "Organization not found",
       };
     }
 
