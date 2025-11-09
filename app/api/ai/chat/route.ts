@@ -497,7 +497,9 @@ async function downloadAttachment({
       }
 
       const bytes = await readBody(body);
-      return new File([bytes], fileName, { type: mediaType });
+      // Create a new Uint8Array to ensure it has a proper ArrayBuffer (not SharedArrayBuffer)
+      const compatibleBytes = new Uint8Array(bytes);
+      return new File([compatibleBytes], fileName, { type: mediaType });
     } catch (s3Error) {
       throw httpError instanceof Error ? httpError : s3Error;
     }
