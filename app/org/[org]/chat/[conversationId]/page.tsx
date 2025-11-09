@@ -3,15 +3,43 @@ import { toChatMessage } from "@/components/ai/types";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { notFound } from "next/navigation";
 
-export default async function Page(props: PageProps<"/org/[org]/[id]">) {
-  const { org, id } = await props.params;
+export default async function Page(
+  props: PageProps<"/org/[org]/chat/[conversationId]">
+) {
+  const { org, conversationId } = await props.params;
   const session = await auth.api.getSession({ headers: await headers() });
+
+  if (!session) {
+    notFound();
+  }
+
+  const organization = await prisma.organization.findUnique({
+    where: { slug: org },
+    select: { id: true },
+  });
+
+  if (!organization) {
+    notFound();
+  }
+
+  const conversation = await prisma.conversation.findFirst({
+    where: {
+      id: conversationId,
+      userId: session.user.id,
+      organizationId: organization.id,
+    },
+    select: { id: true },
+  });
+
+  if (!conversation) {
+    notFound();
+  }
 
   const messages = await prisma.message.findMany({
     where: {
-      conversationId: id,
-      conversation: { userId: session?.user.id },
+      conversationId: conversation.id,
     },
     orderBy: { createdAt: "asc" },
   });
@@ -23,13 +51,13 @@ export default async function Page(props: PageProps<"/org/[org]/[id]">) {
       content: msg.content,
       parts: msg.parts,
       createdAt: msg.createdAt.toISOString(),
-    }),
+    })
   );
 
   return (
     <div className="flex items-center justify-center min-h-screen w-full">
       <ChatInterface
-        conversationId={id}
+        conversationId={conversation.id}
         initialMessages={initialMessages}
         slug={org}
       />

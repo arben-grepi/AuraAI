@@ -32,6 +32,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (session.user.role !== "admin") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   if (request.body === null) {
     return NextResponse.json({ error: "Empty request body" }, { status: 400 });
   }

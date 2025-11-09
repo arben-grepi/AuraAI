@@ -45,20 +45,50 @@ export async function POST(req: Request) {
   if (!conversationId)
     return new Response("Conversation ID is required", { status: 400 });
 
-  const session = await auth.api.getSession({ headers: await headers() });
+  const requestHeaders = await headers();
+  const session = await auth.api.getSession({ headers: requestHeaders });
   if (!session) return new Response("Unauthorized", { status: 401 });
 
-  const doesExist = await prisma.conversation.findUnique({
-    where: { id: conversationId },
+  const organizationId = session.session?.activeOrganizationId;
+
+  if (!organizationId) {
+    return new Response("No active organization", { status: 400 });
+  }
+
+  if (session.user.role !== "admin") {
+    const membership = await prisma.member.findFirst({
+      where: {
+        organizationId,
+        userId: session.user.id,
+      },
+      select: { id: true },
+    });
+
+    if (!membership) {
+      return new Response("Unauthorized", { status: 403 });
+    }
+  }
+
+  const conversation = await prisma.conversation.findFirst({
+    where: {
+      id: conversationId,
+      userId: session.user.id,
+      organizationId,
+    },
     select: { id: true },
   });
 
   const lastMessage = messages[messages.length - 1] as UIMessage | undefined;
 
-  if (!doesExist && lastMessage) {
+  if (!conversation && lastMessage) {
     const title = await generateTitleFromUserMessage({ message: lastMessage });
     await prisma.conversation.create({
-      data: { id: conversationId, userId: session.user.id, title },
+      data: {
+        id: conversationId,
+        userId: session.user.id,
+        title,
+        organizationId,
+      },
     });
   }
 
@@ -85,7 +115,6 @@ export async function POST(req: Request) {
       ?.map((p) => (p.type === "text" ? p.text : ""))
       .join("") ?? "";
 
-  const organizationId = session.session?.activeOrganizationId;
   const { context } = await retrieveContext(
     latestText,
     6,
@@ -177,9 +206,13 @@ export async function POST(req: Request) {
     messages: finalMessages,
     experimental_transform: smoothStream({ chunking: "word" }),
     onFinish: (r) => {
+      const cookie = req.headers.get("cookie");
       fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/ai/persist-message`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(cookie ? { cookie } : {}),
+        },
         body: JSON.stringify({
           conversationId,
           role: "assistant",

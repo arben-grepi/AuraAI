@@ -55,12 +55,14 @@ export async function middleware(request: NextRequest) {
 
     // Check organization routes - verify user is a member of the org
     if (pathname.startsWith("/org/") && pathname !== "/org") {
-      // Extract slug from pathname (e.g., /org/my-slug/general -> my-slug)
+      if (session.user.role === "admin") {
+        return NextResponse.next();
+      }
+
       const pathParts = pathname.split("/");
       if (pathParts.length >= 3 && pathParts[1] === "org") {
         const slug = pathParts[2];
         try {
-          // Get organization by slug
           const orgResponse = await betterFetch<{ id: string }>(
             `/api/org?slug=${slug}`,
             {
@@ -74,26 +76,7 @@ export async function middleware(request: NextRequest) {
           if (!orgResponse?.data?.id) {
             return NextResponse.redirect(new URL("/", request.url));
           }
-
-          // Check if user is a member of the organization
-          const membersResponse = await betterFetch<{
-            members: Array<{ user: { id: string } }>;
-          }>(`/api/admin/organizations/members?org=${orgResponse.data.id}`, {
-            baseURL: request.nextUrl.origin,
-            headers: {
-              cookie: request.headers.get("cookie") || "",
-            },
-          });
-
-          const isMember = membersResponse?.data?.members?.some(
-            (member) => member.user.id === session.user.id,
-          );
-
-          if (!isMember) {
-            return NextResponse.redirect(new URL("/", request.url));
-          }
         } catch {
-          // If there's an error checking membership, deny access
           return NextResponse.redirect(new URL("/", request.url));
         }
       }
