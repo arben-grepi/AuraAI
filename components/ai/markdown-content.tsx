@@ -35,7 +35,7 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
   // Syntax highlighting theme is imported globally via app/globals.css
 
   return (
-    <div className="text-base prose dark:prose-invert max-w-none sm:prose-base prose-sm w-full min-w-0 overflow-hidden break-words prose-pre:bg-muted prose-pre:border prose-pre:border-border prose-pre:rounded-lg prose-pre:my-4 prose-pre:overflow-x-auto prose-pre:max-w-full prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none prose-p:my-3 prose-p:break-words prose-ul:my-3 prose-ol:my-3 prose-h1:my-4 prose-h2:my-4 prose-h3:my-3 prose-h4:my-3 prose-h5:my-3 prose-h6:my-3 prose-blockquote:my-4 prose-hr:my-6">
+    <div className="text-base prose dark:prose-invert max-w-none sm:prose-base prose-sm w-full min-w-0 overflow-hidden prose-pre:bg-muted prose-pre:border prose-pre:border-border prose-pre:rounded-lg prose-pre:my-4 prose-pre:overflow-x-auto prose-pre:max-w-full prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none prose-p:my-3 prose-ul:my-3 prose-ol:my-3 prose-h1:my-4 prose-h2:my-4 prose-h3:my-3 prose-h4:my-3 prose-h5:my-3 prose-h6:my-3 prose-blockquote:my-4 prose-hr:my-6">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={rehypeHighlight ? [rehypeHighlight] : []}
@@ -54,7 +54,7 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
           p({ children, ...props }) {
             return (
               <p
-                className="text-foreground leading-7 mb-4 last:mb-0"
+                className="text-foreground leading-6 mb-3 last:mb-0"
                 {...props}
               >
                 {children}
@@ -138,7 +138,7 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
           ul({ children, ...props }) {
             return (
               <ul
-                className="list-disc list-inside mb-4 space-y-1 text-foreground"
+                className="!list-disc !list-outside mb-3 ml-4 space-y-0 text-foreground [&>li]:mt-0 [&>li]:mb-0.5 [&>li:last-child]:mb-0"
                 {...props}
               >
                 {children}
@@ -148,7 +148,7 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
           ol({ children, ...props }) {
             return (
               <ol
-                className="list-decimal list-inside mb-4 space-y-1 text-foreground"
+                className="!list-decimal !list-outside mb-3 ml-4 space-y-0 text-foreground [&>li]:mt-0 [&>li]:mb-0.5 [&>li:last-child]:mb-0"
                 {...props}
               >
                 {children}
@@ -157,7 +157,7 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
           },
           li({ children, ...props }) {
             return (
-              <li className="text-foreground leading-6" {...props}>
+              <li className="!m-0 text-foreground leading-6 pl-1" {...props}>
                 {children}
               </li>
             );

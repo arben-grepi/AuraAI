@@ -47,9 +47,9 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
   const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
   const [file, setFile] = useState<File | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
-
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
+
   const { data, isLoading } = useQuery({
     queryKey: ["files"],
     queryFn: () => getFiles(orgId),
@@ -145,6 +145,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                 </DialogDescription>
               </DialogHeader>
               <div className="h-px bg-zinc-200 w-full"></div>
+
               <input
                 type="file"
                 onChange={handleChangeFiles}
@@ -152,6 +153,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                 className="hidden"
                 ref={fileInputRef}
               />
+
               {file && (
                 <div className="flex gap-2 overflow-x-auto pb-4">
                   <div className="shadow-sm relative group flex gap-1 p-2 bg-zinc-100 rounded-[8px] max-w-[202px]">
@@ -184,16 +186,19 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                   <p className="text-sm font-medium">
                     Click to upload
                     <span className="text-zinc-500">
+                      {" "}
                       or drag and drop a file
                       <br /> docx. xsxl. pdf. md. txt. (Max 10mb)
                     </span>
                   </p>
                 </div>
               </div>
+
               <div className="flex flex-col gap-2">
                 <p className="text-sm font-medium">Tags (optional)</p>
                 <TagInput selected={selected} setSelected={setSelected} />
               </div>
+
               <DialogFooter className="justify-end">
                 <Button
                   variant="outline"
@@ -226,8 +231,8 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
               className={cn(
                 "rounded-full border border-zinc-200 py-[6px] px-[10px] shadow-xs cursor-pointer transition-all duration-200",
                 activeFilter === filter.value
-                  ? "bg-primary !text-white"
-                  : "bg-transparent !text-zinc-800",
+                  ? "bg-primary text-white!"
+                  : "bg-transparent text-zinc-800!",
               )}
             >
               <p className="font-medium text-sm">{filter.label}</p>
@@ -326,7 +331,7 @@ const ListItem = ({
           {isDeleting ? (
             <Loader2 className="size-4 animate-spin" />
           ) : (
-            <div>
+            <div className="flex items-center gap-2">
               Remove
               <Trash2 />
             </div>

@@ -1,5 +1,10 @@
 import { createAuthClient } from "better-auth/react";
-import { organizationClient, adminClient } from "better-auth/client/plugins";
+import {
+  organizationClient,
+  inferOrgAdditionalFields,
+  adminClient,
+} from "better-auth/client/plugins";
+import type { auth } from "./auth";
 
 export const {
   signIn,
@@ -11,10 +16,16 @@ export const {
   requestPasswordReset,
   resetPassword,
   organization,
+  admin,
 } = createAuthClient({
   baseURL:
     process.env.NODE_ENV === "production"
       ? process.env.BETTER_AUTH_URL
       : "http://localhost:3000",
-  plugins: [organizationClient(), adminClient()],
+  plugins: [
+    organizationClient({
+      schema: inferOrgAdditionalFields<typeof auth>(),
+    }),
+    adminClient(),
+  ],
 });

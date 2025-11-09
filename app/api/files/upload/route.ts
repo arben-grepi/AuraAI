@@ -32,6 +32,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (session.user.role !== "admin") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   if (request.body === null) {
     return NextResponse.json({ error: "Empty request body" }, { status: 400 });
   }
@@ -52,9 +56,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
 
-    const filename = (formData.get("file") as File).name;
+    // Sanitize filename to prevent path traversal
+    const originalFilename = (formData.get("file") as File).name;
+    const sanitizedFilename = originalFilename
+      .replace(/[^a-zA-Z0-9._-]/g, "-")
+      .replace(/\.\./g, "")
+      .replace(/^\/+|\/+$/g, "")
+      .substring(0, 255) || "file";
+    
     const fileBuffer = Buffer.from(await file.arrayBuffer());
-    const key = `uploads/${filename}`;
+    const key = `uploads/${sanitizedFilename}`;
 
     await s3.send(
       new PutObjectCommand({

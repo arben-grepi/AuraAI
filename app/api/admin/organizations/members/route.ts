@@ -19,6 +19,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (session.user.role !== "admin") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   try {
     const members = await auth.api.listMembers({
       headers: await headers(),

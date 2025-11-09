@@ -1,60 +1,40 @@
 // app/api/ai/chat/route.ts
 import { openai } from "@ai-sdk/openai";
-import {
-  streamText,
-  UIMessage,
-  convertToModelMessages,
-  smoothStream,
-} from "ai";
+import { streamText, UIMessage, convertToModelMessages, smoothStream } from "ai";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 import { generateTitleFromUserMessage } from "@/lib/actions";
 import { retrieveContext } from "@/lib/rag";
+import { extractText } from "@/lib/file-extraction";
+import { getS3BucketName, getS3Client } from "@/lib/s3";
+import { GetObjectCommand } from "@aws-sdk/client-s3";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const systemPrompt = `
-You are an advanced Retrieval-Augmented Generation (RAG) assistant designed to provide accurate, comprehensive, and insightful answers.
+You are Kommun's retrieval-augmented assistant.
 
-### Core Objective
-Use the retrieved context not just to restate facts, but to explain, connect, and interpret information — helping the user deeply understand the underlying meaning, implications, and relationships within the data.
+## Core Behaviors
+- Always read the "Context documents" message. If it is empty, acknowledge that no internal sources were retrieved before answering.
+- Prioritize grounded, reference-backed reasoning. Use general knowledge only to bridge gaps or provide light explanation.
+- When attachments are summarized for you, review their previews and incorporate any relevant details into your response.
 
-### Behavioral Directives
-1. **Grounded Insight:** Always base reasoning and evidence on the retrieved context. Use your general knowledge only to clarify, expand, or logically connect details.
-2. **Depth over Brevity:** Go beyond short factual statements. Provide thoughtful, structured, and insightful explanations that help the user learn or make better decisions.
-3. **Holistic Thinking:** Combine data points, identify trends, summarize key takeaways, and highlight cause-and-effect relationships when relevant.
-4. **Transparency:** If information is partial, state what’s known and what’s uncertain, then infer possible explanations clearly labeled as “interpretation” or “likely meaning.”
-5. **Tone:** Sound like an intelligent, well-informed analyst or internal expert — confident but never overreaching.
-6. **Integrity:** Never fabricate data or sources. Only generate insights that can logically be drawn from the retrieved material.
+## RAG Workflow
+1. Review the latest user request and the retrieved snippets.
+2. Synthesize the most relevant facts, citing the snippet markers like [[1]] whenever you reference them.
+3. Explain implications, risks, or next steps when useful. Clearly label speculation as interpretation.
+4. If nothing relevant was retrieved, say so and rely on general knowledge only if it is trustworthy.
 
-### Response Framework
-When responding:
-- **Step 1: Answer Directly.**
-  Start with a concise, clear summary of the answer.
-- **Step 2: Expand with Insight.**
-  Discuss *why* it matters, *how* it connects to other information, or *what patterns or implications* exist.
-- **Step 3: Support with Evidence.**
-  Cite relevant numbers, policies, or excerpts from the context.
-- **Step 4: Conclude with Takeaway.**
-  Offer a short closing insight or recommendation (if appropriate).
-
-### Example
-**User:** “What do the sales figures say about NovaTech’s performance in 2024?”
-
-**You:**  
-NovaTech achieved $18.45 million in total revenue for 2024 — a 12.8% year-over-year increase.  
-This growth was driven by strong Q3 and Q4 performance in North America and Asia-Pacific, where NovaAI Platform sales achieved a 50% profit margin — the highest among all products.  
-
-Beyond raw numbers, this trend suggests successful product-market alignment in emerging tech markets and efficient scaling of the AI product line.  
-If sustained, these margins position NovaTech for accelerated international expansion in 2025.
-
-### Output Style
-- Use Markdown formatting (headings, lists, tables when needed).
-- Prioritize *clarity, depth, and usefulness*.
-- Every response should teach the user something new or unexpected about the topic.
+## Output Requirements
+- Use Markdown with headings and bullet lists for readability.
+- Keep answers concise but insightful. Focus on what helps the user act or decide.
+- Close with a short takeaway or recommended next action when appropriate.
+- Never invent sources or fabricate data.
 `;
+
+type MessageFilePart = Extract<UIMessage["parts"][number], { type: "file" }>;
 
 export async function POST(req: Request) {
   const {
@@ -62,23 +42,60 @@ export async function POST(req: Request) {
     messages,
   }: { conversationId: string; messages: UIMessage[] } = await req.json();
 
-  if (!conversationId)
+  if (!conversationId || typeof conversationId !== "string") {
     return new Response("Conversation ID is required", { status: 400 });
+  }
 
-  const session = await auth.api.getSession({ headers: await headers() });
+  if (!Array.isArray(messages)) {
+    return new Response("Messages must be an array", { status: 400 });
+  }
+
+  const requestHeaders = await headers();
+  const session = await auth.api.getSession({ headers: requestHeaders });
   if (!session) return new Response("Unauthorized", { status: 401 });
 
-  const doesExist = await prisma.conversation.findUnique({
-    where: { id: conversationId },
+  const organizationId = session.session?.activeOrganizationId;
+
+  if (!organizationId) {
+    return new Response("No active organization", { status: 400 });
+  }
+
+  if (session.user.role !== "admin") {
+    const membership = await prisma.member.findFirst({
+      where: {
+        organizationId,
+        userId: session.user.id,
+      },
+      select: { id: true },
+    });
+
+    if (!membership) {
+      return new Response("Unauthorized", { status: 403 });
+    }
+  }
+
+  const conversation = await prisma.conversation.findFirst({
+    where: {
+      id: conversationId,
+      userId: session.user.id,
+      organizationId,
+    },
     select: { id: true },
   });
 
   const lastMessage = messages[messages.length - 1] as UIMessage | undefined;
 
-  if (!doesExist && lastMessage) {
+  if (!conversation && lastMessage) {
     const title = await generateTitleFromUserMessage({ message: lastMessage });
-    await prisma.conversation.create({
-      data: { id: conversationId, userId: session.user.id, title },
+    await prisma.conversation.upsert({
+      where: { id: conversationId },
+      update: {},
+      create: {
+        id: conversationId,
+        userId: session.user.id,
+        organizationId,
+        title,
+      },
     });
   }
 
@@ -86,18 +103,17 @@ export async function POST(req: Request) {
     const content = lastMessage.parts
       .map((p) => (p.type === "text" ? p.text : ""))
       .join("");
-    queueMicrotask(() => {
-      prisma.message
-        .create({
-          data: {
-            conversationId,
-            role: "user",
-            content,
-            parts: JSON.parse(JSON.stringify(lastMessage.parts ?? [])),
-          },
-        })
-        .catch((e) => console.error("user save failed", e));
-    });
+    // Save user message asynchronously but don't block the response
+    prisma.message
+      .create({
+        data: {
+          conversationId,
+          role: "user",
+          content,
+          parts: JSON.parse(JSON.stringify(lastMessage.parts ?? [])),
+        },
+      })
+      .catch((e) => console.error("user save failed", e));
   }
 
   const latestText =
@@ -105,36 +121,104 @@ export async function POST(req: Request) {
       ?.map((p) => (p.type === "text" ? p.text : ""))
       .join("") ?? "";
 
-  const organizationId = session.session?.activeOrganizationId;
-  const { context } = await retrieveContext(latestText, 6, organizationId);
+  const { context } = await retrieveContext(
+    latestText,
+    6,
+    organizationId,
+  );
 
   const baseSystem = {
-    role: "system",
-    content: systemPrompt,
-  } as const;
+    role: "system" as const,
+    parts: [{ type: "text" as const, text: systemPrompt }],
+  } satisfies Omit<UIMessage, "id">;
 
   const contextMsg = {
-    role: "assistant",
-    content:
-      "Context documents (top-k):\n\n" +
-      context +
-      "\n\nInstruction: Prefer the most relevant snippets, and avoid speculation.",
-  } as const;
+    role: "assistant" as const,
+    parts: [
+      {
+        type: "text" as const,
+        text: context
+          ? `Context documents (top-k):\n\n${context}\n\nInstruction: cite snippet markers like [[1]] when you reference them and avoid speculation.`
+          : "No matching internal documents were retrieved. If you answer, make it clear you are relying on general knowledge.",
+      },
+    ],
+  } satisfies Omit<UIMessage, "id">;
 
-  const finalMessages = [
+  const fileParts = (lastMessage?.parts ?? []).filter(
+    (part): part is MessageFilePart => part.type === "file",
+  );
+
+  const normalizedAttachments = fileParts.map((part) =>
+    normalizeAttachment(part, organizationId),
+  );
+
+  const attachmentsMessage = normalizedAttachments.length
+    ? await buildAttachmentContext({
+        attachments: normalizedAttachments,
+        organizationId,
+      })
+    : null;
+
+  const requestMessages = messages.map(({ id, ...rest }) => rest) as Array<
+    Omit<UIMessage, "id">
+  >;
+
+  const sanitizedRequestMessages = requestMessages.map((message) => {
+    const nonFileParts = message.parts?.filter((part) => part.type !== "file");
+
+    if (nonFileParts && nonFileParts.length > 0) {
+      return { ...message, parts: nonFileParts };
+    }
+
+    if (message.role === "user") {
+      return {
+        ...message,
+        parts: [
+          {
+            type: "text" as const,
+            text: "[User uploaded attachments for review]",
+          },
+        ],
+      } satisfies Omit<UIMessage, "id">;
+    }
+
+    if (message.role === "assistant") {
+      return {
+        ...message,
+        parts: [
+          {
+            type: "text" as const,
+            text: "[Assistant processed attachment metadata]",
+          },
+        ],
+      } satisfies Omit<UIMessage, "id">;
+    }
+
+    return {
+      ...message,
+      parts: [{ type: "text" as const, text: "" }],
+    } satisfies Omit<UIMessage, "id">;
+  });
+
+  const finalMessages = convertToModelMessages([
     baseSystem,
     contextMsg,
-    ...convertToModelMessages(messages),
-  ];
+    ...(attachmentsMessage ? [attachmentsMessage] : []),
+    ...sanitizedRequestMessages,
+  ]);
 
   const result = streamText({
     model: openai("gpt-4o"),
     messages: finalMessages,
     experimental_transform: smoothStream({ chunking: "word" }),
     onFinish: (r) => {
+      const cookie = req.headers.get("cookie");
       fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/ai/persist-message`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(cookie ? { cookie } : {}),
+        },
         body: JSON.stringify({
           conversationId,
           role: "assistant",
@@ -146,4 +230,323 @@ export async function POST(req: Request) {
   });
 
   return result.toUIMessageStreamResponse();
+}
+
+interface BuildAttachmentContextArgs {
+  attachments: NormalizedAttachment[];
+  organizationId?: string | null;
+}
+
+async function buildAttachmentContext({
+  attachments,
+  organizationId,
+}: BuildAttachmentContextArgs): Promise<Omit<UIMessage, "id">> {
+  const summaries: string[] = [];
+  for (let index = 0; index < attachments.length; index++) {
+    const summary = await summarizeAttachmentWithTimeout(
+      attachments[index],
+      index,
+    );
+    summaries.push(summary);
+  }
+
+  const header = `Uploaded attachments (active organization: ${
+    organizationId ?? "none"
+  }):`;
+
+  const body = summaries.join("\n\n");
+  const note =
+    "\n\nPreviews are truncated for brevity. Reference them when forming your response.";
+
+  return {
+    role: "assistant" as const,
+    parts: [
+      {
+        type: "text" as const,
+        text: `${header}\n\n${body}${note}`,
+      },
+    ],
+  } satisfies Omit<UIMessage, "id">;
+}
+
+async function summarizeAttachmentWithTimeout(
+  attachment: NormalizedAttachment,
+  index: number,
+): Promise<string> {
+  const { part, metadata } = attachment;
+
+  const sizeLabel =
+    typeof metadata.size === "number" ? `${metadata.size} bytes` : "unknown size";
+  const objectKeyLabel = metadata.objectKey ?? "none";
+  const providerOrgLabel =
+    metadata.organizationId === null
+      ? "null"
+      : metadata.organizationId ?? "unknown";
+
+  const baseLine = `${index + 1}. ${part.filename ?? "attachment"} • ${
+    part.mediaType ?? "unknown"
+  } • ${sizeLabel} • objectKey:${objectKeyLabel} • organizationId:${providerOrgLabel} • url:${
+    part.url ?? "(missing url)"
+  }`;
+
+  let preview: string;
+
+  try {
+    preview = await withTimeout(
+      buildAttachmentPreview(part, metadata.objectKey),
+      ATTACHMENT_PREVIEW_TIMEOUT_MS,
+      "Preview unavailable: timed out while preparing document preview.",
+    );
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown error";
+    preview = `Preview unavailable: ${reason}`;
+  }
+
+  return `${baseLine}\n${preview}`;
+}
+
+interface AttachmentMetadata {
+  objectKey?: string;
+  size?: number;
+  organizationId?: string | null;
+}
+
+interface NormalizedAttachment {
+  part: MessageFilePart;
+  metadata: AttachmentMetadata;
+}
+
+function normalizeAttachment(
+  part: MessageFilePart,
+  fallbackOrganizationId?: string | null,
+): NormalizedAttachment {
+  return {
+    part,
+    metadata: extractKommunMetadata(part, fallbackOrganizationId),
+  } satisfies NormalizedAttachment;
+}
+
+function extractKommunMetadata(
+  part: MessageFilePart,
+  fallbackOrganizationId?: string | null,
+): AttachmentMetadata {
+  const providerMetadata =
+    part.providerMetadata &&
+    typeof part.providerMetadata === "object" &&
+    part.providerMetadata !== null
+      ? (part.providerMetadata as Record<string, unknown>)
+      : {};
+
+  const kommunMetadata =
+    providerMetadata.kommun &&
+    typeof providerMetadata.kommun === "object" &&
+    providerMetadata.kommun !== null
+      ? (providerMetadata.kommun as Record<string, unknown>)
+      : providerMetadata;
+
+  const organizationIdValue = kommunMetadata.organizationId;
+  const organizationId =
+    typeof organizationIdValue === "string"
+      ? organizationIdValue
+      : organizationIdValue === null
+        ? null
+        : fallbackOrganizationId;
+
+  return {
+    objectKey:
+      typeof kommunMetadata.objectKey === "string"
+        ? kommunMetadata.objectKey
+        : undefined,
+    size:
+      typeof kommunMetadata.size === "number"
+        ? kommunMetadata.size
+        : undefined,
+    organizationId,
+  } satisfies AttachmentMetadata;
+}
+
+async function buildAttachmentPreview(
+  part: MessageFilePart,
+  objectKey?: string,
+): Promise<string> {
+  if (!part.url) {
+    return "Preview unavailable: attachment is missing a download URL.";
+  }
+
+  if (!canExtractText(part)) {
+    return "Preview unavailable: attachment is not a supported text document.";
+  }
+
+  try {
+    const file = await downloadAttachment({
+      url: part.url,
+      fileName: part.filename ?? "attachment",
+      mediaType: part.mediaType ?? "application/octet-stream",
+      objectKey,
+    });
+
+    const text = await extractText(file);
+    const normalized = normalizePreviewText(text);
+
+    if (!normalized) {
+      return "Preview unavailable: no readable text was extracted from the attachment.";
+    }
+
+    return `Preview:\n${truncatePreview(normalized)}`;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown error";
+    return `Preview unavailable: ${reason}`;
+  }
+}
+
+function canExtractText(part: MessageFilePart): boolean {
+  const mediaType = (part.mediaType ?? "").toLowerCase();
+  const filename = (part.filename ?? "").toLowerCase();
+
+  return (
+    mediaType === "text/plain" ||
+    mediaType === "application/pdf" ||
+    filename.endsWith(".txt") ||
+    filename.endsWith(".pdf")
+  );
+}
+
+function normalizePreviewText(text: string): string {
+  return text.replace(/\r\n/g, "\n").trim();
+}
+
+const PREVIEW_CHAR_LIMIT = 1200;
+
+const ATTACHMENT_PREVIEW_TIMEOUT_MS = 5000;
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  fallback: T,
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => resolve(fallback), ms);
+  });
+
+  try {
+    return await Promise.race([
+      promise
+        .then((value) => {
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
+          return value;
+        })
+        .catch((error) => {
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
+          throw error;
+        }),
+      timeoutPromise,
+    ]);
+  } finally {
+    promise.catch(() => undefined);
+  }
+}
+
+function truncatePreview(text: string): string {
+  if (text.length <= PREVIEW_CHAR_LIMIT) {
+    return text;
+  }
+
+  return `${text.slice(0, PREVIEW_CHAR_LIMIT)}…`;
+}
+
+interface DownloadAttachmentArgs {
+  url: string;
+  fileName: string;
+  mediaType: string;
+  objectKey?: string | null;
+}
+
+async function downloadAttachment({
+  url,
+  fileName,
+  mediaType,
+  objectKey,
+}: DownloadAttachmentArgs): Promise<File> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return new File([arrayBuffer], fileName, { type: mediaType });
+  } catch (httpError) {
+    if (!objectKey) {
+      throw httpError;
+    }
+
+    try {
+      const client = getS3Client();
+      const bucket = getS3BucketName();
+      const object = await client.send(
+        new GetObjectCommand({ Bucket: bucket, Key: objectKey }),
+      );
+
+      const body = object.Body;
+      if (!body) {
+        throw new Error("Attachment is empty");
+      }
+
+      const bytes = await readBody(body);
+      return new File([bytes], fileName, { type: mediaType });
+    } catch (s3Error) {
+      throw httpError instanceof Error ? httpError : s3Error;
+    }
+  }
+}
+
+async function readBody(body: unknown): Promise<Uint8Array> {
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "transformToByteArray" in body &&
+    typeof (body as { transformToByteArray: () => Promise<Uint8Array> })
+      .transformToByteArray === "function"
+  ) {
+    return (body as { transformToByteArray: () => Promise<Uint8Array> }).transformToByteArray();
+  }
+
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    Symbol.asyncIterator in (body as Record<symbol, unknown>)
+  ) {
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of body as AsyncIterable<
+      Buffer | Uint8Array | string
+    >) {
+      if (typeof chunk === "string") {
+        chunks.push(Buffer.from(chunk));
+      } else if (chunk instanceof Uint8Array) {
+        chunks.push(chunk);
+      } else {
+        chunks.push(Buffer.from(chunk));
+      }
+    }
+    return Buffer.concat(chunks);
+  }
+
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "arrayBuffer" in body &&
+    typeof (body as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer ===
+      "function"
+  ) {
+    const arrayBuffer = await (
+      body as { arrayBuffer: () => Promise<ArrayBuffer> }
+    ).arrayBuffer();
+    return new Uint8Array(arrayBuffer);
+  }
+
+  throw new Error("Unsupported attachment stream type");
 }

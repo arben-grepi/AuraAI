@@ -29,6 +29,10 @@ export type Organization = {
   name: string;
   slug: string;
   logo: string;
+  description: string | null;
+  backgroundColor: string;
+  buttonColor: string;
+  tone: string | null;
   createdAt: string;
   updatedAt: string;
   metadata: { [key: string]: string };

@@ -19,6 +19,47 @@ import { generateSlug } from "./utils";
 import { UIMessage, generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
 
+async function getMembership(organizationId: string, userId: string) {
+  return prisma.member.findFirst({
+    where: {
+      organizationId,
+      userId,
+    },
+    select: {
+      id: true,
+      role: true,
+    },
+  });
+}
+
+function hasOrgAdminPrivileges(
+  membershipRole: string | null | undefined,
+): boolean {
+  return membershipRole === "owner" || membershipRole === "admin";
+}
+
+async function userHasOrgAdminAccess({
+  organizationId,
+  userId,
+  sessionRole,
+}: {
+  organizationId: string;
+  userId: string;
+  sessionRole: string | null | undefined;
+}) {
+  if (sessionRole === "admin") {
+    return true;
+  }
+
+  const membership = await getMembership(organizationId, userId);
+
+  if (!membership) {
+    return false;
+  }
+
+  return hasOrgAdminPrivileges(membership.role ?? null);
+}
+
 export async function signUp(
   values: z.infer<typeof signUpSchema>,
 ): Promise<ActionResult<{ data: string }>> {
@@ -104,13 +145,32 @@ export async function createConversation(): Promise<
   });
 
   if (!session) {
-    return redirect("/sign-in");
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const organizationId = session.session?.activeOrganizationId;
+
+  if (!organizationId) {
+    return {
+      success: false,
+      data: null,
+      error: "No active organization selected",
+    };
+  }
+
+  if (session.user.role !== "admin") {
+    const membership = await getMembership(organizationId, session.user.id);
+
+    if (!membership) {
+      return { success: false, data: null, error: "Unauthorized" };
+    }
   }
 
   const created = await prisma.conversation.create({
     data: {
       title: "New chat",
       userId: session.user.id,
+      organizationId,
     },
   });
 
@@ -145,11 +205,39 @@ export async function deleteConversation(
     return { success: false, data: null, error: "Unauthorized" };
   }
 
-  await prisma.conversation.delete({
+  const organizationId = session.session?.activeOrganizationId;
+
+  if (!organizationId) {
+    return {
+      success: false,
+      data: null,
+      error: "No active organization selected",
+    };
+  }
+
+  if (session.user.role !== "admin") {
+    const membership = await getMembership(organizationId, session.user.id);
+
+    if (!membership) {
+      return { success: false, data: null, error: "Unauthorized" };
+    }
+  }
+
+  const conversation = await prisma.conversation.findFirst({
     where: {
       id,
       userId: session.user.id,
+      organizationId,
     },
+    select: { id: true },
+  });
+
+  if (!conversation) {
+    return { success: false, data: null, error: "Conversation not found" };
+  }
+
+  await prisma.conversation.delete({
+    where: { id: conversation.id },
   });
 
   revalidateTag("conversations");
@@ -245,13 +333,24 @@ export async function createOrganization(
     return { success: false, data: null, error: "Unauthorized" };
   }
 
+  if (session.user.role !== "admin") {
+    return { success: false, data: null, error: "Insufficient permissions" };
+  }
+
   const validated = createOrganizationSchema.safeParse(values);
 
   if (!validated.success) {
     return { success: false, data: null, error: validated.error.message };
   }
 
-  const { name, logo, keepCurrentActiveOrganization } = validated.data;
+  const {
+    name,
+    logo,
+    keepCurrentActiveOrganization,
+    backgroundColor,
+    buttonColor,
+    tone,
+  } = validated.data;
   const slug = generateSlug(name);
   try {
     const doesOrganizationExist = await auth.api.checkOrganizationSlug({
@@ -268,7 +367,10 @@ export async function createOrganization(
     }
   } catch (error) {
     if (error instanceof APIError) {
-      return { error: error.message, success: false, data: null };
+      const errorMessage = error.message.toLowerCase().includes("slug is taken")
+        ? "This name is taken"
+        : error.message;
+      return { error: errorMessage, success: false, data: null };
     }
     console.error(
       "[BETTER_AUTH] Check organization slug has not worked",
@@ -291,6 +393,9 @@ export async function createOrganization(
         userId: session.user.id,
         keepCurrentActiveOrganization,
         metadata,
+        backgroundColor,
+        buttonColor,
+        tone,
       },
     });
     return {
@@ -300,7 +405,10 @@ export async function createOrganization(
     };
   } catch (error) {
     if (error instanceof APIError) {
-      return { error: error.message, success: false, data: null };
+      const errorMessage = error.message.toLowerCase().includes("slug is taken")
+        ? "This name is taken"
+        : error.message;
+      return { error: errorMessage, success: false, data: null };
     }
     console.error("[BETTER_AUTH] Create organization has not worked", error);
     return {
@@ -319,6 +427,10 @@ export async function deleteOrg(
   });
   if (!session) {
     return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  if (session.user.role !== "admin") {
+    return { success: false, data: null, error: "Insufficient permissions" };
   }
 
   try {
@@ -355,6 +467,16 @@ export async function addMemberToOrg(
   });
   if (!session) {
     return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const canManageMembers = await userHasOrgAdminAccess({
+    organizationId,
+    userId: session.user.id,
+    sessionRole: session.user.role,
+  });
+
+  if (!canManageMembers) {
+    return { success: false, data: null, error: "Insufficient permissions" };
   }
 
   try {
@@ -400,6 +522,16 @@ export async function removeMemberFromOrg({
     return { success: false, data: null, error: "Unauthorized" };
   }
 
+  const canManageMembers = await userHasOrgAdminAccess({
+    organizationId,
+    userId: session.user.id,
+    sessionRole: session.user.role,
+  });
+
+  if (!canManageMembers) {
+    return { success: false, data: null, error: "Insufficient permissions" };
+  }
+
   try {
     await auth.api.removeMember({
       headers: await headers(),
@@ -424,6 +556,59 @@ export async function removeMemberFromOrg({
     );
     return {
       error: "Could not remove member from organization",
+      success: false,
+      data: null,
+    };
+  }
+}
+
+export async function updateMemberRole({
+  memberId,
+  organizationId,
+  role,
+}: {
+  memberId: string;
+  organizationId: string;
+  role: "owner" | "admin" | "member";
+}): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const canManageMembers = await userHasOrgAdminAccess({
+    organizationId,
+    userId: session.user.id,
+    sessionRole: session.user.role,
+  });
+
+  if (!canManageMembers) {
+    return { success: false, data: null, error: "Insufficient permissions" };
+  }
+
+  try {
+    await auth.api.updateMemberRole({
+      headers: await headers(),
+      body: {
+        memberId,
+        organizationId,
+        role,
+      },
+    });
+    return {
+      success: true,
+      data: { data: "Member role updated successfully" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error("[BETTER_AUTH] Update member role has not worked", error);
+    return {
+      error: "Could not update member role",
       success: false,
       data: null,
     };
@@ -493,4 +678,104 @@ export async function deleteResource(
   }
 
   return { success: true, data: { data: "Resource deleted" }, error: null };
+}
+
+export async function createOrgUser({
+  slug,
+  values,
+}: {
+  slug: string;
+  values: z.infer<typeof signUpSchema>;
+}): Promise<ActionResult<{ data: string }>> {
+  const validated = signUpSchema.safeParse(values);
+
+  if (!validated.success) {
+    return { success: false, data: null, error: validated.error.message };
+  }
+
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const organization = await prisma.organization.findUnique({
+    where: { slug },
+    select: { id: true },
+  });
+
+  if (!organization) {
+    return {
+      success: false,
+      data: null,
+      error: "Organization not found",
+    };
+  }
+
+  const canManageMembers = await userHasOrgAdminAccess({
+    organizationId: organization.id,
+    userId: session.user.id,
+    sessionRole: session.user.role,
+  });
+
+  if (!canManageMembers) {
+    return {
+      success: false,
+      data: null,
+      error: "Insufficient permissions",
+    };
+  }
+
+  const { email, password, firstName, lastName } = validated.data;
+
+  try {
+    const user = await auth.api.createUser({
+      body: {
+        email,
+        password,
+        name: `${firstName} ${lastName}`,
+        role: "user",
+      },
+    });
+
+    if (!user?.user?.id) {
+      return {
+        success: false,
+        data: null,
+        error: "Failed to create user",
+      };
+    }
+
+    const addMemberResult = await addMemberToOrg(
+      organization.id,
+      user.user.id,
+      "member",
+    );
+
+    if (!addMemberResult.success) {
+      return {
+        success: false,
+        data: null,
+        error: addMemberResult.error || "Failed to add user to organization",
+      };
+    }
+
+    return {
+      success: true,
+      data: { data: "User created and added to organization successfully" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error("[BETTER_AUTH] Create user has not worked", error);
+    return {
+      error: "Could not create user",
+      success: false,
+      data: null,
+    };
+  }
 }
