@@ -56,9 +56,32 @@ export const auth = betterAuth({
   plugins: [
     nextCookies(),
     openAPI(),
-    organization(),
+    organization({
+      schema: {
+        organization: {
+          additionalFields: {
+            backgroundColor: {
+              type: "string",
+              required: true,
+            },
+            buttonColor: {
+              type: "string",
+              required: true,
+            },
+            tone: {
+              type: "string",
+              required: false,
+            },
+            description: {
+              type: "string",
+              required: false,
+            },
+          },
+        },
+      },
+    }),
     admin({
-      adminUserIds: ["p2eJndDLABAnCm0QuOlG1brnJrboUdzg"],
+      adminUserIds: ["9vhMSKPOfU4MTR3g4O4VjsBW4cE4cPBm"],
     }),
   ],
 });

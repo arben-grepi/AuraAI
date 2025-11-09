@@ -10,7 +10,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Conversations } from "./sidebar/conversations";
 import { Suspense } from "react";
@@ -19,6 +18,7 @@ import { NavUser } from "./sidebar/nav-user";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import Image from "next/image";
+import prisma from "@/lib/prisma";
 
 const items = [
   {
@@ -34,25 +34,41 @@ const items = [
   },
 ];
 
-export async function AppSidebar() {
+export async function AppSidebar({ org }: { org: string }) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
 
   const { name, email, image } = session?.user || {};
 
+  const organization = await prisma.organization.findUnique({
+    where: {
+      slug: org,
+    },
+  });
+
+  console.log(organization);
+
   return (
     <Sidebar className="border-none">
       <SidebarContent>
         <SidebarHeader className="flex flex-row justify-between items-center ">
-          <Image
-            src="/logo.svg"
-            alt="Axiom"
-            width={24}
-            height={24}
-            className="block"
-          />
-          <SidebarTrigger />
+          <div
+            className="w-full h-12"
+            style={{ backgroundColor: organization?.backgroundColor || "" }}
+          >
+            {!organization ? (
+              <div>Loading...</div>
+            ) : (
+              <Image
+                src={organization?.logo || ""}
+                alt={organization?.name || ""}
+                width={54}
+                height={54}
+                className="block"
+              />
+            )}
+          </div>
         </SidebarHeader>
         <SidebarGroup>
           <SidebarGroupContent>
@@ -72,7 +88,7 @@ export async function AppSidebar() {
               ))}
               <SidebarGroupLabel>Chats</SidebarGroupLabel>
               <Suspense fallback={<ConversationsSkeleton />}>
-                <Conversations />
+                <Conversations slug={org} />
               </Suspense>
             </SidebarMenu>
           </SidebarGroupContent>

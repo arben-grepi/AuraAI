@@ -251,7 +251,14 @@ export async function createOrganization(
     return { success: false, data: null, error: validated.error.message };
   }
 
-  const { name, logo, keepCurrentActiveOrganization } = validated.data;
+  const {
+    name,
+    logo,
+    keepCurrentActiveOrganization,
+    backgroundColor,
+    buttonColor,
+    tone,
+  } = validated.data;
   const slug = generateSlug(name);
   try {
     const doesOrganizationExist = await auth.api.checkOrganizationSlug({
@@ -268,7 +275,10 @@ export async function createOrganization(
     }
   } catch (error) {
     if (error instanceof APIError) {
-      return { error: error.message, success: false, data: null };
+      const errorMessage = error.message.toLowerCase().includes("slug is taken")
+        ? "This name is taken"
+        : error.message;
+      return { error: errorMessage, success: false, data: null };
     }
     console.error(
       "[BETTER_AUTH] Check organization slug has not worked",
@@ -291,6 +301,9 @@ export async function createOrganization(
         userId: session.user.id,
         keepCurrentActiveOrganization,
         metadata,
+        backgroundColor,
+        buttonColor,
+        tone,
       },
     });
     return {
@@ -300,7 +313,10 @@ export async function createOrganization(
     };
   } catch (error) {
     if (error instanceof APIError) {
-      return { error: error.message, success: false, data: null };
+      const errorMessage = error.message.toLowerCase().includes("slug is taken")
+        ? "This name is taken"
+        : error.message;
+      return { error: errorMessage, success: false, data: null };
     }
     console.error("[BETTER_AUTH] Create organization has not worked", error);
     return {
@@ -430,6 +446,49 @@ export async function removeMemberFromOrg({
   }
 }
 
+export async function updateMemberRole({
+  memberId,
+  organizationId,
+  role,
+}: {
+  memberId: string;
+  organizationId: string;
+  role: "owner" | "admin" | "member";
+}): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  try {
+    await auth.api.updateMemberRole({
+      headers: await headers(),
+      body: {
+        memberId,
+        organizationId,
+        role,
+      },
+    });
+    return {
+      success: true,
+      data: { data: "Member role updated successfully" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error("[BETTER_AUTH] Update member role has not worked", error);
+    return {
+      error: "Could not update member role",
+      success: false,
+      data: null,
+    };
+  }
+}
+
 export async function generateTitleFromUserMessage({
   message,
 }: {
@@ -493,4 +552,82 @@ export async function deleteResource(
   }
 
   return { success: true, data: { data: "Resource deleted" }, error: null };
+}
+
+export async function createOrgUser({
+  slug,
+  values,
+}: {
+  slug: string;
+  values: z.infer<typeof signUpSchema>;
+}): Promise<ActionResult<{ data: string }>> {
+  const validated = signUpSchema.safeParse(values);
+
+  if (!validated.success) {
+    return { success: false, data: null, error: validated.error.message };
+  }
+
+  const { email, password, firstName, lastName } = validated.data;
+
+  try {
+    const user = await auth.api.createUser({
+      body: {
+        email,
+        password,
+        name: `${firstName} ${lastName}`,
+        role: "user",
+      },
+    });
+
+    if (!user?.user?.id) {
+      return {
+        success: false,
+        data: null,
+        error: "Failed to create user",
+      };
+    }
+
+    const organization = await prisma.organization.findUnique({
+      where: { slug },
+      select: { id: true },
+    });
+
+    if (!organization) {
+      return {
+        success: false,
+        data: null,
+        error: "Organization not found",
+      };
+    }
+
+    const addMemberResult = await addMemberToOrg(
+      organization.id,
+      user.user.id,
+      "member",
+    );
+
+    if (!addMemberResult.success) {
+      return {
+        success: false,
+        data: null,
+        error: addMemberResult.error || "Failed to add user to organization",
+      };
+    }
+
+    return {
+      success: true,
+      data: { data: "User created and added to organization successfully" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error("[BETTER_AUTH] Create user has not worked", error);
+    return {
+      error: "Could not create user",
+      success: false,
+      data: null,
+    };
+  }
 }

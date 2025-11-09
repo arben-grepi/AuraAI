@@ -4,8 +4,8 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
-export default async function Page(props: PageProps<"/chat/[id]">) {
-  const { id } = await props.params;
+export default async function Page(props: PageProps<"/org/[org]/[id]">) {
+  const { org, id } = await props.params;
   const session = await auth.api.getSession({ headers: await headers() });
 
   const messages = await prisma.message.findMany({
@@ -27,8 +27,12 @@ export default async function Page(props: PageProps<"/chat/[id]">) {
   );
 
   return (
-    <div className="flex items-center justify-center min-h-screen w-[100%]">
-      <ChatInterface conversationId={id} initialMessages={initialMessages} />
+    <div className="flex items-center justify-center min-h-screen w-full">
+      <ChatInterface
+        conversationId={id}
+        initialMessages={initialMessages}
+        slug={org}
+      />
     </div>
   );
 }

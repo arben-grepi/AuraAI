@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
-import { ArrowDown, Loader2 } from "lucide-react";
+import { ArrowDown } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import { useConversations } from "@/hooks/use-conversations";
@@ -26,11 +26,13 @@ import { toChatMessage } from "./types";
 interface ChatInterfaceProps {
   conversationId: string;
   initialMessages?: ChatMessage[];
+  slug: string;
 }
 
 export function ChatInterface({
   conversationId,
   initialMessages,
+  slug,
 }: ChatInterfaceProps) {
   const { invalidateConversations } = useConversations();
 
@@ -111,13 +113,13 @@ export function ChatInterface({
           attachments: [...attachments],
         };
         setConvId(newId);
-        window.history.replaceState({}, "", `/chat/${newId}`);
+        window.history.replaceState({}, "", `${slug}/chat/${newId}`);
         return;
       }
 
       await send();
     },
-    [convId, sendMessage],
+    [convId, sendMessage, slug],
   );
 
   useEffect(() => {
@@ -176,7 +178,7 @@ export function ChatInterface({
 
   if (isLoading && convId) {
     return (
-      <div className="mx-auto flex flex-col overflow-hidden w-[100%] h-screen relative">
+      <div className="mx-auto flex flex-col overflow-hidden w-full h-screen relative">
         <ChatHeader />
         <div className="flex-1 relative overflow-hidden">
           <StickToBottom
@@ -198,7 +200,7 @@ export function ChatInterface({
           </StickToBottom>
         </div>
 
-        <div className="w-full bg-gradient-to-t from-white dark:from-background from-80% to-transparent">
+        <div className="w-full bg-linear-to-t from-white dark:from-background from-80% to-transparent">
           <div className="max-w-3xl mx-auto w-full">
             <ChatInput
               loading={status === "streaming" || status === "submitted"}
@@ -212,7 +214,7 @@ export function ChatInterface({
   }
 
   return (
-    <div className="mx-auto flex flex-col overflow-hidden w-[100%] h-screen relative">
+    <div className="mx-auto flex flex-col overflow-hidden w-full h-screen relative">
       <ChatHeader />
       <div className="flex-1 relative overflow-hidden">
         <StickToBottom
@@ -254,7 +256,7 @@ export function ChatInterface({
         </StickToBottom>
       </div>
 
-      <div className="w-full bg-gradient-to-t from-white dark:from-background from-80% to-transparent">
+      <div className="w-full bg-linear-to-t from-white dark:from-background from-80% to-transparent">
         <div className="max-w-3xl mx-auto w-full">
           <ChatInput
             loading={status === "streaming" || status === "submitted"}
@@ -271,7 +273,7 @@ function attachmentsToChatFileParts(
   attachments: UploadedAttachment[],
 ): ChatFilePart[] {
   return attachments.map((attachment) => {
-    const kommunMetadata: Record<string, unknown> = {
+    const kommunMetadata: Record<string, string | number | null> = {
       storageProvider: "s3",
       size: attachment.size,
     };
@@ -281,13 +283,12 @@ function attachmentsToChatFileParts(
     }
 
     if (attachment.organizationId !== undefined) {
-      kommunMetadata.organizationId =
-        attachment.organizationId ?? null;
+      kommunMetadata.organizationId = attachment.organizationId ?? null;
     }
 
     const providerMetadata = {
       kommun: kommunMetadata,
-    } satisfies Record<string, Record<string, unknown>>;
+    };
 
     return {
       type: "file",

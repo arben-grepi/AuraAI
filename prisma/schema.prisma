@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
   output   = "../app/generated/prisma"
@@ -110,6 +111,12 @@ model Organization {
   invitations Invitation[]
   members     Member[]
   resources   Resource[]
+
+  backgroundColor String
+  buttonColor     String
+  tone            String?
+
+  description String?
 
   @@map("organization")
 }

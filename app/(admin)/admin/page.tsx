@@ -68,9 +68,11 @@ export default function Page() {
           Choose an organization to manage
         </p>
       </div>
-      {organizations.map((organization: Organization) => {
-        return <OrgItem key={organization.id} organization={organization} />;
-      })}
+      <div className="flex flex-col gap-2 w-full max-w-[600px]">
+        {organizations.map((organization: Organization) => {
+          return <OrgItem key={organization.id} organization={organization} />;
+        })}
+      </div>
       <Link className="block w-full max-w-[600px]" href="/admin/create-org">
         <Button
           className="bg-white w-full max-w-[600px] mt-4 py-6 cursor-pointer"
