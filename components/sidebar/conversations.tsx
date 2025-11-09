@@ -29,8 +29,6 @@ export function Conversations({ slug }: { slug: string }) {
       }
       return response.json();
     },
-    gcTime: 1000 * 60 * 5,
-    staleTime: 1000 * 60 * 5,
   });
 
   if (isLoading) {
@@ -95,7 +93,7 @@ const ConversationItem = ({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            <DeleteConvo id={conversation.id} />
+            <DeleteConvo id={conversation.id} slug={slug} />
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

@@ -42,8 +42,13 @@ export async function POST(req: Request) {
     messages,
   }: { conversationId: string; messages: UIMessage[] } = await req.json();
 
-  if (!conversationId)
+  if (!conversationId || typeof conversationId !== "string") {
     return new Response("Conversation ID is required", { status: 400 });
+  }
+
+  if (!Array.isArray(messages)) {
+    return new Response("Messages must be an array", { status: 400 });
+  }
 
   const requestHeaders = await headers();
   const session = await auth.api.getSession({ headers: requestHeaders });
@@ -82,12 +87,14 @@ export async function POST(req: Request) {
 
   if (!conversation && lastMessage) {
     const title = await generateTitleFromUserMessage({ message: lastMessage });
-    await prisma.conversation.create({
-      data: {
+    await prisma.conversation.upsert({
+      where: { id: conversationId },
+      update: {},
+      create: {
         id: conversationId,
         userId: session.user.id,
-        title,
         organizationId,
+        title,
       },
     });
   }
@@ -96,18 +103,17 @@ export async function POST(req: Request) {
     const content = lastMessage.parts
       .map((p) => (p.type === "text" ? p.text : ""))
       .join("");
-    queueMicrotask(() => {
-      prisma.message
-        .create({
-          data: {
-            conversationId,
-            role: "user",
-            content,
-            parts: JSON.parse(JSON.stringify(lastMessage.parts ?? [])),
-          },
-        })
-        .catch((e) => console.error("user save failed", e));
-    });
+    // Save user message asynchronously but don't block the response
+    prisma.message
+      .create({
+        data: {
+          conversationId,
+          role: "user",
+          content,
+          parts: JSON.parse(JSON.stringify(lastMessage.parts ?? [])),
+        },
+      })
+      .catch((e) => console.error("user save failed", e));
   }
 
   const latestText =

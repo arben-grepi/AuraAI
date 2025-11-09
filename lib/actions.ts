@@ -19,10 +19,7 @@ import { generateSlug } from "./utils";
 import { UIMessage, generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
 
-async function getMembership(
-  organizationId: string,
-  userId: string,
-) {
+async function getMembership(organizationId: string, userId: string) {
   return prisma.member.findFirst({
     where: {
       organizationId,
@@ -148,7 +145,7 @@ export async function createConversation(): Promise<
   });
 
   if (!session) {
-    return redirect("/sign-in");
+    return { success: false, data: null, error: "Unauthorized" };
   }
 
   const organizationId = session.session?.activeOrganizationId;
@@ -211,7 +208,11 @@ export async function deleteConversation(
   const organizationId = session.session?.activeOrganizationId;
 
   if (!organizationId) {
-    return { success: false, data: null, error: "No active organization selected" };
+    return {
+      success: false,
+      data: null,
+      error: "No active organization selected",
+    };
   }
 
   if (session.user.role !== "admin") {

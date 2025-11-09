@@ -303,6 +303,7 @@ export function ChatInput({
         text: trimmed || undefined,
         attachments: readyAttachments.map(toUploadedAttachment),
       });
+      formRef.current?.focus();
     } catch (error) {
       console.error(error);
       toast.error(

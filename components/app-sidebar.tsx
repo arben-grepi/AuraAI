@@ -19,6 +19,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import Image from "next/image";
 import prisma from "@/lib/prisma";
+import { AiSettingsDialog } from "./org/ai-settings-dialog";
 
 export async function AppSidebar({ org }: { org: string }) {
   const session = await auth.api.getSession({
@@ -40,6 +41,24 @@ export async function AppSidebar({ org }: { org: string }) {
     return null;
   }
 
+  // Check if user is admin or owner of the organization
+  let isOrgAdmin = false;
+  if (session?.user.role === "admin") {
+    isOrgAdmin = true;
+  } else {
+    const membership = await prisma.member.findFirst({
+      where: {
+        organizationId: organization.id,
+        userId: session?.user.id ?? "",
+      },
+      select: {
+        role: true,
+      },
+    });
+
+    isOrgAdmin = membership?.role === "owner" || membership?.role === "admin";
+  }
+
   const items = [
     {
       title: "New Chat",
@@ -59,20 +78,28 @@ export async function AppSidebar({ org }: { org: string }) {
       <SidebarContent>
         <SidebarHeader className="flex flex-row justify-between items-center ">
           <div
-            className="w-full h-12"
-            style={{ backgroundColor: organization?.backgroundColor || "" }}
+            className="w-full h-12 rounded-[12px] border border-zinc-200 flex items-center justify-between px-2 py-4"
+            style={{
+              backgroundImage: `linear-gradient(to bottom, transparent, ${organization?.backgroundColor || ""})`,
+            }}
           >
-            {!organization ? (
-              <div>Loading...</div>
-            ) : (
-              <Image
-                src={organization?.logo || ""}
-                alt={organization?.name || ""}
-                width={54}
-                height={54}
-                className="block"
-              />
-            )}
+            <div className="flex items-center gap-2">
+              {!organization ? (
+                <div>Loading...</div>
+              ) : (
+                <Image
+                  src={organization?.logo || ""}
+                  alt={organization?.name || ""}
+                  width={34}
+                  height={34}
+                  className="block rounded-[6px]"
+                />
+              )}
+              <p className="text-sm font-medium text-zinc-800 ml-2">
+                {organization?.name}
+              </p>
+            </div>
+            {isOrgAdmin && <AiSettingsDialog orgSlug={org} />}
           </div>
         </SidebarHeader>
         <SidebarGroup>

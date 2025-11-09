@@ -50,7 +50,7 @@ export async function GET(req: Request) {
       where: {
         conversationId,
         conversation: {
-          userId: session?.user.id,
+          userId: session.user.id,
           organizationId,
         },
       },

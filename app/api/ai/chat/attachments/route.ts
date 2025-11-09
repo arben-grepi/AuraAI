@@ -97,11 +97,18 @@ export async function POST(req: Request) {
       }
     }
 
+    // Sanitize filename to prevent path traversal
+    const sanitizedFileName = uploadFile.name
+      .replace(/[^a-zA-Z0-9._-]/g, "-")
+      .replace(/\.\./g, "")
+      .replace(/^\/+|\/+$/g, "")
+      .substring(0, 255); // Limit length
+
     const key = [
       "chat-uploads",
       targetOrgId,
       crypto.randomUUID(),
-      uploadFile.name.replace(/\s+/g, "-"),
+      sanitizedFileName || "file",
     ].join("/");
 
     await client.send(

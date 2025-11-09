@@ -44,10 +44,6 @@ export async function GET() {
     },
   });
 
-  if (!conversations) {
-    return NextResponse.json([], { status: 200 });
-  }
-
   return NextResponse.json(conversations);
 }
 

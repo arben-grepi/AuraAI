@@ -78,15 +78,15 @@ model Verification {
 }
 
 model Conversation {
-  id        String    @id @default(uuid())
-  title     String?
-  userId    String
+  id             String       @id @default(uuid())
+  title          String?
+  userId         String
   organizationId String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  messages  Message[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  messages       Message[]
 
   @@map("conversation")
 }

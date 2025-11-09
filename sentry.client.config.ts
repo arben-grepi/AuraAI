@@ -8,17 +8,15 @@ Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
   // Adjust this value in production, or use tracesSampler for greater control
-  tracesSampleRate:
-    process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+  tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
 
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
-  debug: process.env.NODE_ENV === "development",
+  debug: false,
 
   // Session Replay configuration (optional - requires Sentry plan with Replay)
   // Remove or set to 0 if you don't have Session Replay enabled
   replaysOnErrorSampleRate: 1.0,
-  replaysSessionSampleRate:
-    process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+  replaysSessionSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
 
   integrations: [
     // Session Replay integration (optional - comment out if not available in your plan)
@@ -31,8 +29,7 @@ Sentry.init({
   environment: process.env.NODE_ENV || "development",
 
   // Set sample rate for profiling - this is relative to tracesSampleRate
-  profilesSampleRate:
-    process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+  profilesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
 
   beforeSend(event, hint) {
     // Filter out known non-critical errors
@@ -50,4 +47,3 @@ Sentry.init({
     return event;
   },
 });
-
