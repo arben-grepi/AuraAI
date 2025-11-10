@@ -61,26 +61,36 @@ export async function middleware(request: NextRequest) {
         try {
           const apiUrl = `${request.nextUrl.origin}/api/user/first-org`;
           console.log(`[Middleware] Calling API: ${apiUrl}`);
-          const orgResponse = await betterFetch<{ slug: string | null }>(
-            "/api/user/first-org",
-            {
-              baseURL: request.nextUrl.origin,
-              headers: {
-                cookie: request.headers.get("cookie") || "",
-              },
-            },
-          );
+
+          // Forward all headers, especially cookies
+          const headers = new Headers();
+          request.headers.forEach((value, key) => {
+            headers.set(key, value);
+          });
+
+          const response = await fetch(apiUrl, {
+            headers,
+            cache: "no-store",
+          });
+
+          if (!response.ok) {
+            throw new Error(
+              `API returned ${response.status}: ${response.statusText}`,
+            );
+          }
+
+          const orgResponse = await response.json();
           console.log(
             `[Middleware] API response received:`,
             JSON.stringify(orgResponse),
           );
 
-          if (orgResponse?.data?.slug) {
+          if (orgResponse?.slug) {
             console.log(
-              `[Middleware] Redirecting non-admin to org chat: /org/${orgResponse.data.slug}/chat`,
+              `[Middleware] Redirecting non-admin to org chat: /org/${orgResponse.slug}/chat`,
             );
             return NextResponse.redirect(
-              new URL(`/org/${orgResponse.data.slug}/chat`, request.url),
+              new URL(`/org/${orgResponse.slug}/chat`, request.url),
             );
           }
           console.log(
@@ -98,52 +108,11 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
-    // Redirect non-admin users from home page to their org chat
+    // Home page - allow access (client-side redirect will handle non-admin users)
     if (pathname === "/") {
-      console.log(`[Middleware] Home page access detected`);
-      if (session.user.role !== "admin") {
-        console.log(
-          `[Middleware] Non-admin user on home page, fetching org to redirect`,
-        );
-        try {
-          const apiUrl = `${request.nextUrl.origin}/api/user/first-org`;
-          console.log(`[Middleware] Calling API: ${apiUrl}`);
-          const orgResponse = await betterFetch<{ slug: string | null }>(
-            "/api/user/first-org",
-            {
-              baseURL: request.nextUrl.origin,
-              headers: {
-                cookie: request.headers.get("cookie") || "",
-              },
-            },
-          );
-          console.log(
-            `[Middleware] API response received:`,
-            JSON.stringify(orgResponse),
-          );
-
-          if (orgResponse?.data?.slug) {
-            console.log(
-              `[Middleware] Redirecting non-admin from home to org chat: /org/${orgResponse.data.slug}/chat`,
-            );
-            return NextResponse.redirect(
-              new URL(`/org/${orgResponse.data.slug}/chat`, request.url),
-            );
-          }
-          console.log(
-            `[Middleware] No org found for non-admin user, allowing home page access`,
-          );
-        } catch (error) {
-          console.error(
-            `[Middleware] Error fetching user org for home redirect:`,
-            error,
-          );
-          Sentry.captureException(error);
-          // If API fails, allow access to home page
-        }
-      } else {
-        console.log(`[Middleware] Admin user on home page, allowing access`);
-      }
+      console.log(
+        `[Middleware] Home page access detected - allowing (client will handle redirect)`,
+      );
     }
 
     // Check organization routes - verify org exists (membership checked in layout)
@@ -179,28 +148,36 @@ export async function middleware(request: NextRequest) {
               console.log(
                 `[Middleware] Calling API for org redirect: ${apiUrl}`,
               );
-              const userOrgResponse = await betterFetch<{
-                slug: string | null;
-              }>("/api/user/first-org", {
-                baseURL: request.nextUrl.origin,
-                headers: {
-                  cookie: request.headers.get("cookie") || "",
-                },
+
+              // Forward all headers, especially cookies
+              const headers = new Headers();
+              request.headers.forEach((value, key) => {
+                headers.set(key, value);
               });
+
+              const response = await fetch(apiUrl, {
+                headers,
+                cache: "no-store",
+              });
+
+              if (!response.ok) {
+                throw new Error(
+                  `API returned ${response.status}: ${response.statusText}`,
+                );
+              }
+
+              const userOrgResponse = await response.json();
               console.log(
                 `[Middleware] API response for org redirect:`,
                 JSON.stringify(userOrgResponse),
               );
 
-              if (userOrgResponse?.data?.slug) {
+              if (userOrgResponse?.slug) {
                 console.log(
-                  `[Middleware] Redirecting to user's org chat: /org/${userOrgResponse.data.slug}/chat`,
+                  `[Middleware] Redirecting to user's org chat: /org/${userOrgResponse.slug}/chat`,
                 );
                 return NextResponse.redirect(
-                  new URL(
-                    `/org/${userOrgResponse.data.slug}/chat`,
-                    request.url,
-                  ),
+                  new URL(`/org/${userOrgResponse.slug}/chat`, request.url),
                 );
               }
               console.log(
