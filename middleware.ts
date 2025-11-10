@@ -59,6 +59,8 @@ export async function middleware(request: NextRequest) {
         );
         // Non-admin users trying to access admin routes - redirect to their org chat
         try {
+          const apiUrl = `${request.nextUrl.origin}/api/user/first-org`;
+          console.log(`[Middleware] Calling API: ${apiUrl}`);
           const orgResponse = await betterFetch<{ slug: string | null }>(
             "/api/user/first-org",
             {
@@ -67,6 +69,10 @@ export async function middleware(request: NextRequest) {
                 cookie: request.headers.get("cookie") || "",
               },
             },
+          );
+          console.log(
+            `[Middleware] API response received:`,
+            JSON.stringify(orgResponse),
           );
 
           if (orgResponse?.data?.slug) {
@@ -100,6 +106,8 @@ export async function middleware(request: NextRequest) {
           `[Middleware] Non-admin user on home page, fetching org to redirect`,
         );
         try {
+          const apiUrl = `${request.nextUrl.origin}/api/user/first-org`;
+          console.log(`[Middleware] Calling API: ${apiUrl}`);
           const orgResponse = await betterFetch<{ slug: string | null }>(
             "/api/user/first-org",
             {
@@ -108,6 +116,10 @@ export async function middleware(request: NextRequest) {
                 cookie: request.headers.get("cookie") || "",
               },
             },
+          );
+          console.log(
+            `[Middleware] API response received:`,
+            JSON.stringify(orgResponse),
           );
 
           if (orgResponse?.data?.slug) {
@@ -163,6 +175,10 @@ export async function middleware(request: NextRequest) {
             );
             // Org doesn't exist, redirect non-admin to their org chat
             try {
+              const apiUrl = `${request.nextUrl.origin}/api/user/first-org`;
+              console.log(
+                `[Middleware] Calling API for org redirect: ${apiUrl}`,
+              );
               const userOrgResponse = await betterFetch<{
                 slug: string | null;
               }>("/api/user/first-org", {
@@ -171,6 +187,10 @@ export async function middleware(request: NextRequest) {
                   cookie: request.headers.get("cookie") || "",
                 },
               });
+              console.log(
+                `[Middleware] API response for org redirect:`,
+                JSON.stringify(userOrgResponse),
+              );
 
               if (userOrgResponse?.data?.slug) {
                 console.log(
