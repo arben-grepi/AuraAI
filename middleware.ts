@@ -45,10 +45,55 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith("/admin")) {
       // Check if user has admin role
       if (session.user.role !== "admin") {
+        // Non-admin users trying to access admin routes - redirect to their org chat
+        try {
+          const orgResponse = await betterFetch<{ slug: string | null }>(
+            "/api/user/first-org",
+            {
+              baseURL: request.nextUrl.origin,
+              headers: {
+                cookie: request.headers.get("cookie") || "",
+              },
+            },
+          );
+
+          if (orgResponse?.data?.slug) {
+            return NextResponse.redirect(
+              new URL(`/org/${orgResponse.data.slug}/chat`, request.url),
+            );
+          }
+        } catch {
+          // Fallback to home if API fails
+        }
         return NextResponse.redirect(new URL("/", request.url));
       }
       // Allow admin users to proceed
       return NextResponse.next();
+    }
+
+    // Redirect non-admin users from home page to their org chat
+    if (pathname === "/") {
+      if (session.user.role !== "admin") {
+        try {
+          const orgResponse = await betterFetch<{ slug: string | null }>(
+            "/api/user/first-org",
+            {
+              baseURL: request.nextUrl.origin,
+              headers: {
+                cookie: request.headers.get("cookie") || "",
+              },
+            },
+          );
+
+          if (orgResponse?.data?.slug) {
+            return NextResponse.redirect(
+              new URL(`/org/${orgResponse.data.slug}/chat`, request.url),
+            );
+          }
+        } catch {
+          // If API fails, allow access to home page
+        }
+      }
     }
 
     // Check organization routes - verify user is a member of the org

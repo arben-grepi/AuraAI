@@ -1,12 +1,10 @@
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import UserInfo from "@/components/auth/user-info";
 import UserOrgs from "@/components/admin/user-orgs";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Uploader } from "@/components/upload";
-import { HomeRedirect } from "@/components/home-redirect";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
-import prisma from "@/lib/prisma";
-import { redirect } from "next/navigation";
 
 export default async function Home() {
   const session = await auth.api.getSession({
@@ -17,41 +15,26 @@ export default async function Home() {
     redirect("/sign-in");
   }
 
-  if (session.user.role !== "admin") {
-    const membership = await prisma.member.findFirst({
-      where: { userId: session.user.id },
-      include: {
-        organization: {
-          select: { slug: true },
-        },
-      },
-      orderBy: { createdAt: "asc" },
-    });
-
-    if (membership?.organization?.slug) {
-      return (
-        <HomeRedirect redirectTo={`/org/${membership.organization.slug}/chat`} />
-      );
-    }
-
+  // If user is admin, show admin dashboard
+  if (session.user.role === "admin") {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-sm text-muted-foreground">
-          You are not a member of any organization yet. Please contact your
-          administrator.
-        </p>
+      <div>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <UserInfo />
+          <Uploader />
+          <UserOrgs />
+        </div>
       </div>
     );
   }
 
+  // For non-admin users, middleware will redirect to org chat
+  // This page should rarely be seen, but show a loading state just in case
   return (
-    <div>
-      <div className="flex items-center gap-2">
-        <ThemeToggle />
-        <UserInfo />
-        <Uploader />
-        <UserOrgs />
-      </div>
+    <div className="flex flex-col items-center justify-center min-h-screen w-full gap-4">
+      <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <p className="text-sm text-muted-foreground">Redirecting...</p>
     </div>
   );
 }
