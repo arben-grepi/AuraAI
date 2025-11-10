@@ -128,17 +128,33 @@ export async function middleware(request: NextRequest) {
         const slug = pathParts[2];
         console.log(`[Middleware] Checking if org exists: ${slug}`);
         try {
-          const orgResponse = await betterFetch<{ id: string }>(
-            `/api/org?slug=${slug}`,
-            {
-              baseURL: request.nextUrl.origin,
-              headers: {
-                cookie: request.headers.get("cookie") || "",
-              },
-            },
+          const apiUrl = `${request.nextUrl.origin}/api/org?slug=${slug}`;
+          console.log(`[Middleware] Calling API: ${apiUrl}`);
+
+          // Forward all headers, especially cookies
+          const headers = new Headers();
+          request.headers.forEach((value, key) => {
+            headers.set(key, value);
+          });
+
+          const response = await fetch(apiUrl, {
+            headers,
+            cache: "no-store",
+          });
+
+          if (!response.ok) {
+            throw new Error(
+              `API returned ${response.status}: ${response.statusText}`,
+            );
+          }
+
+          const orgResponse = await response.json();
+          console.log(
+            `[Middleware] API response:`,
+            JSON.stringify(orgResponse),
           );
 
-          if (!orgResponse?.data?.id) {
+          if (!orgResponse?.id) {
             console.log(
               `[Middleware] Org ${slug} not found, redirecting to user's org chat`,
             );
