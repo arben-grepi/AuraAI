@@ -5,7 +5,7 @@ import UserInfo from "@/components/auth/user-info";
 import UserOrgs from "@/components/admin/user-orgs";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Uploader } from "@/components/upload";
-import { HomeRedirect } from "@/components/home-redirect";
+import prisma from "@/lib/prisma";
 
 export default async function Home() {
   console.log(`[Home Page] Home page accessed`);
@@ -38,9 +38,35 @@ export default async function Home() {
     );
   }
 
-  // For non-admin users, client-side redirect will handle it
+  const membership = await prisma.member.findFirst({
+    where: { userId: session.user.id },
+    include: {
+      organization: {
+        select: { slug: true },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const slug = membership?.organization?.slug;
+
+  if (slug) {
+    console.log(
+      `[Home Page] Redirecting non-admin to org chat: /org/${slug}/chat`,
+    );
+    redirect(`/org/${slug}/chat`);
+  }
+
   console.log(
-    `[Home Page] Non-admin user on home page - client will redirect to org chat`,
+    `[Home Page] Non-admin user has no org memberships, showing onboarding message`,
   );
-  return <HomeRedirect />;
+
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <p className="text-sm text-muted-foreground">
+        You are not a member of any organization yet. Please contact your
+        administrator.
+      </p>
+    </div>
+  );
 }
