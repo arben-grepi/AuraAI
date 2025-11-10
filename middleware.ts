@@ -108,10 +108,10 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
-    // Home page - allow access (client-side redirect will handle non-admin users)
+    // Home page - allow access (server-side redirect handled in page)
     if (pathname === "/") {
       console.log(
-        `[Middleware] Home page access detected - allowing (client will handle redirect)`,
+        `[Middleware] Home page access detected - allowing (page will handle redirect)`,
       );
     }
 
@@ -126,95 +126,12 @@ export async function middleware(request: NextRequest) {
       const pathParts = pathname.split("/");
       if (pathParts.length >= 3 && pathParts[1] === "org") {
         const slug = pathParts[2];
-        console.log(`[Middleware] Checking if org exists: ${slug}`);
-        try {
-          const apiUrl = `${request.nextUrl.origin}/api/org?slug=${slug}`;
-          console.log(`[Middleware] Calling API: ${apiUrl}`);
-
-          // Forward all headers, especially cookies
-          const headers = new Headers();
-          request.headers.forEach((value, key) => {
-            headers.set(key, value);
-          });
-
-          const response = await fetch(apiUrl, {
-            headers,
-            cache: "no-store",
-          });
-
-          if (!response.ok) {
-            throw new Error(
-              `API returned ${response.status}: ${response.statusText}`,
-            );
-          }
-
-          const orgResponse = await response.json();
-          console.log(
-            `[Middleware] API response:`,
-            JSON.stringify(orgResponse),
-          );
-
-          if (!orgResponse?.id) {
-            console.log(
-              `[Middleware] Org ${slug} not found, redirecting to user's org chat`,
-            );
-            // Org doesn't exist, redirect non-admin to their org chat
-            try {
-              const apiUrl = `${request.nextUrl.origin}/api/user/first-org`;
-              console.log(
-                `[Middleware] Calling API for org redirect: ${apiUrl}`,
-              );
-
-              // Forward all headers, especially cookies
-              const headers = new Headers();
-              request.headers.forEach((value, key) => {
-                headers.set(key, value);
-              });
-
-              const response = await fetch(apiUrl, {
-                headers,
-                cache: "no-store",
-              });
-
-              if (!response.ok) {
-                throw new Error(
-                  `API returned ${response.status}: ${response.statusText}`,
-                );
-              }
-
-              const userOrgResponse = await response.json();
-              console.log(
-                `[Middleware] API response for org redirect:`,
-                JSON.stringify(userOrgResponse),
-              );
-
-              if (userOrgResponse?.slug) {
-                console.log(
-                  `[Middleware] Redirecting to user's org chat: /org/${userOrgResponse.slug}/chat`,
-                );
-                return NextResponse.redirect(
-                  new URL(`/org/${userOrgResponse.slug}/chat`, request.url),
-                );
-              }
-              console.log(
-                `[Middleware] No user org found, redirecting to home`,
-              );
-            } catch (error) {
-              console.error(`[Middleware] Error fetching user org:`, error);
-              Sentry.captureException(error);
-            }
-            return NextResponse.redirect(new URL("/", request.url));
-          }
-          console.log(
-            `[Middleware] Org ${slug} exists, allowing access (membership checked in layout)`,
-          );
-        } catch (error) {
-          console.error(`[Middleware] Error checking org existence:`, error);
-          Sentry.captureException(error);
-          // On error, redirect to home
-          return NextResponse.redirect(new URL("/", request.url));
-        }
+        console.log(
+          `[Middleware] Non-admin user accessing org route for slug: ${slug} (membership enforced in layout)`,
+        );
       }
+
+      return NextResponse.next();
     }
 
     // Allow access to all other routes
