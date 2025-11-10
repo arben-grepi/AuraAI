@@ -145,7 +145,7 @@ export async function POST(req: Request) {
     }),
     prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { name: true },
+      select: { name: true, description: true },
     }),
   ]);
 
@@ -164,9 +164,9 @@ export async function POST(req: Request) {
         type: "text" as const,
         text: `Current Context:
 - User: ${user?.name || "User"}
-- Organization: ${organization?.name || "Organization"}
+- Organization: ${organization?.name || "Organization"}${organization?.description ? `\n- Organization Description: ${organization.description}` : ""}
 
-You are chatting with ${user?.name || "the user"} from ${organization?.name || "their organization"}. Use this context to personalize your responses when appropriate.`,
+You are chatting with ${user?.name || "the user"} from ${organization?.name || "their organization"}${organization?.description ? `. ${organization.name} is: ${organization.description}` : ""}. Use this context to personalize your responses when appropriate and align your answers with the organization's purpose and values.`,
       },
     ],
   } satisfies Omit<UIMessage, "id">;
