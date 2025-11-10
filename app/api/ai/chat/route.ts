@@ -1,6 +1,11 @@
 // app/api/ai/chat/route.ts
 import { openai } from "@ai-sdk/openai";
-import { streamText, UIMessage, convertToModelMessages, smoothStream } from "ai";
+import {
+  streamText,
+  UIMessage,
+  convertToModelMessages,
+  smoothStream,
+} from "ai";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
@@ -14,12 +19,22 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const systemPrompt = `
-You are Kommun's retrieval-augmented assistant.
+You are Diguro's intelligent retrieval-augmented assistant, designed to help users by providing accurate, context-aware responses based on their organization's knowledge base.
+
+## Your Purpose
+You are a specialized AI assistant that:
+- Answers questions using the organization's internal documents and knowledge base
+- Provides accurate, cited information from retrieved context
+- Helps users make informed decisions by synthesizing relevant information
+- Explains your purpose and capabilities when asked about what you do or how you work
+
+When users ask about your purpose, capabilities, or what you are, explain that you are Diguro's retrieval-augmented assistant designed to help them by accessing their organization's knowledge base and providing accurate, context-aware responses.
 
 ## Core Behaviors
 - Always read the "Context documents" message. If it is empty, acknowledge that no internal sources were retrieved before answering.
 - Prioritize grounded, reference-backed reasoning. Use general knowledge only to bridge gaps or provide light explanation.
 - When attachments are summarized for you, review their previews and incorporate any relevant details into your response.
+- Personalize responses when appropriate, using the user's name and organization context naturally in your interactions.
 
 ## RAG Workflow
 1. Review the latest user request and the retrieved snippets.
@@ -32,6 +47,7 @@ You are Kommun's retrieval-augmented assistant.
 - Keep answers concise but insightful. Focus on what helps the user act or decide.
 - Close with a short takeaway or recommended next action when appropriate.
 - Never invent sources or fabricate data.
+- Be conversational and helpful, making the user feel supported in their work.
 `;
 
 type MessageFilePart = Extract<UIMessage["parts"][number], { type: "file" }>;
@@ -121,15 +137,38 @@ export async function POST(req: Request) {
       ?.map((p) => (p.type === "text" ? p.text : ""))
       .join("") ?? "";
 
-  const { context } = await retrieveContext(
-    latestText,
-    6,
-    organizationId,
-  );
+  // Fetch user and organization information for context
+  const [user, organization] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { name: true },
+    }),
+    prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { name: true },
+    }),
+  ]);
+
+  const { context } = await retrieveContext(latestText, 6, organizationId);
 
   const baseSystem = {
     role: "system" as const,
     parts: [{ type: "text" as const, text: systemPrompt }],
+  } satisfies Omit<UIMessage, "id">;
+
+  // Add user and organization context
+  const userContextMsg = {
+    role: "assistant" as const,
+    parts: [
+      {
+        type: "text" as const,
+        text: `Current Context:
+- User: ${user?.name || "User"}
+- Organization: ${organization?.name || "Organization"}
+
+You are chatting with ${user?.name || "the user"} from ${organization?.name || "their organization"}. Use this context to personalize your responses when appropriate.`,
+      },
+    ],
   } satisfies Omit<UIMessage, "id">;
 
   const contextMsg = {
@@ -202,6 +241,7 @@ export async function POST(req: Request) {
 
   const finalMessages = convertToModelMessages([
     baseSystem,
+    userContextMsg,
     contextMsg,
     ...(attachmentsMessage ? [attachmentsMessage] : []),
     ...sanitizedRequestMessages,
@@ -276,12 +316,14 @@ async function summarizeAttachmentWithTimeout(
   const { part, metadata } = attachment;
 
   const sizeLabel =
-    typeof metadata.size === "number" ? `${metadata.size} bytes` : "unknown size";
+    typeof metadata.size === "number"
+      ? `${metadata.size} bytes`
+      : "unknown size";
   const objectKeyLabel = metadata.objectKey ?? "none";
   const providerOrgLabel =
     metadata.organizationId === null
       ? "null"
-      : metadata.organizationId ?? "unknown";
+      : (metadata.organizationId ?? "unknown");
 
   const baseLine = `${index + 1}. ${part.filename ?? "attachment"} • ${
     part.mediaType ?? "unknown"
@@ -358,9 +400,7 @@ function extractKommunMetadata(
         ? kommunMetadata.objectKey
         : undefined,
     size:
-      typeof kommunMetadata.size === "number"
-        ? kommunMetadata.size
-        : undefined,
+      typeof kommunMetadata.size === "number" ? kommunMetadata.size : undefined,
     organizationId,
   } satisfies AttachmentMetadata;
 }
@@ -514,7 +554,9 @@ async function readBody(body: unknown): Promise<Uint8Array> {
     typeof (body as { transformToByteArray: () => Promise<Uint8Array> })
       .transformToByteArray === "function"
   ) {
-    return (body as { transformToByteArray: () => Promise<Uint8Array> }).transformToByteArray();
+    return (
+      body as { transformToByteArray: () => Promise<Uint8Array> }
+    ).transformToByteArray();
   }
 
   if (
