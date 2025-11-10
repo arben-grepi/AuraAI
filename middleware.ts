@@ -38,10 +38,8 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/sign-in", request.url));
     }
 
-    // If user is authenticated and trying to access auth pages, redirect to home
-    if (loginRoutes.some((route) => pathname.startsWith(route))) {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
+    // Allow authenticated users to access auth pages (redirect handled at page level)
+    // This prevents redirect loops in production
 
     // Check admin routes
     if (pathname.startsWith("/admin")) {

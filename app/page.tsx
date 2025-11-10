@@ -6,8 +6,9 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
-export default async function Home() {
+async function HomeContent() {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -50,5 +51,22 @@ export default async function Home() {
         <UserOrgs />
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col items-center justify-center min-h-screen w-full gap-4">
+          <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground">
+            Redirecting you to your org chat...
+          </p>
+        </div>
+      }
+    >
+      <HomeContent />
+    </Suspense>
   );
 }
