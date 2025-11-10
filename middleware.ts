@@ -15,6 +15,9 @@ const loginRoutes = [
 ];
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  console.log(`[Middleware] Processing request: ${pathname}`);
+
   try {
     const { data: session } = await betterFetch<Session>(
       "/api/auth/get-session",
@@ -26,25 +29,34 @@ export async function middleware(request: NextRequest) {
       },
     );
 
-    const { pathname } = request.nextUrl;
-
     // If user is not authenticated and trying to access protected routes
     if (!session) {
+      console.log(`[Middleware] No session found for ${pathname}`);
       // Allow access to auth pages
       if (loginRoutes.some((route) => pathname.startsWith(route))) {
+        console.log(`[Middleware] Allowing access to auth page: ${pathname}`);
         return NextResponse.next();
       }
       // Redirect to sign-in for all other protected routes
+      console.log(`[Middleware] Redirecting unauthenticated user to /sign-in`);
       return NextResponse.redirect(new URL("/sign-in", request.url));
     }
+
+    console.log(
+      `[Middleware] Session found - User ID: ${session.user.id}, Role: ${session.user.role}`,
+    );
 
     // Allow authenticated users to access auth pages (redirect handled at page level)
     // This prevents redirect loops in production
 
     // Check admin routes
     if (pathname.startsWith("/admin")) {
+      console.log(`[Middleware] Admin route detected: ${pathname}`);
       // Check if user has admin role
       if (session.user.role !== "admin") {
+        console.log(
+          `[Middleware] Non-admin user trying to access admin route, redirecting to org chat`,
+        );
         // Non-admin users trying to access admin routes - redirect to their org chat
         try {
           const orgResponse = await betterFetch<{ slug: string | null }>(
@@ -58,23 +70,35 @@ export async function middleware(request: NextRequest) {
           );
 
           if (orgResponse?.data?.slug) {
+            console.log(
+              `[Middleware] Redirecting non-admin to org chat: /org/${orgResponse.data.slug}/chat`,
+            );
             return NextResponse.redirect(
               new URL(`/org/${orgResponse.data.slug}/chat`, request.url),
             );
           }
+          console.log(
+            `[Middleware] No org found for non-admin user, redirecting to home`,
+          );
         } catch (error) {
+          console.error(`[Middleware] Error fetching user org:`, error);
           Sentry.captureException(error);
           // Fallback to home if API fails
         }
         return NextResponse.redirect(new URL("/", request.url));
       }
       // Allow admin users to proceed
+      console.log(`[Middleware] Admin user accessing admin route, allowing`);
       return NextResponse.next();
     }
 
     // Redirect non-admin users from home page to their org chat
     if (pathname === "/") {
+      console.log(`[Middleware] Home page access detected`);
       if (session.user.role !== "admin") {
+        console.log(
+          `[Middleware] Non-admin user on home page, fetching org to redirect`,
+        );
         try {
           const orgResponse = await betterFetch<{ slug: string | null }>(
             "/api/user/first-org",
@@ -87,26 +111,41 @@ export async function middleware(request: NextRequest) {
           );
 
           if (orgResponse?.data?.slug) {
+            console.log(
+              `[Middleware] Redirecting non-admin from home to org chat: /org/${orgResponse.data.slug}/chat`,
+            );
             return NextResponse.redirect(
               new URL(`/org/${orgResponse.data.slug}/chat`, request.url),
             );
           }
+          console.log(
+            `[Middleware] No org found for non-admin user, allowing home page access`,
+          );
         } catch (error) {
+          console.error(
+            `[Middleware] Error fetching user org for home redirect:`,
+            error,
+          );
           Sentry.captureException(error);
           // If API fails, allow access to home page
         }
+      } else {
+        console.log(`[Middleware] Admin user on home page, allowing access`);
       }
     }
 
     // Check organization routes - verify org exists (membership checked in layout)
     if (pathname.startsWith("/org/") && pathname !== "/org") {
+      console.log(`[Middleware] Org route detected: ${pathname}`);
       if (session.user.role === "admin") {
+        console.log(`[Middleware] Admin user accessing org route, allowing`);
         return NextResponse.next();
       }
 
       const pathParts = pathname.split("/");
       if (pathParts.length >= 3 && pathParts[1] === "org") {
         const slug = pathParts[2];
+        console.log(`[Middleware] Checking if org exists: ${slug}`);
         try {
           const orgResponse = await betterFetch<{ id: string }>(
             `/api/org?slug=${slug}`,
@@ -119,29 +158,45 @@ export async function middleware(request: NextRequest) {
           );
 
           if (!orgResponse?.data?.id) {
+            console.log(
+              `[Middleware] Org ${slug} not found, redirecting to user's org chat`,
+            );
             // Org doesn't exist, redirect non-admin to their org chat
             try {
-              const userOrgResponse = await betterFetch<{ slug: string | null }>(
-                "/api/user/first-org",
-                {
-                  baseURL: request.nextUrl.origin,
-                  headers: {
-                    cookie: request.headers.get("cookie") || "",
-                  },
+              const userOrgResponse = await betterFetch<{
+                slug: string | null;
+              }>("/api/user/first-org", {
+                baseURL: request.nextUrl.origin,
+                headers: {
+                  cookie: request.headers.get("cookie") || "",
                 },
-              );
+              });
 
               if (userOrgResponse?.data?.slug) {
+                console.log(
+                  `[Middleware] Redirecting to user's org chat: /org/${userOrgResponse.data.slug}/chat`,
+                );
                 return NextResponse.redirect(
-                  new URL(`/org/${userOrgResponse.data.slug}/chat`, request.url),
+                  new URL(
+                    `/org/${userOrgResponse.data.slug}/chat`,
+                    request.url,
+                  ),
                 );
               }
+              console.log(
+                `[Middleware] No user org found, redirecting to home`,
+              );
             } catch (error) {
+              console.error(`[Middleware] Error fetching user org:`, error);
               Sentry.captureException(error);
             }
             return NextResponse.redirect(new URL("/", request.url));
           }
+          console.log(
+            `[Middleware] Org ${slug} exists, allowing access (membership checked in layout)`,
+          );
         } catch (error) {
+          console.error(`[Middleware] Error checking org existence:`, error);
           Sentry.captureException(error);
           // On error, redirect to home
           return NextResponse.redirect(new URL("/", request.url));
@@ -150,9 +205,14 @@ export async function middleware(request: NextRequest) {
     }
 
     // Allow access to all other routes
+    console.log(`[Middleware] Allowing access to route: ${pathname}`);
     return NextResponse.next();
   } catch (error) {
     // Capture errors in Sentry
+    console.error(
+      `[Middleware] Error processing request for ${pathname}:`,
+      error,
+    );
     Sentry.captureException(error);
     // Re-throw to allow Next.js to handle it
     throw error;
