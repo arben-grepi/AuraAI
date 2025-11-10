@@ -17,14 +17,14 @@ export default async function Home() {
 
   // If user is admin, show admin dashboard
   if (session.user.role === "admin") {
-    return (
-      <div>
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-          <UserInfo />
-          <Uploader />
-          <UserOrgs />
-        </div>
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <ThemeToggle />
+        <UserInfo />
+        <Uploader />
+        <UserOrgs />
+      </div>
       </div>
     );
   }

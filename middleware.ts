@@ -62,7 +62,8 @@ export async function middleware(request: NextRequest) {
               new URL(`/org/${orgResponse.data.slug}/chat`, request.url),
             );
           }
-        } catch {
+        } catch (error) {
+          Sentry.captureException(error);
           // Fallback to home if API fails
         }
         return NextResponse.redirect(new URL("/", request.url));
@@ -90,13 +91,14 @@ export async function middleware(request: NextRequest) {
               new URL(`/org/${orgResponse.data.slug}/chat`, request.url),
             );
           }
-        } catch {
+        } catch (error) {
+          Sentry.captureException(error);
           // If API fails, allow access to home page
         }
       }
     }
 
-    // Check organization routes - verify user is a member of the org
+    // Check organization routes - verify org exists (membership checked in layout)
     if (pathname.startsWith("/org/") && pathname !== "/org") {
       if (session.user.role === "admin") {
         return NextResponse.next();
@@ -117,9 +119,31 @@ export async function middleware(request: NextRequest) {
           );
 
           if (!orgResponse?.data?.id) {
+            // Org doesn't exist, redirect non-admin to their org chat
+            try {
+              const userOrgResponse = await betterFetch<{ slug: string | null }>(
+                "/api/user/first-org",
+                {
+                  baseURL: request.nextUrl.origin,
+                  headers: {
+                    cookie: request.headers.get("cookie") || "",
+                  },
+                },
+              );
+
+              if (userOrgResponse?.data?.slug) {
+                return NextResponse.redirect(
+                  new URL(`/org/${userOrgResponse.data.slug}/chat`, request.url),
+                );
+              }
+            } catch (error) {
+              Sentry.captureException(error);
+            }
             return NextResponse.redirect(new URL("/", request.url));
           }
-        } catch {
+        } catch (error) {
+          Sentry.captureException(error);
+          // On error, redirect to home
           return NextResponse.redirect(new URL("/", request.url));
         }
       }
