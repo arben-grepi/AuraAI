@@ -24,12 +24,15 @@ Sentry.init({
       maskAllText: true,
       blockAllMedia: true,
     }),
+    Sentry.consoleLoggingIntegration({ levels: ["log", "warn", "error"] }),
   ],
 
   environment: process.env.NODE_ENV || "development",
 
   // Set sample rate for profiling - this is relative to tracesSampleRate
   profilesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+
+  enableLogs: true,
 
   beforeSend(event, hint) {
     // Filter out known non-critical errors

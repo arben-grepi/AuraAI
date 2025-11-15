@@ -76,6 +76,10 @@ export const auth = betterAuth({
               type: "string",
               required: false,
             },
+            systemPrompt: {
+              type: "string",
+              required: false,
+            },
           },
         },
       },

@@ -9,7 +9,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useState } from "react";
-import { Organization } from "better-auth/plugins";
+import { Organization } from "@/lib/types";
 import Ai from "./ai";
 import { Loader2 } from "lucide-react";
 

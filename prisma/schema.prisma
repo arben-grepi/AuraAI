@@ -78,13 +78,13 @@ model Verification {
 }
 
 model Conversation {
-  id             String       @id @default(uuid())
+  id             String        @id @default(uuid())
   title          String?
   userId         String
   organizationId String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   messages       Message[]
 
@@ -104,15 +104,15 @@ model Message {
 }
 
 model Organization {
-  id          String       @id
-  name        String
-  slug        String?      @unique
-  logo        String?
-  createdAt   DateTime
-  metadata    String?
-  invitations Invitation[]
-  members     Member[]
-  resources   Resource[]
+  id            String         @id
+  name          String
+  slug          String?        @unique
+  logo          String?
+  createdAt     DateTime
+  metadata      String?
+  invitations   Invitation[]
+  members       Member[]
+  resources     Resource[]
   conversations Conversation[]
 
   backgroundColor String
@@ -120,6 +120,8 @@ model Organization {
   tone            String?
 
   description String?
+
+  systemPrompt String?
 
   @@map("organization")
 }

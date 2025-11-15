@@ -11,7 +11,7 @@ export default function OrgItem({
 }: {
   organization: Organization;
 }) {
-  const { data, isLoading } = useQuery({
+  const { data } = useQuery({
     queryKey: ["org-users", organization.id],
     queryFn: async () => {
       const response = await fetch(

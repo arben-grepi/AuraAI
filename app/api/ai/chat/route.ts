@@ -1,4 +1,3 @@
-// app/api/ai/chat/route.ts
 import { openai } from "@ai-sdk/openai";
 import {
   streamText,
@@ -125,7 +124,6 @@ export async function POST(req: Request) {
     const content = lastMessage.parts
       .map((p) => (p.type === "text" ? p.text : ""))
       .join("");
-    // Save user message asynchronously but don't block the response
     prisma.message
       .create({
         data: {
@@ -143,7 +141,6 @@ export async function POST(req: Request) {
       ?.map((p) => (p.type === "text" ? p.text : ""))
       .join("") ?? "";
 
-  // Fetch user and organization information for context
   const [user, organization] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
@@ -162,7 +159,6 @@ export async function POST(req: Request) {
     parts: [{ type: "text" as const, text: systemPrompt }],
   } satisfies Omit<UIMessage, "id">;
 
-  // Add user and organization context
   const userContextMsg = {
     role: "assistant" as const,
     parts: [

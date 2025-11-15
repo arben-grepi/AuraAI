@@ -14,6 +14,7 @@ export default async function UserInfo() {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
+
   return (
     <Card className="max-w-[500px]">
       <CardHeader className="flex items-center justify-between">

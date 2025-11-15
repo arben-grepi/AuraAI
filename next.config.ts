@@ -16,7 +16,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  serverComponentsExternalPackages: ["pdf2json"],
 };
 
 export default withSentryConfig(nextConfig, {

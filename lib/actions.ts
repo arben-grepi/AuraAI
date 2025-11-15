@@ -2,11 +2,11 @@
 
 import { APIError } from "better-auth";
 import { auth } from "./auth";
-import { redirect } from "next/navigation";
 import prisma from "./prisma";
 import { headers } from "next/headers";
 import { revalidateTag } from "next/cache";
 import { ActionResult } from "./types";
+import * as Sentry from "@sentry/nextjs";
 import {
   signInSchema,
   signUpSchema,
@@ -774,6 +774,84 @@ export async function createOrgUser({
     console.error("[BETTER_AUTH] Create user has not worked", error);
     return {
       error: "Could not create user",
+      success: false,
+      data: null,
+    };
+  }
+}
+
+export async function handleUpdateOrganizationTone(
+  organizationId: string,
+  tone: string,
+): Promise<ActionResult<{ data: string }>> {
+  try {
+    const data = await prisma.organization.update({
+      where: { id: organizationId },
+      data: { tone },
+    });
+
+    if (!data) {
+      return {
+        success: false,
+        data: null,
+        error: "Failed to update organization tone",
+      };
+    }
+
+    return {
+      success: true,
+      data: { data: "Organization tone updated" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error("[PRISMA] Update organization tone has not worked", error);
+    return {
+      error: "Could not update organization tone",
+      success: false,
+      data: null,
+    };
+  }
+}
+
+export async function handleUpdateOrganizationSystemPrompt({
+  organizationId,
+  systemPrompt,
+}: {
+  organizationId: string;
+  systemPrompt: string;
+}): Promise<ActionResult<{ data: string }>> {
+  try {
+    const data = await prisma.organization.update({
+      where: { id: organizationId },
+      data: { systemPrompt },
+    });
+
+    if (!data) {
+      return {
+        success: false,
+        data: null,
+        error: "Failed to update organization system prompt",
+      };
+    }
+
+    return {
+      success: true,
+      data: { data: "Organization system prompt updated" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error(
+      "[PRISMA] Update organization system prompt has not worked",
+      error,
+    );
+    return {
+      error: "Could not update organization system prompt",
       success: false,
       data: null,
     };

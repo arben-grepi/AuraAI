@@ -1,35 +1,14 @@
 "use client";
 
-import CreateOrg from "@/components/admin/create-org";
-import IsOrgAdmin from "@/components/admin/is-org-admin";
-import { deleteOrg } from "@/lib/actions";
 import { Organization } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MoreHorizontal, Building2, Users, Trash2, Plus } from "lucide-react";
-import { toast } from "sonner";
-import Image from "next/image";
-import OrgMember from "@/components/admin/org-members";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+
+import { useQuery } from "@tanstack/react-query";
+import { Plus } from "lucide-react";
 import OrgItem from "@/components/org/org-item";
-import {
-  Dialog,
-  DialogContent,
-  DialogTrigger,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import Link from "next/link";
 
 export default function Page() {
-  const queryClient = useQueryClient();
   const { data: organizations, isLoading } = useQuery({
     queryKey: ["organizations"],
     queryFn: async () => {
@@ -44,21 +23,19 @@ export default function Page() {
     return <div className="min-h-screen bg-background"></div>;
   }
 
-  const handleSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ["organizations"] });
-  };
+  // const handleSuccess = () => {
+  //   queryClient.invalidateQueries({ queryKey: ["organizations"] });
+  // };
 
-  const handleDelete = async (id: string) => {
-    const { success, data, error } = await deleteOrg(id);
-    if (success) {
-      toast.success(data?.data || "Organization deleted");
-      handleSuccess();
-    } else {
-      toast.error(error || "Failed to delete organization");
-    }
-  };
-
-  console.log(organizations);
+  // const handleDelete = async (id: string) => {
+  //   const { success, data, error } = await deleteOrg(id);
+  //   if (success) {
+  //     toast.success(data?.data || "Organization deleted");
+  //     handleSuccess();
+  //   } else {
+  //     toast.error(error || "Failed to delete organization");
+  //   }
+  // };
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center">

@@ -431,7 +431,7 @@ export default function Page() {
                 "Next"
               )}
             </Button>
-            {existingUser.length > 1 && (
+            {existingUser.length > 0 && (
               <Link
                 className="w-full max-w-[400px]"
                 href={`/admin/org/${generateSlug(name)}`}
