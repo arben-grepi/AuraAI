@@ -15,7 +15,8 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: true,
+    // disableSignUp: true,
+    requireEmailVerification: false,
     minPasswordLength: 8,
     maxPasswordLength: 128,
     resetPasswordTokenExpiresIn: 60 * 60 * 24 * 7,
@@ -52,5 +53,39 @@ export const auth = betterAuth({
     process.env.NODE_ENV === "production"
       ? process.env.BETTER_AUTH_URL
       : "http://localhost:3000",
-  plugins: [nextCookies(), openAPI(), organization(), admin()],
+  plugins: [
+    nextCookies(),
+    openAPI(),
+    organization({
+      schema: {
+        organization: {
+          additionalFields: {
+            backgroundColor: {
+              type: "string",
+              required: true,
+            },
+            buttonColor: {
+              type: "string",
+              required: true,
+            },
+            tone: {
+              type: "string",
+              required: false,
+            },
+            description: {
+              type: "string",
+              required: false,
+            },
+            systemPrompt: {
+              type: "string",
+              required: false,
+            },
+          },
+        },
+      },
+    }),
+    admin({
+      adminUserIds: ["9vhMSKPOfU4MTR3g4O4VjsBW4cE4cPBm"],
+    }),
+  ],
 });

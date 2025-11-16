@@ -10,7 +10,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Conversations } from "./sidebar/conversations";
 import { Suspense } from "react";
@@ -19,40 +18,87 @@ import { NavUser } from "./sidebar/nav-user";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import Image from "next/image";
+import prisma from "@/lib/prisma";
+import { AiSettingsDialog } from "./org/ai-settings-dialog";
 
-const items = [
-  {
-    title: "New Chat",
-    url: "/",
-    icon: PenLine,
-  },
-  {
-    title: "Search Chats",
-    url: "/search",
-    icon: Search,
-    variant: "white",
-  },
-];
-
-export async function AppSidebar() {
+export async function AppSidebar({ org }: { org: string }) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
 
-  const { name, email, image } = session?.user || {};
+  const organization = await prisma.organization.findFirst({
+    where: {
+      slug: org,
+      ...(session?.user.role === "admin"
+        ? {}
+        : { members: { some: { userId: session?.user.id ?? "" } } }),
+    },
+  });
+
+  if (!organization) {
+    return null;
+  }
+
+  // Check if user is admin or owner of the organization
+  let isOrgAdmin = false;
+  if (session?.user.role === "admin") {
+    isOrgAdmin = true;
+  } else {
+    const membership = await prisma.member.findFirst({
+      where: {
+        organizationId: organization.id,
+        userId: session?.user.id ?? "",
+      },
+      select: {
+        role: true,
+      },
+    });
+
+    isOrgAdmin = membership?.role === "owner" || membership?.role === "admin";
+  }
+
+  const items = [
+    {
+      title: "New Chat",
+      url: `/org/${org}/chat`,
+      icon: PenLine,
+    },
+    {
+      title: "Search Chats",
+      url: "/search",
+      icon: Search,
+      variant: "white" as const,
+    },
+  ];
 
   return (
     <Sidebar className="border-none">
       <SidebarContent>
         <SidebarHeader className="flex flex-row justify-between items-center ">
-          <Image
-            src="/logo.svg"
-            alt="Axiom"
-            width={24}
-            height={24}
-            className="block"
-          />
-          <SidebarTrigger />
+          <div
+            className="w-full h-12 rounded-[12px] border border-zinc-200 flex items-center justify-between px-2 py-4"
+            style={{
+              backgroundImage: `linear-gradient(to bottom, transparent, ${organization?.backgroundColor || ""})`,
+            }}
+          >
+            <div className="flex items-center gap-2">
+              {!organization ? (
+                <div>Loading...</div>
+              ) : (
+                <Image
+                  src={organization?.logo || ""}
+                  alt={organization?.name || ""}
+                  width={34}
+                  height={34}
+                  className="block rounded-[6px]"
+                />
+              )}
+              <p className="text-sm font-medium text-zinc-800 ml-2">
+                {organization?.name}
+              </p>
+            </div>
+            {isOrgAdmin && <AiSettingsDialog orgSlug={org} />}
+          </div>
         </SidebarHeader>
         <SidebarGroup>
           <SidebarGroupContent>
@@ -72,15 +118,15 @@ export async function AppSidebar() {
               ))}
               <SidebarGroupLabel>Chats</SidebarGroupLabel>
               <Suspense fallback={<ConversationsSkeleton />}>
-                <Conversations />
+                <Conversations slug={org} />
               </Suspense>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>
+      {/* <SidebarFooter>
         <NavUser name={name || ""} email={email || ""} avatar={image || ""} />
-      </SidebarFooter>
+      </SidebarFooter> */}
     </Sidebar>
   );
 }

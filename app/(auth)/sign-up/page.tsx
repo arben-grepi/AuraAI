@@ -15,20 +15,16 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { signUp } from "@/lib/actions";
 import { toast } from "sonner";
-import Image from "next/image";
-import { SidebarSeparator } from "@/components/ui/sidebar";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 
 export default function Page() {
+  const [showPassword, setShowPassword] = useState(false);
   const form = useForm<z.infer<typeof signUpSchema>>({
     defaultValues: {
       firstName: "",
@@ -55,62 +51,67 @@ export default function Page() {
   }
 
   return (
-    <div className="flex flex-col gap-6 justify-center items-center h-screen">
-      <Card className="max-w-md w-full">
+    <div className="flex flex-col gap-6 justify-center items-center h-screen bg-neutral-50">
+      <Card className="max-w-[350px] w-full bg-transparent border-none shadow-none">
         <CardHeader>
-          <Image
-            className="mb-8 mx-auto"
-            src="/logo.svg"
-            alt="Axiom"
-            width={50}
-            height={50}
-          />
-          <CardTitle className="text-center">Sign up to your account</CardTitle>
-          <CardDescription className="text-center">
-            Enter your email below to sign up to your account
-          </CardDescription>
+          <h1 className="text-center font-bold text-2xl leading-8 text-zinc-800">
+            Sign up to Diguro
+          </h1>
+          <p className="text-center text-gray-500 text-sm">
+            Sign up to your organization account
+          </p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <Form {...form}>
-            <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-              <div className="flex justify-between gap-2 items-center">
-                <FormField
-                  control={form.control}
-                  name="firstName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>First Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="lastName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Last Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+            <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
+              <FormField
+                control={form.control}
+                name="firstName"
+                render={({ field }) => (
+                  <FormItem className="relative">
+                    <FormLabel>First Name</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter your first name"
+                        className="form-input"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage className="form-message" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="lastName"
+                render={({ field }) => (
+                  <FormItem className="relative">
+                    <FormLabel>Last Name</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter your last name"
+                        className="form-input"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage className="form-message" />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="email"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="relative">
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        placeholder="Enter your email"
+                        className="form-input"
+                        {...field}
+                      />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="form-message" />
                   </FormItem>
                 )}
               />
@@ -118,25 +119,63 @@ export default function Page() {
                 control={form.control}
                 name="password"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="relative">
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input
+                        placeholder="Enter your password"
+                        className="form-input"
+                        type={showPassword ? "text" : "password"}
+                        {...field}
+                      />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="form-message relative" />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="absolute right-1 top-7.5 h-fit px-3 py-2 hover:bg-transparent cursor-pointer"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      <AnimatePresence mode="wait">
+                        {showPassword ? (
+                          <motion.div
+                            key="eye-off"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <EyeOff className="h-4 w-4" />
+                          </motion.div>
+                        ) : (
+                          <motion.div
+                            key="eye"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </Button>
                   </FormItem>
                 )}
               />
               <Button
-                className="w-full cursor-pointer"
+                className="form-submit-button mt-4"
                 disabled={form.formState.isSubmitting}
                 type="submit"
               >
                 {form.formState.isSubmitting ? "Signing up..." : "Sign up"}
               </Button>
-              <SidebarSeparator />
-              <p className="text-center font-medium text-sm">
-                Already have an account? <Link href="/sign-in">Sign in</Link>
+              <p className="text-center font-normal text-base text-zinc-500">
+                Already have an account?{" "}
+                <Link className="text-black" href="/sign-in">
+                  Sign in
+                </Link>
               </p>
             </form>
           </Form>

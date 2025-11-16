@@ -9,7 +9,7 @@ export type SignUpForm = {
 
 export type Theme = "light" | "dark" | "system";
 
-export type ActionResult<TData = unknown, TError = string> = {
+export type ActionResult<TData, TError = string> = {
   success: boolean;
   data: TData | null;
   error: TError | null;
@@ -29,6 +29,11 @@ export type Organization = {
   name: string;
   slug: string;
   logo: string;
+  description: string | null;
+  backgroundColor: string;
+  buttonColor: string;
+  tone: string | null;
+  systemPrompt: string | null;
   createdAt: string;
   updatedAt: string;
   metadata: { [key: string]: string };

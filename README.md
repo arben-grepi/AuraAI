@@ -63,6 +63,7 @@ BETTER_AUTH_SECRET="your-secret-key"
 BETTER_AUTH_URL="http://localhost:3000"
 OPENAI_API_KEY="your-openai-api-key"
 RESEND_API_KEY="your-resend-api-key"
+NEXT_PUBLIC_SENTRY_DSN="your-sentry-dsn"
 SENTRY_DSN="your-sentry-dsn"
 ```
 

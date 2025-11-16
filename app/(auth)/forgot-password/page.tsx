@@ -3,14 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import Image from "next/image";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { requestPasswordReset } from "@/lib/actions";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -48,23 +41,14 @@ export default function Page() {
     }
   }
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+    <div className="flex flex-col gap-6 justify-center items-center h-screen bg-neutral-50">
+      <Card className="max-w-[350px] w-full border-none shadow-none bg-neutral-50 p-0">
         <CardHeader className="space-y-1">
-          <Image
-            className="mb-8 mx-auto"
-            src="/logo.svg"
-            alt="Axiom"
-            width={50}
-            height={50}
-          />
-          <CardTitle className="text-2xl text-center">
-            Forgot Password
-          </CardTitle>
-          <CardDescription className="text-center">
+          <p className="form-title">Forgot Password</p>
+          <p className="form-description">
             Enter your email address and we&apos;ll send you a link to reset
             your password.
-          </CardDescription>
+          </p>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -73,25 +57,26 @@ export default function Page() {
                 control={form.control}
                 name="email"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="relative">
                     <FormLabel htmlFor="email">Email</FormLabel>
                     <FormControl>
                       <Input
                         id="email"
                         type="email"
-                        placeholder="Enter your email"
+                        className="form-input"
+                        placeholder="Enter your email address"
                         required
                         disabled={form.formState.isSubmitting}
                         {...field}
                       />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="form-message" />
                   </FormItem>
                 )}
               />
               <Button
                 type="submit"
-                className="w-full"
+                className="form-submit-button user-select-none mt-4"
                 disabled={form.formState.isSubmitting}
               >
                 {form.formState.isSubmitting

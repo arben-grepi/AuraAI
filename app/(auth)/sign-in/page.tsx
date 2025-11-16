@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { signIn } from "@/lib/actions";
 import { toast } from "sonner";
 import { redirect } from "next/navigation";
-import Image from "next/image";
 import {
   Form,
   FormControl,
@@ -18,15 +17,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { SidebarSeparator } from "@/components/ui/sidebar";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function Page() {
   const form = useForm<z.infer<typeof signInSchema>>({
@@ -46,41 +39,49 @@ export default function Page() {
       toast.success(data?.data || "You signed in successfully");
       setTimeout(() => {
         redirect("/");
-      }, 2000);
+      }, 1000);
     } else {
       toast.error(error || "Failed to sign in");
     }
   }
 
   return (
-    <div className="flex flex-col gap-6 justify-center items-center h-screen">
-      <Card className="max-w-md w-full">
+    <div className="flex flex-col gap-6 justify-center items-center h-screen bg-neutral-50">
+      <Card className="max-w-[350px] w-full border-none shadow-none bg-neutral-50 p-0">
         <CardHeader>
-          <Image
-            className="mb-8 mx-auto"
-            src="/logo.svg"
-            alt="Axiom"
-            width={50}
-            height={50}
-          />
-          <CardTitle className="text-center">Sign in to your account</CardTitle>
-          <CardDescription className="text-center">
-            Enter your email below to sign in to your account
-          </CardDescription>
+          <h1 className="form-title">Sign in to Diguro</h1>
+          <p className="form-description">
+            Sign in to your organization account
+          </p>
+          <button className="flex items-center cursor-pointer justify-center gap-2 w-full border border-zinc-100 shadow-xs bg-white py-2.5 rounded-full mt-6">
+            <Image src="/google.svg" alt="Google" width={16} height={16} />
+            <p className="font-medium text-base leading-6 text-zinc-500">
+              Sign in with Google
+            </p>
+          </button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <Form {...form}>
-            <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+            <form
+              className="flex flex-col gap-8"
+              onSubmit={form.handleSubmit(onSubmit)}
+            >
               <FormField
                 control={form.control}
                 name="email"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
+                  <FormItem className="relative">
+                    <FormLabel>Email address</FormLabel>
                     <FormControl>
-                      <Input {...field} type="email" />
+                      <Input
+                        {...field}
+                        className="form-input"
+                        placeholder="Enter your email address"
+                        onBlur={field.onBlur}
+                        type="email"
+                      />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="form-message" />
                   </FormItem>
                 )}
               />
@@ -88,31 +89,40 @@ export default function Page() {
                 control={form.control}
                 name="password"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
+                  <FormItem className="relative">
+                    <FormLabel className="flex items-center justify-between">
+                      <p>Password</p>
+                      <Link
+                        className="text-sm text-zinc-500 underline block text-center"
+                        href={"/forgot-password"}
+                      >
+                        Forgot password?
+                      </Link>
+                    </FormLabel>
                     <FormControl>
-                      <Input type="password" {...field} />
+                      <Input
+                        className="form-input"
+                        placeholder="Enter your password"
+                        type="password"
+                        {...field}
+                      />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="form-message" />
                   </FormItem>
                 )}
               />
               <Button
-                className="w-full cursor-pointer"
+                className="form-submit-button"
                 disabled={form.formState.isSubmitting}
                 type="submit"
               >
                 {form.formState.isSubmitting ? "Signing in..." : "Sign in"}
               </Button>
-              <Link
-                className="text-sm font-medium text-primary hover:underline block text-center"
-                href={"/forgot-password"}
-              >
-                Forgot password?
-              </Link>
-              <SidebarSeparator />
-              <p className="text-center font-medium text-sm">
-                Don&apos;t have an account? <Link href="/sign-up">Sign up</Link>
+              <p className="text-center font-normal text-base text-zinc-500">
+                Don&apos;t have an account?{" "}
+                <Link className="text-black" href="/sign-up">
+                  Sign up
+                </Link>
               </p>
             </form>
           </Form>

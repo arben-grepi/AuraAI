@@ -28,7 +28,7 @@ export function CopyToClipboard({ text, className }: CopyToClipboardProps) {
       }}
       title="Copy to clipboard"
       className={cn(
-        "inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted border border-border rounded-md px-2 py-2 transition-colors mt-4 cursor-pointer " +
+        "inline-flex items-center w-fit gap-1 text-xs text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted border border-border rounded-md px-2 py-2 transition-colors mt-4 cursor-pointer " +
           className,
       )}
     >

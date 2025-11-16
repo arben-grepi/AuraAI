@@ -54,7 +54,7 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
           p({ children, ...props }) {
             return (
               <p
-                className="text-foreground leading-7 mb-4 last:mb-0"
+                className="text-foreground leading-6 mb-3 last:mb-0"
                 {...props}
               >
                 {children}
@@ -138,7 +138,7 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
           ul({ children, ...props }) {
             return (
               <ul
-                className="list-disc list-inside mb-4 space-y-1 text-foreground"
+                className="list-disc list-outside mb-3 ml-6 space-y-1 text-foreground"
                 {...props}
               >
                 {children}
@@ -148,7 +148,8 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
           ol({ children, ...props }) {
             return (
               <ol
-                className="list-decimal list-inside mb-4 space-y-1 text-foreground"
+                className="list-decimal list-outside mb-3 ml-6 space-y-1 text-foreground"
+                style={{ paddingLeft: "1.5rem" }}
                 {...props}
               >
                 {children}
@@ -157,7 +158,11 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
           },
           li({ children, ...props }) {
             return (
-              <li className="text-foreground leading-6" {...props}>
+              <li
+                className="text-foreground leading-6 pl-2"
+                style={{ display: "list-item", listStylePosition: "outside" }}
+                {...props}
+              >
                 {children}
               </li>
             );

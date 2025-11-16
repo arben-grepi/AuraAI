@@ -9,22 +9,26 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { DeleteConvo } from "./delete-convo";
+import { MoreHorizontal } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { MoreHorizontal } from "lucide-react";
 
-export function Conversations() {
+export function Conversations({ slug }: { slug: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["conversations"],
     queryFn: async () => {
       const response = await fetch(`/api/ai/conversations`);
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          return [] as Conversation[];
+        }
+        throw new Error("Failed to fetch conversations");
+      }
       return response.json();
     },
-    gcTime: 1000 * 60 * 5,
-    staleTime: 1000 * 60 * 5,
   });
 
   if (isLoading) {
@@ -36,7 +40,7 @@ export function Conversations() {
       {data && data.length > 0 ? (
         data.map((convo: Conversation) => (
           <div className="w-full" key={convo.id}>
-            <ConversationItem conversation={convo} />
+            <ConversationItem conversation={convo} slug={slug} />
           </div>
         ))
       ) : (
@@ -50,9 +54,15 @@ export function Conversations() {
   );
 }
 
-const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
+const ConversationItem = ({
+  conversation,
+  slug,
+}: {
+  conversation: Conversation;
+  slug: string;
+}) => {
   const pathname = usePathname();
-  const isActive = pathname === `/chat/${conversation.id}`;
+  const isActive = pathname === `/org/${slug}/chat/${conversation.id}`;
 
   return (
     <div
@@ -64,14 +74,14 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
       )}
     >
       <Link
-        href={`/chat/${conversation.id}`}
+        href={`/org/${slug}/chat/${conversation.id}`}
         className={cn(
           "flex-1 truncate flex items-center gap-2 min-w-0 cursor-pointer",
         )}
       >
         <span className="truncate leading-5 ">{conversation.title}</span>
       </Link>
-      <div className="flex-shrink-0">
+      <div className="shrink-0">
         <DropdownMenu>
           <DropdownMenuTrigger className="items-center flex" asChild>
             <Button
@@ -83,7 +93,7 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            <DeleteConvo id={conversation.id} />
+            <DeleteConvo id={conversation.id} slug={slug} />
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
