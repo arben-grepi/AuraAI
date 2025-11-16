@@ -109,9 +109,7 @@ export default function Page() {
         form.setValue("logo", data.url || "");
       } catch (error) {
         toast.error(
-          error instanceof Error
-            ? error.message
-            : "Failed to upload logo",
+          error instanceof Error ? error.message : "Failed to upload logo",
         );
       } finally {
         setIsUploading(false);

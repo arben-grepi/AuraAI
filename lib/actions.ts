@@ -350,6 +350,7 @@ export async function createOrganization(
     backgroundColor,
     buttonColor,
     tone,
+    description,
   } = validated.data;
   const slug = generateSlug(name);
   try {
@@ -396,6 +397,7 @@ export async function createOrganization(
         backgroundColor,
         buttonColor,
         tone,
+        description,
       },
     });
     return {

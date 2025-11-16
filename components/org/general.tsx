@@ -15,6 +15,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "../ui/textarea";
 
 export default function General({ org }: { org: Organization }) {
+  console.log(org);
   const [name, setName] = useState<string>(org.name);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [logo, setLogo] = useState<string>(org.logo || "");
