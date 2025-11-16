@@ -1,5 +1,5 @@
 import Ai from "@/components/org/ai";
-import { Organization } from "better-auth/plugins";
+import { Organization } from "@/lib/types";
 import { notFound } from "next/navigation";
 
 export default async function Page(props: PageProps<"/admin/org/[slug]/ai">) {

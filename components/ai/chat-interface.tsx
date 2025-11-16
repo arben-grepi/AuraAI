@@ -361,7 +361,6 @@ export function ChatInterface({
                     onClick={() => {
                       const newValue = !isAnonymous;
                       setIsAnonymous(newValue);
-                      // If enabling anonymous mode, clear the conversationId
                       if (newValue && convId) {
                         setConvId(undefined);
                         window.history.replaceState(
@@ -371,7 +370,7 @@ export function ChatInterface({
                         );
                       }
                     }}
-                    // Allow toggling even with conversationId - we'll clear it when enabling anonymous mode
+                    disabled={!!conversationId}
                     title={
                       isAnonymous
                         ? "Anonymous mode: ON - Click to disable"
