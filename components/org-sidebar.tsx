@@ -10,10 +10,12 @@ import {
   User,
   Bell,
   Key,
+  LogOut,
 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -23,7 +25,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useParams, useRouter, usePathname } from "next/navigation";
-
+import { signOut } from "@/lib/auth-client";
 const items = [
   { title: "General", url: "", icon: Settings2 },
   { title: "Ai Customization", url: "ai", icon: Sparkles },
@@ -119,6 +121,23 @@ export function OrgSidebar({ name }: { name: string }) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        <SidebarFooter className="justify-end p-4">
+          <SidebarMenuButton
+            className="hover:bg-zinc-100 transition-all duration-200"
+            onClick={() =>
+              void signOut({
+                fetchOptions: {
+                  onSuccess: () => {
+                    router.push("/sign-in");
+                  },
+                },
+              })
+            }
+          >
+            <LogOut className="size-4" />
+            Log Out
+          </SidebarMenuButton>
+        </SidebarFooter>
       </SidebarContent>
     </Sidebar>
   );

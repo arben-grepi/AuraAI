@@ -108,10 +108,17 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
-    // Home page - allow access (server-side redirect handled in page)
+    // Home page - redirect admin users to /admin
     if (pathname === "/") {
+      console.log(`[Middleware] Home page access detected`);
+      if (session.user.role === "admin") {
+        console.log(
+          `[Middleware] Admin user accessing home page, redirecting to /admin`,
+        );
+        return NextResponse.redirect(new URL("/admin", request.url));
+      }
       console.log(
-        `[Middleware] Home page access detected - allowing (page will handle redirect)`,
+        `[Middleware] Non-admin user accessing home page - allowing (page will handle redirect)`,
       );
     }
 

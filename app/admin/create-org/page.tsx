@@ -83,33 +83,39 @@ export default function Page() {
   const handleUploadLogo = async () => {
     const file = logoInputRef.current?.files?.[0];
     if (file) {
-      setIsUploading(true);
       if (file.size > 5 * 1024 * 1024) {
         toast.error("Logo size should be less than 5MB");
-        setIsUploading(false);
         return;
       }
       if (!["image/jpeg", "image/png"].includes(file.type)) {
         toast.error("Logo type should be JPEG or PNG");
-        setIsUploading(false);
         return;
       }
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await fetch("/api/files/upload", {
-        method: "POST",
-        body: formData,
-      });
-      if (!response.ok) {
-        toast.error("Failed to upload logo");
+      setIsUploading(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const response = await fetch("/api/files/upload", {
+          method: "POST",
+          body: formData,
+        });
+        if (!response.ok) {
+          toast.error("Failed to upload logo");
+          return;
+        }
+        const data = await response.json();
+        setOrgLogo(data.url || "");
+        toast.success("Logo uploaded successfully");
+        form.setValue("logo", data.url || "");
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Failed to upload logo",
+        );
+      } finally {
         setIsUploading(false);
-        return;
       }
-      const data = await response.json();
-      setOrgLogo(data.url || "");
-      toast.success("Logo uploaded successfully");
-      form.setValue("logo", data.url || "");
-      setIsUploading(false);
     }
   };
 
@@ -121,6 +127,7 @@ export default function Page() {
       lastName: "",
     },
     resolver: zodResolver(signUpSchema),
+    mode: "onChange",
   });
 
   const onUserSubmit = async (values: z.infer<typeof signUpSchema>) => {
@@ -420,7 +427,7 @@ export default function Page() {
                 } else if (step === 2) {
                   await form.handleSubmit(onSubmit)();
                 } else if (step === 3) {
-                  await onUserSubmit(userForm.getValues());
+                  await userForm.handleSubmit(onUserSubmit)();
                 }
               }}
               className="bg-cyan-600 text-white w-full max-w-[400px] mt-8 cursor-pointer"

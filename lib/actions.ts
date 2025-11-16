@@ -784,6 +784,24 @@ export async function handleUpdateOrganizationTone(
   organizationId: string,
   tone: string,
 ): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const canManageOrg = await userHasOrgAdminAccess({
+    organizationId,
+    userId: session.user.id,
+    sessionRole: session.user.role,
+  });
+
+  if (!canManageOrg) {
+    return { success: false, data: null, error: "Insufficient permissions" };
+  }
+
   try {
     const data = await prisma.organization.update({
       where: { id: organizationId },
@@ -823,6 +841,24 @@ export async function handleUpdateOrganizationSystemPrompt({
   organizationId: string;
   systemPrompt: string;
 }): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const canManageOrg = await userHasOrgAdminAccess({
+    organizationId,
+    userId: session.user.id,
+    sessionRole: session.user.role,
+  });
+
+  if (!canManageOrg) {
+    return { success: false, data: null, error: "Insufficient permissions" };
+  }
+
   try {
     const data = await prisma.organization.update({
       where: { id: organizationId },

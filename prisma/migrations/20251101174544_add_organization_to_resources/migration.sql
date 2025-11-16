@@ -1,6 +1,3 @@
--- DropIndex
-DROP INDEX "public"."embeddingIndex";
-
 -- AlterTable
 ALTER TABLE "resources" ADD COLUMN     "organization_id" TEXT;
 

@@ -4,9 +4,10 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { Organization } from "@/lib/types";
 
 export default async function Page(
-  props: PageProps<"/org/[org]/chat/[conversationId]">
+  props: PageProps<"/org/[org]/chat/[conversationId]">,
 ) {
   const { org, conversationId } = await props.params;
   const session = await auth.api.getSession({ headers: await headers() });
@@ -15,10 +16,10 @@ export default async function Page(
     notFound();
   }
 
-  const organization = await prisma.organization.findUnique({
-    where: { slug: org },
-    select: { id: true },
-  });
+  const organization: Organization | null =
+    (await prisma.organization.findUnique({
+      where: { slug: org },
+    })) as Organization | null;
 
   if (!organization) {
     notFound();
@@ -51,7 +52,7 @@ export default async function Page(
       content: msg.content,
       parts: msg.parts,
       createdAt: msg.createdAt.toISOString(),
-    })
+    }),
   );
 
   return (
@@ -59,7 +60,9 @@ export default async function Page(
       <ChatInterface
         conversationId={conversation.id}
         initialMessages={initialMessages}
-        slug={org}
+        slug={organization?.slug}
+        organization={organization}
+        session={session}
       />
     </div>
   );

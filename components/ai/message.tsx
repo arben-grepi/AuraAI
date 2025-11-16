@@ -32,8 +32,7 @@ const messageContentVariants = cva(
     variants: {
       variant: {
         user: "items-end bg-card text-card-foreground leading-6 font-normal bg-zinc-50",
-        assistant:
-          "items-start text-card-foreground leading-6 font-normal",
+        assistant: "items-start text-card-foreground leading-6 font-normal",
       },
     },
     defaultVariants: {
@@ -176,7 +175,7 @@ function Message({
                 transition={{ duration: 0.3, delay: 0.1 }}
               >
                 {textContent.trim().length > 0 && (
-                  <span className="block whitespace-pre-wrap break-words">
+                  <span className="block whitespace-pre-wrap wrap-break-words">
                     {textContent}
                   </span>
                 )}
@@ -228,7 +227,7 @@ function AttachmentGallery({
                 : "border-border bg-muted/30",
             )}
           >
-            <div className="bg-neutral-100 rounded-[6px] p-2 flex-shrink-0">
+            <div className="bg-neutral-100 rounded-[6px] p-2 shrink-0">
               <File className="w-4 h-4" />
             </div>
             <div className="flex flex-col gap-1 min-w-0">

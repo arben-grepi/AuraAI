@@ -1,10 +1,6 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import UserInfo from "@/components/auth/user-info";
-import UserOrgs from "@/components/admin/user-orgs";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { Uploader } from "@/components/upload";
 import prisma from "@/lib/prisma";
 
 export default async function Home() {
@@ -23,20 +19,7 @@ export default async function Home() {
     `[Home Page] Session found - User ID: ${session.user.id}, Role: ${session.user.role}`,
   );
 
-  // If user is admin, show admin dashboard
-  if (session.user.role === "admin") {
-    console.log(`[Home Page] Admin user detected, showing admin dashboard`);
-    return (
-      <div>
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-          <UserInfo />
-          <Uploader />
-          <UserOrgs />
-        </div>
-      </div>
-    );
-  }
+  // Note: Admin users are redirected to /admin in middleware, so this page only handles non-admin users
 
   const membership = await prisma.member.findFirst({
     where: { userId: session.user.id },

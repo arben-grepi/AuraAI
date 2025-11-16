@@ -26,8 +26,6 @@ export async function AppSidebar({ org }: { org: string }) {
     headers: await headers(),
   });
 
-  const { name, email, image } = session?.user || {};
-
   const organization = await prisma.organization.findFirst({
     where: {
       slug: org,
@@ -126,9 +124,9 @@ export async function AppSidebar({ org }: { org: string }) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>
+      {/* <SidebarFooter>
         <NavUser name={name || ""} email={email || ""} avatar={image || ""} />
-      </SidebarFooter>
+      </SidebarFooter> */}
     </Sidebar>
   );
 }

@@ -58,12 +58,14 @@ When users ask about your purpose, capabilities, or what you are, explain that y
 type MessageFilePart = Extract<UIMessage["parts"][number], { type: "file" }>;
 
 export async function POST(req: Request) {
+  const body = await req.json();
   const {
     conversationId,
     messages,
-  }: { conversationId: string; messages: UIMessage[] } = await req.json();
+    isAnonymous,
+  }: { conversationId: string; messages: UIMessage[]; isAnonymous?: boolean } = body;
 
-  if (!conversationId || typeof conversationId !== "string") {
+  if (!isAnonymous && (!conversationId || typeof conversationId !== "string")) {
     return new Response("Conversation ID is required", { status: 400 });
   }
 
@@ -95,45 +97,49 @@ export async function POST(req: Request) {
     }
   }
 
-  const conversation = await prisma.conversation.findFirst({
-    where: {
-      id: conversationId,
-      userId: session.user.id,
-      organizationId,
-    },
-    select: { id: true },
-  });
-
   const lastMessage = messages[messages.length - 1] as UIMessage | undefined;
 
-  if (!conversation && lastMessage) {
-    const title = await generateTitleFromUserMessage({ message: lastMessage });
-    await prisma.conversation.upsert({
-      where: { id: conversationId },
-      update: {},
-      create: {
+  // Skip conversation and message persistence in anonymous mode
+  // Explicitly check that isAnonymous is true (not just truthy) to prevent any accidental creation
+  if (isAnonymous !== true) {
+    const conversation = await prisma.conversation.findFirst({
+      where: {
         id: conversationId,
         userId: session.user.id,
         organizationId,
-        title,
       },
+      select: { id: true },
     });
-  }
 
-  if (lastMessage?.role === "user") {
-    const content = lastMessage.parts
-      .map((p) => (p.type === "text" ? p.text : ""))
-      .join("");
-    prisma.message
-      .create({
-        data: {
-          conversationId,
-          role: "user",
-          content,
-          parts: JSON.parse(JSON.stringify(lastMessage.parts ?? [])),
+    if (!conversation && lastMessage) {
+      const title = await generateTitleFromUserMessage({ message: lastMessage });
+      await prisma.conversation.upsert({
+        where: { id: conversationId },
+        update: {},
+        create: {
+          id: conversationId,
+          userId: session.user.id,
+          organizationId,
+          title,
         },
-      })
-      .catch((e) => console.error("user save failed", e));
+      });
+    }
+
+    if (lastMessage?.role === "user") {
+      const content = lastMessage.parts
+        .map((p) => (p.type === "text" ? p.text : ""))
+        .join("");
+      prisma.message
+        .create({
+          data: {
+            conversationId,
+            role: "user",
+            content,
+            parts: JSON.parse(JSON.stringify(lastMessage.parts ?? [])),
+          },
+        })
+        .catch((e) => console.error("user save failed", e));
+    }
   }
 
   const latestText =
@@ -254,6 +260,10 @@ You are chatting with ${user?.name || "the user"} from ${organization?.name || "
     messages: finalMessages,
     experimental_transform: smoothStream({ chunking: "word" }),
     onFinish: (r) => {
+      // Skip message persistence in anonymous mode - explicitly check for true
+      if (isAnonymous === true) {
+        return;
+      }
       const cookie = req.headers.get("cookie");
       fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/ai/persist-message`, {
         method: "POST",

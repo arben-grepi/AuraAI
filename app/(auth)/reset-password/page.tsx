@@ -108,11 +108,11 @@ function ResetPasswordForm() {
             </p>
           </CardHeader>
           <CardContent>
-            <Link href="/forgot-password">
-              <Button className="form-submit-button user-select-none mt-4">
+            <Button asChild className="form-submit-button user-select-none mt-4">
+              <Link href="/forgot-password">
                 Request New Reset Link
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       </div>

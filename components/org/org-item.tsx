@@ -30,7 +30,7 @@ export default function OrgItem({
             alt={organization.name}
             width={28}
             height={28}
-            className="rounded-sm object-cover w-[28px] h-[28px] aspect-square"
+            className="rounded-sm object-cover"
           />
           <p className="font-medium text-base text-black">
             {organization.name}

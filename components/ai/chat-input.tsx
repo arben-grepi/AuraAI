@@ -3,8 +3,8 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { AnimatePresence, motion } from "motion/react";
-import { ArrowRight, File as FileIcon, Loader2, Plus, X } from "lucide-react";
+import { motion } from "motion/react";
+import { File as FileIcon, Loader2, Plus, X } from "lucide-react";
 import { Textarea } from "../ui/textarea";
 import { cn } from "@/lib/utils";
 import { v4 as uuidv4 } from "uuid";
@@ -28,6 +28,7 @@ interface ChatInputProps {
     attachments: UploadedAttachment[];
   }) => Promise<void> | void;
   loading: boolean;
+  isAnonymous: boolean;
   onStop?: () => void;
   className?: string;
 }
@@ -42,9 +43,9 @@ interface ComposerAttachment extends UploadedAttachment {
 }
 
 export function ChatInput({
+  isAnonymous,
   onSend,
   loading,
-  onStop,
   className,
 }: ChatInputProps) {
   const [message, setMessage] = useState("");
@@ -55,24 +56,25 @@ export function ChatInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const attachmentsRef = useRef<ComposerAttachment[]>([]);
 
-  const hasReadyAttachments = attachments.some(
-    (attachment) => attachment.status === "ready",
-  );
+  // const hasReadyAttachments = attachments.some(
+  //   (attachment) => attachment.status === "ready",
+  // );
   const isUploading = attachments.some(
     (attachment) => attachment.status === "uploading",
   );
 
-  const canSubmit =
-    (message.trim().length > 0 || hasReadyAttachments) && !isUploading;
+  // const canSubmit =
+  //   (message.trim().length > 0 || hasReadyAttachments) && !isUploading;
 
   const dropZoneClassName = useMemo(
     () =>
       cn(
         "flex items-end relative z-20 justify-center w-full px-2 py-2 gap-2 rounded-[30px] mb-4 border border-border bg-white transition",
         isDragging ? "ring-2 ring-primary/50 border-primary/40" : "ring-0",
+        isAnonymous && "bg-zinc-800 text-white",
         className,
       ),
-    [className, isDragging],
+    [className, isDragging, isAnonymous],
   );
 
   const uploadAndFinalize = useCallback((file: File, attachmentId: string) => {
@@ -375,7 +377,7 @@ export function ChatInput({
             className="absolute bottom-2.5 right-2.5 cursor-pointer h-8 w-8 rounded-full border bg-white border-border flex items-center justify-center hover:bg-muted transition"
             title="Upload file"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className={`w-4 h-4 text-black`} />
           </button>
         </ComposerForm>
         <div className="min-h-[90px] absolute top-0 border-zinc-200 border w-full rounded-lg bg-linear-to-r from-[#6AA9D2]/50 via-[#EBD0F9] to-[#C6E5F5] z-0 blur-xl animate-pulse"></div>
@@ -517,52 +519,52 @@ function AttachmentPreview({
   );
 }
 
-function ComposerSubmit({
-  loading,
-  onStop,
-  canSubmit,
-}: {
-  loading: boolean;
-  onStop?: () => void;
-  canSubmit: boolean;
-}) {
-  return (
-    <button
-      type={loading ? "button" : "submit"}
-      onClick={loading ? onStop : undefined}
-      data-no-open
-      disabled={!loading && !canSubmit}
-      className={cn(
-        "cursor-pointer p-3 rounded-full bg-muted hover:bg-accent group",
-        !loading && !canSubmit && "opacity-60 cursor-not-allowed",
-      )}
-      title={loading ? "Stop request" : "Send message"}
-    >
-      <AnimatePresence mode="wait" initial={false}>
-        {loading ? (
-          <motion.div
-            key="stop"
-            className="h-4 w-4 rounded-sm bg-foreground"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          />
-        ) : (
-          <motion.div
-            key="arrow"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <ArrowRight className="h-4 w-4 text-foreground group-hover:text-muted-foreground" />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </button>
-  );
-}
+// function ComposerSubmit({
+//   loading,
+//   onStop,
+//   canSubmit,
+// }: {
+//   loading: boolean;
+//   onStop?: () => void;
+//   canSubmit: boolean;
+// }) {
+//   return (
+//     <button
+//       type={loading ? "button" : "submit"}
+//       onClick={loading ? onStop : undefined}
+//       data-no-open
+//       disabled={!loading && !canSubmit}
+//       className={cn(
+//         "cursor-pointer p-3 rounded-full bg-muted hover:bg-accent group",
+//         !loading && !canSubmit && "opacity-60 cursor-not-allowed",
+//       )}
+//       title={loading ? "Stop request" : "Send message"}
+//     >
+//       <AnimatePresence mode="wait" initial={false}>
+//         {loading ? (
+//           <motion.div
+//             key="stop"
+//             className="h-4 w-4 rounded-sm bg-foreground"
+//             initial={{ opacity: 0 }}
+//             animate={{ opacity: 1 }}
+//             exit={{ opacity: 0 }}
+//             transition={{ duration: 0.2 }}
+//           />
+//         ) : (
+//           <motion.div
+//             key="arrow"
+//             initial={{ opacity: 0 }}
+//             animate={{ opacity: 1 }}
+//             exit={{ opacity: 0 }}
+//             transition={{ duration: 0.2 }}
+//           >
+//             <ArrowRight className="h-4 w-4 text-foreground group-hover:text-muted-foreground" />
+//           </motion.div>
+//         )}
+//       </AnimatePresence>
+//     </button>
+//   );
+// }
 
 function formatFileSize(bytes: number) {
   if (bytes === 0) return "0 B";
