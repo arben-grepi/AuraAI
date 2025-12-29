@@ -4,15 +4,15 @@ A modern, full-stack AI chat application built with Next.js 15, featuring real-t
 
 ## Features
 
-- 🤖 **AI Chat Interface** - Real-time conversations with OpenAI GPT models
-- 🔐 **Authentication** - Secure user authentication with Better Auth
-- 👥 **Organization Management** - Multi-tenant organization support
-- 📱 **Responsive Design** - Mobile-first, accessible UI with Tailwind CSS
-- 🎨 **Modern UI** - Beautiful components built with Radix UI and Shadcn
-- 📧 **Email Integration** - Email verification and password reset
-- 🚀 **Performance** - Optimized with Next.js App Router and Turbopack
-- 📊 **Monitoring** - Error tracking with Sentry
-- 🧪 **Comprehensive Testing** - Unit, integration, and E2E tests
+-  **AI Chat Interface** - Real-time conversations with OpenAI GPT models
+-  **Authentication** - Secure user authentication with Better Auth
+-  **Organization Management** - Multi-tenant organization support
+-  **Responsive Design** - Mobile-first, accessible UI with Tailwind CSS
+-  **Modern UI** - Beautiful components built with Radix UI and Shadcn
+-  **Email Integration** - Email verification and password reset
+-  **Performance** - Optimized with Next.js App Router and Turbopack
+-  **Monitoring** - Error tracking with Sentry
+-  **Comprehensive Testing** - Unit, integration, and E2E tests
 
 ## Tech Stack
 
