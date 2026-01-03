@@ -63,7 +63,8 @@ export async function POST(req: Request) {
     conversationId,
     messages,
     isAnonymous,
-  }: { conversationId: string; messages: UIMessage[]; isAnonymous?: boolean } = body;
+  }: { conversationId: string; messages: UIMessage[]; isAnonymous?: boolean } =
+    body;
 
   if (!isAnonymous && (!conversationId || typeof conversationId !== "string")) {
     return new Response("Conversation ID is required", { status: 400 });
@@ -112,7 +113,9 @@ export async function POST(req: Request) {
     });
 
     if (!conversation && lastMessage) {
-      const title = await generateTitleFromUserMessage({ message: lastMessage });
+      const title = await generateTitleFromUserMessage({
+        message: lastMessage,
+      });
       await prisma.conversation.upsert({
         where: { id: conversationId },
         update: {},

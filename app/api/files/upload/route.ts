@@ -56,14 +56,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
 
-    // Sanitize filename to prevent path traversal
     const originalFilename = (formData.get("file") as File).name;
-    const sanitizedFilename = originalFilename
-      .replace(/[^a-zA-Z0-9._-]/g, "-")
-      .replace(/\.\./g, "")
-      .replace(/^\/+|\/+$/g, "")
-      .substring(0, 255) || "file";
-    
+    const sanitizedFilename =
+      originalFilename
+        .replace(/[^a-zA-Z0-9._-]/g, "-")
+        .replace(/\.\./g, "")
+        .replace(/^\/+|\/+$/g, "")
+        .substring(0, 255) || "file";
+
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     const key = `uploads/${sanitizedFilename}`;
 
