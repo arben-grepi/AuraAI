@@ -109,9 +109,7 @@ export default function Page() {
         form.setValue("logo", data.url || "");
       } catch (error) {
         toast.error(
-          error instanceof Error
-            ? error.message
-            : "Failed to upload logo",
+          error instanceof Error ? error.message : "Failed to upload logo",
         );
       } finally {
         setIsUploading(false);
@@ -462,7 +460,7 @@ export default function Page() {
               alt="Organization Logo"
               width={80}
               height={80}
-              className="rounded-[12px] object-cover flex-1"
+              className="rounded-[12px] aspect-square object-cover flex-1"
             />
           ) : (
             <div className="w-[80px] h-[80px] rounded-[12px] bg-zinc-200 flex items-center justify-center">

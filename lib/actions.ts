@@ -6,7 +6,6 @@ import prisma from "./prisma";
 import { headers } from "next/headers";
 import { revalidateTag } from "next/cache";
 import { ActionResult } from "./types";
-import * as Sentry from "@sentry/nextjs";
 import {
   signInSchema,
   signUpSchema,
@@ -137,7 +136,7 @@ export async function signIn(
   };
 }
 
-export async function createConversation(): Promise<
+export async function createConversation(chatFolderId?: string | null): Promise<
   ActionResult<{ data: string; id: string }>
 > {
   const session = await auth.api.getSession({
@@ -166,11 +165,21 @@ export async function createConversation(): Promise<
     }
   }
 
+  if (chatFolderId) {
+    const folder = await prisma.chatFolder.findFirst({
+      where: { id: chatFolderId, organizationId },
+    });
+    if (!folder) {
+      return { success: false, data: null, error: "Folder not found" };
+    }
+  }
+
   const created = await prisma.conversation.create({
     data: {
       title: "New chat",
       userId: session.user.id,
       organizationId,
+      chatFolderId: chatFolderId || undefined,
     },
   });
 
@@ -350,6 +359,7 @@ export async function createOrganization(
     backgroundColor,
     buttonColor,
     tone,
+    description,
   } = validated.data;
   const slug = generateSlug(name);
   try {
@@ -396,6 +406,7 @@ export async function createOrganization(
         backgroundColor,
         buttonColor,
         tone,
+        description,
       },
     });
     return {
@@ -891,5 +902,210 @@ export async function handleUpdateOrganizationSystemPrompt({
       success: false,
       data: null,
     };
+  }
+}
+
+
+export async function createFileFolder(organizationId: string, name: string): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const canManageOrg = await userHasOrgAdminAccess({
+    organizationId,
+    userId: session.user.id,
+    sessionRole: session.user.role,
+  });
+
+  if (!canManageOrg) {
+    return { success: false, data: null, error: "Insufficient permissions" };
+  }
+
+  try {
+    const data = await prisma.fileFolder.create({
+      data: { name, organizationId },
+    });
+
+    if (!data) {
+      return { success: false, data: null, error: "Failed to create file folder" };
+    }
+
+    return { success: true, data: { data: "File folder created" }, error: null };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error("[PRISMA] Create file folder has not worked", error);
+    return { success: false, data: null, error: "Failed to create file folder" };
+  }
+}
+
+export async function deleteFileFolder(
+  folderId: string,
+): Promise<ActionResult<{ data: string }>> {
+  if (!folderId) {
+    return { success: false, data: null, error: "Folder ID is required" };
+  }
+
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const folder = await prisma.fileFolder.findUnique({
+    where: { id: folderId },
+    select: { id: true, organizationId: true },
+  });
+  if (!folder) {
+    return { success: false, data: null, error: "Folder not found" };
+  }
+
+  const canManageOrg = await userHasOrgAdminAccess({
+    organizationId: folder.organizationId,
+    userId: session.user.id,
+    sessionRole: session.user.role,
+  });
+  if (!canManageOrg) {
+    return { success: false, data: null, error: "Insufficient permissions" };
+  }
+
+  try {
+    await prisma.fileFolder.delete({ where: { id: folderId } });
+    return { success: true, data: { data: "Folder deleted" }, error: null };
+  } catch (error) {
+    console.error("[PRISMA] Delete file folder failed", error);
+    return { success: false, data: null, error: "Failed to delete folder" };
+  }
+}
+
+export async function createChatFolder(
+  name: string,
+): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const organizationId = session.session?.activeOrganizationId;
+  if (!organizationId) {
+    return {
+      success: false,
+      data: null,
+      error: "No active organization selected",
+    };
+  }
+
+  if (session.user.role !== "admin") {
+    const membership = await getMembership(organizationId, session.user.id);
+    if (!membership) {
+      return { success: false, data: null, error: "Unauthorized" };
+    }
+  }
+
+  try {
+    await prisma.chatFolder.create({
+      data: { name, organizationId },
+    });
+    revalidateTag("conversations");
+    return { success: true, data: { data: "Folder created" }, error: null };
+  } catch (error) {
+    console.error("[PRISMA] Create chat folder failed", error);
+    return { success: false, data: null, error: "Failed to create folder" };
+  }
+}
+
+export async function deleteChatFolder(
+  folderId: string,
+): Promise<ActionResult<{ data: string }>> {
+  if (!folderId) {
+    return { success: false, data: null, error: "Folder ID is required" };
+  }
+
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const folder = await prisma.chatFolder.findUnique({
+    where: { id: folderId },
+    select: { id: true, organizationId: true },
+  });
+  if (!folder) {
+    return { success: false, data: null, error: "Folder not found" };
+  }
+
+  if (session.user.role !== "admin") {
+    const membership = await getMembership(folder.organizationId, session.user.id);
+    if (!membership) {
+      return { success: false, data: null, error: "Unauthorized" };
+    }
+  }
+
+  try {
+    await prisma.chatFolder.delete({ where: { id: folderId } });
+    revalidateTag("conversations");
+    return { success: true, data: { data: "Folder deleted" }, error: null };
+  } catch (error) {
+    console.error("[PRISMA] Delete chat folder failed", error);
+    return { success: false, data: null, error: "Failed to delete folder" };
+  }
+}
+
+export async function updateConversationFolder(
+  conversationId: string,
+  chatFolderId: string | null,
+): Promise<ActionResult<{ data: string }>> {
+  if (!conversationId) {
+    return { success: false, data: null, error: "Conversation ID is required" };
+  }
+
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const organizationId = session.session?.activeOrganizationId;
+  if (!organizationId) {
+    return {
+      success: false,
+      data: null,
+      error: "No active organization selected",
+    };
+  }
+
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    select: { id: true, userId: true, organizationId: true },
+  });
+  if (!conversation || conversation.userId !== session.user.id) {
+    return { success: false, data: null, error: "Conversation not found" };
+  }
+  if (conversation.organizationId !== organizationId) {
+    return { success: false, data: null, error: "Conversation not in active organization" };
+  }
+
+  if (chatFolderId) {
+    const folder = await prisma.chatFolder.findFirst({
+      where: { id: chatFolderId, organizationId },
+    });
+    if (!folder) {
+      return { success: false, data: null, error: "Folder not found" };
+    }
+  }
+
+  try {
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { chatFolderId },
+    });
+    revalidateTag("conversations");
+    return { success: true, data: { data: "Conversation moved" }, error: null };
+  } catch (error) {
+    console.error("[PRISMA] Update conversation folder failed", error);
+    return { success: false, data: null, error: "Failed to move conversation" };
   }
 }

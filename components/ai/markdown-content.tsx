@@ -8,9 +8,22 @@ import type { Pluggable } from "unified";
 
 interface MarkdownContentProps {
   content: string;
+  citations?: Record<string, { name: string }>;
 }
 
-export function MarkdownContent({ content }: MarkdownContentProps) {
+function applyCitations(
+  content: string,
+  citations?: Record<string, { name: string }>,
+): string {
+  if (!citations || Object.keys(citations).length === 0) return content;
+  return content.replace(/\[\[\s*(\d+)\s*\]\]/g, (_, n) => {
+    const c = citations[n];
+    return c ? `(Source: ${c.name})` : `(Source: Document ${n})`;
+  });
+}
+
+export function MarkdownContent({ content, citations }: MarkdownContentProps) {
+  const renderedContent = applyCitations(content, citations);
   const [rehypeHighlight, setRehypeHighlight] =
     React.useState<Pluggable | null>(null);
 
@@ -207,7 +220,7 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
               <pre className="bg-muted border border-border rounded-lg overflow-x-auto max-w-full my-4 w-full min-w-0">
                 <code
                   className={cn(
-                    "text-sm font-mono whitespace-pre-wrap break-words min-w-0 block w-full",
+                    "text-sm font-mono whitespace-pre-wrap wrap-break-word min-w-0 block w-full",
                     className,
                   )}
                   {...props}
@@ -251,7 +264,7 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
           },
         }}
       >
-        {content}
+        {renderedContent}
       </ReactMarkdown>
     </div>
   );

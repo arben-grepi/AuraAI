@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import { normalizeSlugParam } from "@/lib/utils";
 
 export default async function Layout({
   children,
@@ -12,7 +13,8 @@ export default async function Layout({
   children: React.ReactNode;
   params: Promise<{ org: string }>;
 }) {
-  const { org } = await params;
+  const { org: orgRaw } = await params;
+  const org = normalizeSlugParam(orgRaw);
   const requestHeaders = await headers();
   const session = await auth.api.getSession({
     headers: requestHeaders,

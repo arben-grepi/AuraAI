@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
   output   = "../app/generated/prisma"
@@ -81,11 +80,13 @@ model Conversation {
   id             String        @id @default(uuid())
   title          String?
   userId         String
-  organizationId String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String?
+  chatFolderId   String?       @map("chat_folder_id")
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatFolder     ChatFolder?   @relation(fields: [chatFolderId], references: [id], onDelete: SetNull)
   messages       Message[]
 
   @@map("conversation")
@@ -104,24 +105,23 @@ model Message {
 }
 
 model Organization {
-  id            String         @id
-  name          String
-  slug          String?        @unique
-  logo          String?
-  createdAt     DateTime
-  metadata      String?
-  invitations   Invitation[]
-  members       Member[]
-  resources     Resource[]
-  conversations Conversation[]
-
+  id              String         @id
+  name            String
+  slug            String?        @unique
+  logo            String?
+  createdAt       DateTime
+  metadata        String?
   backgroundColor String
   buttonColor     String
   tone            String?
-
-  description String?
-
-  systemPrompt String?
+  description     String?
+  systemPrompt    String?
+  conversations   Conversation[]
+  invitations     Invitation[]
+  members         Member[]
+  resources       Resource[]
+  fileFolders     FileFolder[]
+  chatFolders     ChatFolder[]
 
   @@map("organization")
 }
@@ -153,27 +153,46 @@ model Invitation {
 }
 
 model Embedding {
-  id         String                      @id
-  resourceId String?                     @map("resource_id")
+  id         String                @id
+  resourceId String?               @map("resource_id")
   content    String
-  embedding  Unsupported("vector(1536)")
-  fileName   String?                     @map("file_name")
-  tags       String[]                    @default([])
+  embedding  Unsupported("vector")
+  fileName   String?               @map("file_name")
+  tags       String[]              @default([])
+  resource   Resource?             @relation(fields: [resourceId], references: [id], onDelete: Cascade)
 
-  resource Resource? @relation(fields: [resourceId], references: [id], onDelete: Cascade)
-
-  // Note: HNSW index with vector_cosine_ops needs to be created manually via migration:
-  // CREATE INDEX "embeddingIndex" ON "embeddings" USING hnsw (embedding vector_cosine_ops);
   @@map("embeddings")
 }
 
 model Resource {
   id             String        @id
   organizationId String?       @map("organization_id")
+  fileFolderId   String?       @map("file_folder_id")
   name           String
   tags           String[]      @default([])
   embeddings     Embedding[]
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  fileFolder     FileFolder?   @relation(fields: [fileFolderId], references: [id], onDelete: SetNull)
 
   @@map("resources")
+}
+
+model FileFolder {
+  id             String       @id @default(uuid())
+  name           String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  resources      Resource[]
+
+  @@map("file_folders")
+}
+
+model ChatFolder {
+  id             String         @id @default(uuid())
+  name           String
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversations  Conversation[]
+
+  @@map("chat_folders")
 }

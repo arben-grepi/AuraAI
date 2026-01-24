@@ -133,7 +133,7 @@ export async function extractTextFromPDF(file: File): Promise<string> {
           });
 
           reject(
-            new Error(
+            console.error(
               "PDF contains no extractable text. This may be an image-based (scanned) PDF that requires OCR to extract text. Please ensure your PDF has selectable text. You can verify by trying to select text in a PDF viewer.",
             ),
           );
@@ -143,8 +143,7 @@ export async function extractTextFromPDF(file: File): Promise<string> {
       } catch (error) {
         reject(
           new Error(
-            `Failed to extract text from PDF: ${
-              error instanceof Error ? error.message : "Unknown error"
+            `Failed to extract text from PDF: ${error instanceof Error ? error.message : "Unknown error"
             }. The PDF may be corrupted, password-protected, or image-based.`,
           ),
         );

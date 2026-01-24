@@ -149,7 +149,14 @@ function Message({
                   <>
                     {textContent.trim().length > 0 && (
                       <>
-                        <MarkdownContent content={textContent} />
+                        <MarkdownContent
+                          content={textContent}
+                          citations={
+                            (message?.metadata as
+                              | { citations?: Record<string, { name: string }> }
+                              | undefined)?.citations
+                          }
+                        />
                         <CopyToClipboard text={textContent} />
                       </>
                     )}

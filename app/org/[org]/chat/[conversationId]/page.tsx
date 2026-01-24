@@ -5,11 +5,13 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Organization } from "@/lib/types";
+import { normalizeSlugParam } from "@/lib/utils";
 
 export default async function Page(
   props: PageProps<"/org/[org]/chat/[conversationId]">,
 ) {
-  const { org, conversationId } = await props.params;
+  const { org: orgRaw, conversationId } = await props.params;
+  const org = normalizeSlugParam(orgRaw);
   const session = await auth.api.getSession({ headers: await headers() });
 
   if (!session) {

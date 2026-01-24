@@ -61,6 +61,7 @@ export async function retrieveContext(
       SELECT
         e."content",
         e."resource_id",
+        r."name" AS resource_name,
         1 - (e."embedding" <=> ${qvecLit}) AS score
       FROM "embeddings" e
       JOIN "resources" r ON e."resource_id" = r."id"
@@ -72,18 +73,20 @@ export async function retrieveContext(
   } else {
     sqlQuery = `
       SELECT
-        "content",
-        "resource_id",
-        1 - ("embedding" <=> ${qvecLit}) AS score
-      FROM "embeddings"
-      ORDER BY "embedding" <=> ${qvecLit} ASC
+        e."content",
+        e."resource_id",
+        r."name" AS resource_name,
+        1 - (e."embedding" <=> ${qvecLit}) AS score
+      FROM "embeddings" e
+      LEFT JOIN "resources" r ON e."resource_id" = r."id"
+      ORDER BY e."embedding" <=> ${qvecLit} ASC
       LIMIT $1;
     `;
     params = [retrievalLimit];
   }
 
   const rows = await prisma.$queryRawUnsafe<
-    { content: string; resource_id: string; score: number }[]
+    { content: string; resource_id: string; resource_name: string | null; score: number }[]
   >(sqlQuery, ...params);
 
   if (!rows.length) {

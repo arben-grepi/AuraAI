@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { normalizeSlugParam } from "@/lib/utils";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const slug = searchParams.get("slug");
+  const slugRaw = searchParams.get("slug");
 
-  if (!slug) {
+  if (!slugRaw) {
     return NextResponse.json({ error: "Slug is required" }, { status: 400 });
   }
 
+  const slug = normalizeSlugParam(slugRaw);
   const org = await prisma.organization.findUnique({
     where: {
       slug,
