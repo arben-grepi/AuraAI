@@ -34,17 +34,46 @@ export async function GET() {
     }
   }
 
-  const conversations = await prisma.conversation.findMany({
-    where: {
-      userId: session.user.id,
-      organizationId,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+  const [chatFolders, conversations] = await Promise.all([
+    prisma.chatFolder.findMany({
+      where: { organizationId },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.conversation.findMany({
+      where: {
+        userId: session.user.id,
+        organizationId,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
 
-  return NextResponse.json(conversations);
+  const rootConversations = conversations.filter((c) => !c.chatFolderId);
+  const foldersWithConversations = chatFolders.map((f) => ({
+    id: f.id,
+    name: f.name,
+    conversations: conversations
+      .filter((c) => c.chatFolderId === f.id)
+      .map(({ id, title, createdAt, updatedAt }) => ({
+        id,
+        title,
+        createdAt,
+        updatedAt,
+      })),
+  }));
+
+  return NextResponse.json({
+    folders: foldersWithConversations,
+    rootConversations: rootConversations.map(
+      ({ id, title, createdAt, updatedAt }) => ({
+        id,
+        title,
+        createdAt,
+        updatedAt,
+      }),
+    ),
+  });
 }
 
 export async function POST(req: Request) {
@@ -79,13 +108,28 @@ export async function POST(req: Request) {
     }
   }
 
-  const { title }: { title?: string } = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => ({}));
+  const { title, chatFolderId }: { title?: string; chatFolderId?: string | null } =
+    body;
+
+  if (chatFolderId) {
+    const folder = await prisma.chatFolder.findFirst({
+      where: { id: chatFolderId, organizationId },
+    });
+    if (!folder) {
+      return NextResponse.json(
+        { error: "Folder not found or does not belong to this organization" },
+        { status: 400 },
+      );
+    }
+  }
 
   const created = await prisma.conversation.create({
     data: {
       title: title && title.trim().length > 0 ? title.trim() : "New chat",
       userId: session.user.id,
       organizationId,
+      chatFolderId: chatFolderId || undefined,
     },
   });
 

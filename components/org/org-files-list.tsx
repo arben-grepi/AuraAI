@@ -1,6 +1,17 @@
 "use client";
 
-import { CircleArrowUp, File, Loader2, Trash2, Upload, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  CircleArrowUp,
+  File,
+  Folder,
+  FolderPlus,
+  Loader2,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { useRef, useState } from "react";
@@ -17,7 +28,11 @@ import {
 } from "../ui/dialog";
 import { toast } from "sonner";
 import TagInput from "./tag-input";
-import { deleteResource } from "@/lib/actions";
+import {
+  createFileFolder,
+  deleteFileFolder,
+  deleteResource,
+} from "@/lib/actions";
 
 const filters = [
   {
@@ -45,8 +60,15 @@ const filters = [
 export default function OrgFilesList({ orgId }: { orgId: string }) {
   const [activeFilter, setActiveFilter] = useState<string>("");
   const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
+  const [isFolderDialogOpen, setIsFolderDialogOpen] = useState<boolean>(false);
+  const [folderName, setFolderName] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
+  const [selectedFolderId, setSelectedFolderId] = useState<string>("");
+  const [isDragging, setIsDragging] = useState(false);
+  const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(
+    new Set(),
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
@@ -55,24 +77,46 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
     queryFn: () => getFiles(orgId),
   });
 
-  const handleChangeFiles = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0];
-    if (selectedFile) {
-      if (selectedFile.size > 10 * 1024 * 1024) {
-        toast.error(
-          `${selectedFile.name} is too large. Maximum file size is 10MB`,
-        );
-        return;
-      }
-      setFile(selectedFile);
-      toast.success(`File selected: ${selectedFile.name}`);
-      event.target.value = "";
+  const processSelectedFile = (selectedFile: File | undefined) => {
+    if (!selectedFile) return;
+    if (selectedFile.size > 10 * 1024 * 1024) {
+      toast.error(
+        `${selectedFile.name} is too large. Maximum file size is 10MB`,
+      );
+      return;
     }
+    setFile(selectedFile);
+    toast.success(`File selected: ${selectedFile.name}`);
+  };
+
+  const handleChangeFiles = (event: React.ChangeEvent<HTMLInputElement>) => {
+    processSelectedFile(event.target.files?.[0]);
+    event.target.value = "";
+  };
+
+  const handleDragOver = (event: React.DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (event: React.DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (event: React.DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragging(false);
+    processSelectedFile(event.dataTransfer.files?.[0]);
   };
 
   const handleResetForm = () => {
     setFile(null);
     setSelected([]);
+    setSelectedFolderId("");
   };
 
   const handleDialogOpenChange = (open: boolean) => {
@@ -93,6 +137,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
       formData.append("file", file);
       formData.append("tags", JSON.stringify(selected));
       formData.append("orgId", orgId);
+      if (selectedFolderId) formData.append("fileFolderId", selectedFolderId);
 
       const response = await fetch(`/api/files/rag`, {
         method: "POST",
@@ -115,6 +160,35 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
         error instanceof Error ? error.message : "Failed to upload file",
       );
     }
+  };
+
+  const handleCreateFolder = async () => {
+    const name = folderName.trim();
+    if (!name) return;
+    try {
+      const result = await createFileFolder(orgId, name);
+      if (result.success) {
+        toast.success("Folder created");
+        queryClient.invalidateQueries({ queryKey: ["files"] });
+        setIsFolderDialogOpen(false);
+        setFolderName("");
+      } else {
+        toast.error(result.error || "Failed to create folder");
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to create folder",
+      );
+    }
+  };
+
+  const toggleFolder = (id: string) => {
+    setExpandedFolderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   return (
@@ -180,7 +254,15 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                 <p className="text-sm font-medium">Choose your file</p>
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border border-zinc-300 border-dashed w-full rounded-[12px] min-h-[230px] mt-1 flex items-center justify-center flex-col gap-2 text-center hover:bg-zinc-100 transition-all duration-200 cursor-pointer"
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={cn(
+                    "border border-dashed w-full rounded-[12px] min-h-[230px] mt-1 flex items-center justify-center flex-col gap-2 text-center transition-all duration-200 cursor-pointer",
+                    isDragging
+                      ? "border-primary bg-primary/5"
+                      : "border-zinc-300 hover:bg-zinc-100",
+                  )}
                 >
                   <CircleArrowUp />
                   <p className="text-sm font-medium">
@@ -192,6 +274,22 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                     </span>
                   </p>
                 </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <p className="text-sm font-medium">Folder (optional)</p>
+                <select
+                  value={selectedFolderId}
+                  onChange={(e) => setSelectedFolderId(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-zinc-200 bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400"
+                >
+                  <option value="">Root (no folder)</option>
+                  {data?.folders?.map((f: OrgFolder) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex flex-col gap-2">
@@ -215,6 +313,61 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                   className="w-fit py-5 rounded-[10px] cursor-pointer"
                 >
                   <p>Upload</p>
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Dialog
+            open={isFolderDialogOpen}
+            onOpenChange={(open) => {
+              setIsFolderDialogOpen(open);
+              if (!open) setFolderName("");
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button className="w-fit py-5 rounded-[10px] cursor-pointer">
+                <p>Create folder</p>
+                <FolderPlus className="size-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-[400px]">
+              <DialogHeader>
+                <DialogTitle className="text-sm font-medium">
+                  New folder
+                </DialogTitle>
+                <DialogDescription className="text-zinc-600 text-sm">
+                  Create a folder to organize your files.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col gap-2 py-2">
+                <label className="text-sm font-medium">Folder name</label>
+                <Input
+                  value={folderName}
+                  onChange={(e) => setFolderName(e.target.value)}
+                  placeholder="e.g. Finance, Reports"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleCreateFolder();
+                    }
+                  }}
+                />
+              </div>
+              <DialogFooter className="justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsFolderDialogOpen(false);
+                    setFolderName("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleCreateFolder}
+                  disabled={!folderName.trim()}
+                >
+                  Create
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -249,11 +402,13 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
             </Button>
           </div>
           <div className="flex flex-col w-full">
-            {isLoading
-              ? Array.from({ length: 3 }).map((_, index) => (
-                  <FileItemSkeleton key={index} />
-                ))
-              : data?.map((file: OrgFile) => (
+            {isLoading ? (
+              Array.from({ length: 3 }).map((_, index) => (
+                <FileItemSkeleton key={index} />
+              ))
+            ) : (
+              <>
+                {data?.rootFiles?.map((file: OrgFile) => (
                   <ListItem
                     key={file.id}
                     id={file.id}
@@ -261,10 +416,26 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                     tags={file.tags}
                   />
                 ))}
-            {data?.length === 0 && (
-              <div className="w-full py-4 px-2.5 rounded-[12px] border-b border-zinc-100 flex  items-center justify-center cursor-pointer hover:bg-zinc-100 transition-all duration-200">
-                <p className="text-sm font-medium">No files found</p>
-              </div>
+                {data?.folders?.map((folder: OrgFolder) => (
+                  <FolderRow
+                    key={folder.id}
+                    id={folder.id}
+                    name={folder.name}
+                    resources={folder.resources}
+                    isExpanded={expandedFolderIds.has(folder.id)}
+                    onToggle={() => toggleFolder(folder.id)}
+                  />
+                ))}
+                {!isLoading &&
+                  (data?.rootFiles?.length ?? 0) === 0 &&
+                  (data?.folders?.length ?? 0) === 0 && (
+                    <div className="w-full py-4 px-2.5 rounded-[12px] border-b border-zinc-100 flex items-center justify-center cursor-pointer hover:bg-zinc-100 transition-all duration-200">
+                      <p className="text-sm font-medium">
+                        No files or folders yet
+                      </p>
+                    </div>
+                  )}
+              </>
             )}
           </div>
         </div>
@@ -289,14 +460,14 @@ const ListItem = ({
       setIsDeleting(true);
       const deletion = await deleteResource(id);
       if (deletion.success) {
-        toast.success(deletion.data?.data || "Resource deleted");
+        toast.success(deletion.data?.data || "File deleted");
         queryClient.invalidateQueries({ queryKey: ["files"] });
       } else {
-        toast.error(deletion.error || "Failed to delete resource");
+        toast.error(deletion.error || "Failed to delete file");
       }
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to delete resource",
+        error instanceof Error ? error.message : "Failed to delete file",
       );
     } finally {
       setIsDeleting(false);
@@ -359,11 +530,110 @@ const FileItemSkeleton = () => {
   );
 };
 
-const getFiles = async (orgId: string) => {
-  const files = await fetch(
+const FolderRow = ({
+  id,
+  name,
+  resources,
+  isExpanded,
+  onToggle,
+}: {
+  id: string;
+  name: string;
+  resources: OrgFile[];
+  isExpanded: boolean;
+  onToggle: () => void;
+}) => {
+  const queryClient = useQueryClient();
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setIsDeleting(true);
+      const result = await deleteFileFolder(id);
+      if (result.success) {
+        toast.success(result.data?.data || "Folder deleted");
+        queryClient.invalidateQueries({ queryKey: ["files"] });
+      } else {
+        toast.error(result.error || "Failed to delete folder");
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete folder",
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <div className="border-b border-zinc-100">
+      <div
+        className="w-full py-4 px-2.5 rounded-[12px] flex items-center cursor-pointer hover:bg-zinc-100 transition-all duration-200"
+        onClick={onToggle}
+      >
+        <button
+          type="button"
+          className="p-0.5 rounded hover:bg-zinc-200 transition-colors mr-1.5"
+          aria-label={isExpanded ? "Collapse folder" : "Expand folder"}
+        >
+          {isExpanded ? (
+            <ChevronDown className="size-4 text-zinc-500" />
+          ) : (
+            <ChevronRight className="size-4 text-zinc-500" />
+          )}
+        </button>
+        <div className="w-10.5 h-10.5 rounded-[8px] bg-amber-100 flex justify-center items-center shrink-0">
+          <Folder className="size-5 text-amber-700" />
+        </div>
+        <div className="flex flex-col justify-between ml-2.5 flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{name}</p>
+          <p className="text-xs text-zinc-500 font-medium">
+            {resources.length} file{resources.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <Button
+          className="bg-destructive/10 text-destructive shrink-0 cursor-pointer hover:bg-destructive/20 transition-all duration-200"
+          onClick={handleDelete}
+          disabled={isDeleting}
+        >
+          {isDeleting ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <div className="flex items-center gap-2">
+              Remove
+              <Trash2 className="size-4" />
+            </div>
+          )}
+        </Button>
+      </div>
+      {isExpanded && (
+        <div className="pl-6 pr-2.5 pb-1">
+          {resources.length === 0 ? (
+            <p className="text-xs text-zinc-500 py-3">
+              No files in this folder
+            </p>
+          ) : (
+            resources.map((file) => (
+              <ListItem
+                key={file.id}
+                id={file.id}
+                name={file.name}
+                tags={file.tags}
+              />
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const getFiles = async (orgId: string): Promise<FilesResponse> => {
+  const res = await fetch(
     `${process.env.NEXT_PUBLIC_BASE_URL}/api/org/files?orgId=${orgId}`,
   );
-  const data = await files.json();
+  const data = await res.json();
   return data;
 };
 
@@ -371,4 +641,15 @@ type OrgFile = {
   id: string;
   name: string;
   tags: string[];
+};
+
+type OrgFolder = {
+  id: string;
+  name: string;
+  resources: OrgFile[];
+};
+
+type FilesResponse = {
+  folders: OrgFolder[];
+  rootFiles: OrgFile[];
 };

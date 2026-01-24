@@ -284,7 +284,7 @@ export function ChatInterface({
           >
             <StickToBottom.Content className="flex flex-col gap-6  scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/40 scrollbar-thumb-rounded-full min-w-0">
               <div
-                className={`w-full h-[80px] mb-4 flex items-center justify-center sticky top-0 z-10 backdrop-blur`}
+                className={`w-full h-fit py-2 mb-4 flex items-center justify-center sticky top-0 z-10 backdrop-blur`}
               >
                 <AnimatePresence mode="wait">
                   {isAnonymous ? (
@@ -316,11 +316,8 @@ export function ChatInterface({
                         alt={organization?.name || "Organization Logo"}
                         width={70}
                         height={70}
-                        className="rounded-sm object-cover"
+                        className="rounded-sm aspect-square object-cover"
                       />
-                      <p className="text-xs font-medium text-zinc-800 ml-2">
-                        {organization?.name}
-                      </p>
                     </motion.div>
                   )}
                 </AnimatePresence>

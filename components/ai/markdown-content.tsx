@@ -207,7 +207,7 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
               <pre className="bg-muted border border-border rounded-lg overflow-x-auto max-w-full my-4 w-full min-w-0">
                 <code
                   className={cn(
-                    "text-sm font-mono whitespace-pre-wrap break-words min-w-0 block w-full",
+                    "text-sm font-mono whitespace-pre-wrap wrap-break-word min-w-0 block w-full",
                     className,
                   )}
                   {...props}

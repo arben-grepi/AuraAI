@@ -90,7 +90,7 @@ export async function AppSidebar({ org }: { org: string }) {
                   alt={organization?.name || ""}
                   width={34}
                   height={34}
-                  className="block rounded-[6px]"
+                  className="block rounded-[6px] aspect-square object-cover"
                 />
               )}
               <p className="text-sm font-medium text-zinc-800 ml-2">

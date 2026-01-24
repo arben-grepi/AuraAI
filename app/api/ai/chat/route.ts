@@ -13,47 +13,12 @@ import { retrieveContext } from "@/lib/rag";
 import { extractText } from "@/lib/file-extraction";
 import { getS3BucketName, getS3Client } from "@/lib/s3";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSystemPrompt } from "@/lib/utils";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const systemPrompt = `
-You are Diguro's intelligent retrieval-augmented assistant, designed to help users by providing accurate, context-aware responses based on their organization's knowledge base.
 
-## Your Purpose
-You are a specialized AI assistant that:
-- Answers questions using the organization's internal documents and knowledge base
-- Provides accurate, cited information from retrieved context
-- Helps users make informed decisions by synthesizing relevant information
-- Explains your purpose and capabilities when asked about what you do or how you work
-
-When users ask about your purpose, capabilities, or what you are, explain that you are Diguro's retrieval-augmented assistant designed to help them by accessing their organization's knowledge base and providing accurate, context-aware responses.
-
-## Core Behaviors
-- Always read the "Context documents" message. If it is empty, acknowledge that no internal sources were retrieved before answering.
-- Prioritize grounded, reference-backed reasoning. Use general knowledge only to bridge gaps or provide light explanation.
-- When attachments are summarized for you, review their previews and incorporate any relevant details into your response.
-- Personalize responses when appropriate, using the user's name and organization context naturally in your interactions.
-
-## RAG Workflow
-1. Review the latest user request and the retrieved snippets.
-2. Synthesize the most relevant facts, citing the snippet markers like [[1]] whenever you reference them.
-3. Explain implications, risks, or next steps when useful. Clearly label speculation as interpretation.
-4. If nothing relevant was retrieved, say so and rely on general knowledge only if it is trustworthy.
-
-## Output Requirements
-- Use Markdown with headings and bullet lists for readability.
-- Keep answers concise but insightful. Focus on what helps the user act or decide.
-- Close with a short takeaway or recommended next action when appropriate.
-- Never invent sources or fabricate data.
-- Be conversational and helpful, making the user feel supported in their work.
-
-## Document Review Requests
-- When a user provides attachments (like PDFs or images) and asks whether they comply with requirements, perform a best-effort review using the provided previews and any rules mentioned in the conversation.
-- Extract the relevant details from the attachment summaries, compare them with the criteria, and state whether the document appears to comply, explicitly noting any assumptions or missing information.
-- Offer concrete suggestions for adjustments if the document may be non-compliant instead of deferring entirely to an external authority.
-- You may remind the user to confirm with officials when appropriate, but do not refuse or avoid the requested analysis.
-`;
 
 type MessageFilePart = Extract<UIMessage["parts"][number], { type: "file" }>;
 
@@ -83,6 +48,13 @@ export async function POST(req: Request) {
   if (!organizationId) {
     return new Response("No active organization", { status: 400 });
   }
+
+  const organizationName = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { name: true }
+  });
+
+  const systemPrompt = getSystemPrompt(organizationName?.name ?? "Diguro");
 
   if (session.user.role !== "admin") {
     const membership = await prisma.member.findFirst({
@@ -204,9 +176,9 @@ You are chatting with ${user?.name || "the user"} from ${organization?.name || "
 
   const attachmentsMessage = normalizedAttachments.length
     ? await buildAttachmentContext({
-        attachments: normalizedAttachments,
-        organizationId,
-      })
+      attachments: normalizedAttachments,
+      organizationId,
+    })
     : null;
 
   const requestMessages = messages.map(({ id, ...rest }) => rest) as Array<
@@ -305,9 +277,8 @@ async function buildAttachmentContext({
     summaries.push(summary);
   }
 
-  const header = `Uploaded attachments (active organization: ${
-    organizationId ?? "none"
-  }):`;
+  const header = `Uploaded attachments (active organization: ${organizationId ?? "none"
+    }):`;
 
   const body = summaries.join("\n\n");
   const note =
@@ -340,11 +311,9 @@ async function summarizeAttachmentWithTimeout(
       ? "null"
       : (metadata.organizationId ?? "unknown");
 
-  const baseLine = `${index + 1}. ${part.filename ?? "attachment"} • ${
-    part.mediaType ?? "unknown"
-  } • ${sizeLabel} • objectKey:${objectKeyLabel} • organizationId:${providerOrgLabel} • url:${
-    part.url ?? "(missing url)"
-  }`;
+  const baseLine = `${index + 1}. ${part.filename ?? "attachment"} • ${part.mediaType ?? "unknown"
+    } • ${sizeLabel} • objectKey:${objectKeyLabel} • organizationId:${providerOrgLabel} • url:${part.url ?? "(missing url)"
+    }`;
 
   let preview: string;
 
@@ -389,15 +358,15 @@ function extractKommunMetadata(
 ): AttachmentMetadata {
   const providerMetadata =
     part.providerMetadata &&
-    typeof part.providerMetadata === "object" &&
-    part.providerMetadata !== null
+      typeof part.providerMetadata === "object" &&
+      part.providerMetadata !== null
       ? (part.providerMetadata as Record<string, unknown>)
       : {};
 
   const kommunMetadata =
     providerMetadata.kommun &&
-    typeof providerMetadata.kommun === "object" &&
-    providerMetadata.kommun !== null
+      typeof providerMetadata.kommun === "object" &&
+      providerMetadata.kommun !== null
       ? (providerMetadata.kommun as Record<string, unknown>)
       : providerMetadata;
 
@@ -599,7 +568,7 @@ async function readBody(body: unknown): Promise<Uint8Array> {
     body !== null &&
     "arrayBuffer" in body &&
     typeof (body as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer ===
-      "function"
+    "function"
   ) {
     const arrayBuffer = await (
       body as { arrayBuffer: () => Promise<ArrayBuffer> }

@@ -70,6 +70,7 @@ export async function POST(req: Request) {
     const file = form.get("file");
     const orgId = form.get("orgId")?.toString();
     const orgSlug = form.get("orgSlug")?.toString();
+    const fileFolderId = form.get("fileFolderId")?.toString() || null;
 
     let organizationId: string | null = null;
 
@@ -169,13 +170,26 @@ export async function POST(req: Request) {
 
     const vectors = embRes.data.map((d) => d.embedding as number[]);
 
+    if (fileFolderId) {
+      const folder = await prisma.fileFolder.findFirst({
+        where: { id: fileFolderId, organizationId },
+      });
+      if (!folder) {
+        return Response.json(
+          { error: "Folder not found or does not belong to this organization" },
+          { status: 400 },
+        );
+      }
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const resourceId = crypto.randomUUID();
 
       await tx.$executeRawUnsafe(
-        `INSERT INTO "resources" ("id", "organization_id", "name", "tags") VALUES ($1, $2, $3, $4::text[])`,
+        `INSERT INTO "resources" ("id", "organization_id", "file_folder_id", "name", "tags") VALUES ($1, $2, $3, $4, $5::text[])`,
         resourceId,
         organizationId,
+        fileFolderId,
         file.name,
         tags,
       );

@@ -34,14 +34,30 @@ export async function GET(req: Request) {
     }
   }
 
-  const files = await prisma.resource.findMany({
-    where: {
-      organizationId: orgId,
-    },
-    include: {
-      embeddings: false,
-    },
-  });
+  const [folders, resources] = await Promise.all([
+    prisma.fileFolder.findMany({
+      where: { organizationId: orgId },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.resource.findMany({
+      where: { organizationId: orgId },
+      select: { id: true, name: true, tags: true, fileFolderId: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
-  return NextResponse.json(files);
+  const rootFiles = resources
+    .filter((r) => !r.fileFolderId)
+    .map(({ id, name, tags }) => ({ id, name, tags }));
+
+  const foldersWithResources = folders.map((f) => ({
+    id: f.id,
+    name: f.name,
+    resources: resources
+      .filter((r) => r.fileFolderId === f.id)
+      .map(({ id, name, tags }) => ({ id, name, tags })),
+  }));
+
+  return NextResponse.json({ folders: foldersWithResources, rootFiles });
 }
