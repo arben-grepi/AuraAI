@@ -8,9 +8,22 @@ import type { Pluggable } from "unified";
 
 interface MarkdownContentProps {
   content: string;
+  citations?: Record<string, { name: string }>;
 }
 
-export function MarkdownContent({ content }: MarkdownContentProps) {
+function applyCitations(
+  content: string,
+  citations?: Record<string, { name: string }>,
+): string {
+  if (!citations || Object.keys(citations).length === 0) return content;
+  return content.replace(/\[\[\s*(\d+)\s*\]\]/g, (_, n) => {
+    const c = citations[n];
+    return c ? `(Source: ${c.name})` : `(Source: Document ${n})`;
+  });
+}
+
+export function MarkdownContent({ content, citations }: MarkdownContentProps) {
+  const renderedContent = applyCitations(content, citations);
   const [rehypeHighlight, setRehypeHighlight] =
     React.useState<Pluggable | null>(null);
 
@@ -251,7 +264,7 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
           },
         }}
       >
-        {content}
+        {renderedContent}
       </ReactMarkdown>
     </div>
   );

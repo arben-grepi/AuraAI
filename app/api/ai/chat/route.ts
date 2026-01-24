@@ -133,7 +133,20 @@ export async function POST(req: Request) {
     }),
   ]);
 
-  const { context } = await retrieveContext(latestText, 6, organizationId);
+  const { context, results } = await retrieveContext(
+    latestText,
+    6,
+    organizationId,
+  );
+
+  const citationMap: Record<string, { name: string }> = Object.fromEntries(
+    (results as { resource_name?: string | null; resource_id?: string }[]).map(
+      (r, i) => [
+        String(i + 1),
+        { name: r.resource_name || r.resource_id || "Document" },
+      ],
+    ),
+  );
 
   const baseSystem = {
     role: "system" as const,
@@ -239,6 +252,12 @@ You are chatting with ${user?.name || "the user"} from ${organization?.name || "
       if (isAnonymous === true) {
         return;
       }
+      const parts: Array<{ type: string; text?: string; state?: string; citations?: Record<string, { name: string }> }> = [
+        { type: "text", text: r.text, state: "done" },
+      ];
+      if (Object.keys(citationMap).length > 0) {
+        parts.push({ type: "citations", citations: citationMap });
+      }
       const cookie = req.headers.get("cookie");
       fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/ai/persist-message`, {
         method: "POST",
@@ -250,7 +269,7 @@ You are chatting with ${user?.name || "the user"} from ${organization?.name || "
           conversationId,
           role: "assistant",
           content: r.text,
-          parts: [{ type: "text", text: r.text, state: "done" }],
+          parts,
         }),
       }).catch(console.error);
     },
