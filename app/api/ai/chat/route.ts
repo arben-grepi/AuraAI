@@ -194,7 +194,7 @@ You are chatting with ${user?.name || "the user"} from ${organization?.name || "
     })
     : null;
 
-  const requestMessages = messages.map(({ id, ...rest }) => rest) as Array<
+  const requestMessages = messages.map(({ ...rest }) => rest) as Array<
     Omit<UIMessage, "id">
   >;
 

@@ -2,7 +2,6 @@ import { PenLine, Search } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -14,7 +13,6 @@ import {
 import { Conversations } from "./sidebar/conversations";
 import { Suspense } from "react";
 import { ConversationsSkeleton } from "./sidebar/conversations-skeleton";
-import { NavUser } from "./sidebar/nav-user";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import Image from "next/image";
