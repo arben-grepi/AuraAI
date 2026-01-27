@@ -86,11 +86,12 @@ export async function middleware(request: NextRequest) {
           );
 
           if (orgResponse?.slug) {
+            const encodedSlug = encodeURIComponent(orgResponse.slug);
             console.log(
-              `[Middleware] Redirecting non-admin to org chat: /org/${orgResponse.slug}/chat`,
+              `[Middleware] Redirecting non-admin to org chat: /org/${encodedSlug}/chat`,
             );
             return NextResponse.redirect(
-              new URL(`/org/${orgResponse.slug}/chat`, request.url),
+              new URL(`/org/${encodedSlug}/chat`, request.url),
             );
           }
           console.log(
