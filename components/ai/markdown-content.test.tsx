@@ -79,4 +79,38 @@ describe("MarkdownContent", () => {
     render(<MarkdownContent content="See [[1]]" />);
     expect(screen.getByText(/\[\[1\]\]/)).toBeInTheDocument();
   });
+
+  it("normalizes 4+ consecutive newlines to at most one blank line", () => {
+    render(<MarkdownContent content="a\n\n\n\nb" />);
+    const markdownEl = screen.getByTestId("react-markdown");
+    expect(markdownEl.textContent).not.toMatch(/\n\n\n/);
+    expect(markdownEl.textContent).toContain("a");
+    expect(markdownEl.textContent).toContain("b");
+  });
+
+  it("collapses excessive newlines around citation lines", () => {
+    render(
+      <MarkdownContent
+        content={"p\n\n\n\n[[1]]\n\n\n\nq"}
+        citations={{ "1": { name: "doc.pdf" } }}
+      />
+    );
+    const markdownEl = screen.getByTestId("react-markdown");
+    const text = markdownEl.textContent ?? "";
+    expect(text).toContain("(Source: doc.pdf)");
+    expect(text).not.toMatch(/\n\n\n.*\(Source:/);
+    expect(text).not.toMatch(/\(Source:[^)]+\)\s*\n\n\n/);
+  });
+
+  it("passes list content through without corruption", () => {
+    render(<MarkdownContent content="- a\n- b" />);
+    expect(screen.getByTestId("react-markdown")).toHaveTextContent(/- a/);
+    expect(screen.getByTestId("react-markdown")).toHaveTextContent(/- b/);
+  });
+
+  it("passes fenced code block content through without corruption", () => {
+    const code = "const x = 1;";
+    render(<MarkdownContent content={`\`\`\`js\n${code}\n\`\`\``} />);
+    expect(screen.getByTestId("react-markdown")).toHaveTextContent(code);
+  });
 });
