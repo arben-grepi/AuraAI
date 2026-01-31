@@ -11,9 +11,17 @@ interface MarkdownContentProps {
   citations?: Record<string, { name: string }>;
 }
 
+/**
+ * Collapses 3+ consecutive newlines to exactly 2 so markdown produces at most
+ * one blank line between blocks and avoids excessive vertical spacing.
+ */
+function normalizeNewlines(content: string): string {
+  return content.replace(/\n{3,}/g, "\n\n").trim();
+}
+
 function applyCitations(
   content: string,
-  citations?: Record<string, { name: string }>,
+  citations?: Record<string, { name: string }>
 ): string {
   if (!citations || Object.keys(citations).length === 0) return content;
   return content.replace(/\[\[\s*(\d+)\s*\]\]/g, (_, n) => {
@@ -22,8 +30,21 @@ function applyCitations(
   });
 }
 
+/**
+ * Collapses excessive newlines around citation lines so "(Source: ...)" does
+ * not create huge vertical gaps. At most one blank line before and after each.
+ */
+function normalizeCitationSpacing(content: string): string {
+  return content
+    .replace(/(\n{2,})(\s*\(Source:[^)]+\)\s*)(\n{2,})/g, "\n\n$2\n\n")
+    .replace(/^(\n{2,})(\s*\(Source:[^)]+\)\s*)/m, "\n\n$2")
+    .replace(/(\s*\(Source:[^)]+\)\s*)(\n{2,})$/m, "$1\n\n");
+}
+
 export function MarkdownContent({ content, citations }: MarkdownContentProps) {
-  const renderedContent = applyCitations(content, citations);
+  const normalized = normalizeNewlines(content);
+  const withCitations = applyCitations(normalized, citations);
+  const renderedContent = normalizeCitationSpacing(withCitations);
   const [rehypeHighlight, setRehypeHighlight] =
     React.useState<Pluggable | null>(null);
 
@@ -48,7 +69,7 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
   // Syntax highlighting theme is imported globally via app/globals.css
 
   return (
-    <div className="text-base prose dark:prose-invert max-w-none sm:prose-base prose-sm w-full min-w-0 overflow-hidden prose-pre:bg-muted prose-pre:border prose-pre:border-border prose-pre:rounded-lg prose-pre:my-4 prose-pre:overflow-x-auto prose-pre:max-w-full prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none prose-p:my-3 prose-ul:my-3 prose-ol:my-3 prose-h1:my-4 prose-h2:my-4 prose-h3:my-3 prose-h4:my-3 prose-h5:my-3 prose-h6:my-3 prose-blockquote:my-4 prose-hr:my-6">
+    <div className="text-base prose dark:prose-invert max-w-none sm:prose-base prose-sm w-full min-w-0 overflow-x-hidden prose-code:before:content-none prose-code:after:content-none">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={rehypeHighlight ? [rehypeHighlight] : []}
@@ -59,7 +80,7 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
               <img
                 src={src ?? ""}
                 alt={alt ?? ""}
-                className="max-w-full h-auto rounded-md border border-border my-3"
+                className="max-w-full h-auto rounded-md border border-border my-2"
                 {...props}
               />
             );
@@ -67,7 +88,7 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
           p({ children, ...props }) {
             return (
               <p
-                className="text-foreground leading-6 mb-3 last:mb-0"
+                className="text-foreground leading-6 mb-1.5 last:mb-0"
                 {...props}
               >
                 {children}
@@ -77,7 +98,7 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
           h1({ children, ...props }) {
             return (
               <h1
-                className="text-3xl font-bold text-foreground mb-6 mt-8 first:mt-0 border-b border-border pb-2"
+                className="text-3xl font-bold text-foreground mb-2 mt-3 first:mt-0 border-b border-border pb-1.5"
                 {...props}
               >
                 {children}
@@ -87,7 +108,7 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
           h2({ children, ...props }) {
             return (
               <h2
-                className="text-2xl font-semibold text-foreground mb-4 mt-6 first:mt-0"
+                className="text-2xl font-semibold text-foreground mb-1.5 mt-3 first:mt-0"
                 {...props}
               >
                 {children}
@@ -97,7 +118,7 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
           h3({ children, ...props }) {
             return (
               <h3
-                className="text-xl font-semibold text-foreground mb-3 mt-5 first:mt-0"
+                className="text-xl font-semibold text-foreground mb-1 mt-2 first:mt-0"
                 {...props}
               >
                 {children}
@@ -107,7 +128,7 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
           h4({ children, ...props }) {
             return (
               <h4
-                className="text-lg font-medium text-foreground mb-2 mt-4 first:mt-0"
+                className="text-lg font-medium text-foreground mb-0.5 mt-1.5 first:mt-0"
                 {...props}
               >
                 {children}
@@ -117,7 +138,7 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
           h5({ children, ...props }) {
             return (
               <h5
-                className="text-base font-medium text-foreground mb-2 mt-3 first:mt-0"
+                className="text-base font-medium text-foreground mb-0.5 mt-1.5 first:mt-0"
                 {...props}
               >
                 {children}
@@ -127,7 +148,7 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
           h6({ children, ...props }) {
             return (
               <h6
-                className="text-sm font-medium text-muted-foreground mb-2 mt-3 first:mt-0"
+                className="text-sm font-medium text-muted-foreground mb-0.5 mt-1.5 first:mt-0"
                 {...props}
               >
                 {children}
@@ -151,7 +172,8 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
           ul({ children, ...props }) {
             return (
               <ul
-                className="list-disc list-outside mb-3 ml-6 space-y-1 text-foreground"
+                className="list-disc list-outside my-1.5 last:mb-0 ml-0 pl-6 space-y-0.5 text-foreground [&_ul]:mt-0.5 [&_ol]:mt-0.5"
+                style={{ listStylePosition: "outside" }}
                 {...props}
               >
                 {children}
@@ -161,8 +183,8 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
           ol({ children, ...props }) {
             return (
               <ol
-                className="list-decimal list-outside mb-3 ml-6 space-y-1 text-foreground"
-                style={{ paddingLeft: "1.5rem" }}
+                className="list-decimal list-outside my-1.5 last:mb-0 ml-0 pl-7 space-y-0.5 text-foreground [&_ul]:mt-0.5 [&_ol]:mt-0.5"
+                style={{ listStylePosition: "outside" }}
                 {...props}
               >
                 {children}
@@ -172,8 +194,8 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
           li({ children, ...props }) {
             return (
               <li
-                className="text-foreground leading-6 pl-2"
-                style={{ display: "list-item", listStylePosition: "outside" }}
+                className="text-foreground leading-relaxed list-item [&_p]:my-0 [&_ul]:my-1 [&_ol]:my-1 [&_ul]:pl-4 [&_ol]:pl-4"
+                style={{ listStylePosition: "outside" }}
                 {...props}
               >
                 {children}
@@ -183,7 +205,7 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
           blockquote({ children, ...props }) {
             return (
               <blockquote
-                className="border-l-4 border-primary pl-4 py-2 my-4 bg-muted/50 rounded-r-md italic text-muted-foreground"
+                className="border-l-4 border-primary pl-4 py-1.5 my-1.5 bg-muted/50 rounded-r-md italic text-muted-foreground"
                 {...props}
               >
                 {children}
@@ -191,7 +213,27 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
             );
           },
           hr({ ...props }) {
-            return <hr className="border-border my-6" {...props} />;
+            return <hr className="border-border my-3 shrink-0" {...props} />;
+          },
+          pre({ children, ...props }) {
+            const arr = React.Children.toArray(children);
+            const single = arr.length === 1 && React.isValidElement(arr[0]);
+            const isOurCodeBlock =
+              single &&
+              (
+                arr[0] as React.ReactElement & {
+                  props?: { "data-code-block"?: unknown };
+                }
+              ).props?.["data-code-block"] != null;
+            if (isOurCodeBlock) return <>{children}</>;
+            return (
+              <pre
+                className="my-1.5 overflow-x-auto rounded-lg border border-border bg-muted py-3 px-4 text-sm"
+                {...props}
+              >
+                {children}
+              </pre>
+            );
           },
           a({ children, href, ...props }) {
             return (
@@ -217,11 +259,14 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
               );
             }
             return (
-              <pre className="bg-muted border border-border rounded-lg overflow-x-auto max-w-full my-4 w-full min-w-0">
+              <pre
+                data-code-block
+                className="my-1.5 w-full min-w-0 overflow-x-auto rounded-lg border border-border bg-muted py-3 px-4 text-sm"
+              >
                 <code
                   className={cn(
-                    "text-sm font-mono whitespace-pre-wrap wrap-break-word min-w-0 block w-full",
-                    className,
+                    "font-mono whitespace-pre block text-foreground",
+                    className
                   )}
                   {...props}
                 >
@@ -232,7 +277,7 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
           },
           table({ children, ...props }) {
             return (
-              <div className="overflow-x-auto my-4">
+              <div className="overflow-x-auto my-2">
                 <table
                   className="min-w-full border-collapse border border-border rounded-lg"
                   {...props}

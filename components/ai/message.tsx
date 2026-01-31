@@ -27,18 +27,18 @@ const messageVariants = cva("flex w-full min-w-0 mb-4", {
 });
 
 const messageContentVariants = cva(
-  "flex flex-col max-w-full sm:max-w-[80%] min-w-0 rounded-2xl px-4 py-3 text-base break-words whitespace-pre-wrap",
+  "flex flex-col max-w-full sm:max-w-[80%] min-w-0 overflow-x-hidden rounded-2xl px-4 py-3 text-base break-words",
   {
     variants: {
       variant: {
-        user: "items-end bg-card text-card-foreground leading-6 font-normal bg-zinc-50",
+        user: "items-end bg-card text-card-foreground leading-6 font-normal bg-zinc-50 whitespace-pre-wrap",
         assistant: "items-start text-card-foreground leading-6 font-normal",
       },
     },
     defaultVariants: {
       variant: "assistant",
     },
-  },
+  }
 );
 
 export interface MessageProps
@@ -78,7 +78,7 @@ function Message({
     variant ?? (message?.role === "user" ? "user" : "assistant");
 
   const textParts = React.useMemo(() => getTextParts(message), [message]);
-  const textContent = textParts.map((part) => part.text).join("");
+  const textContent = textParts.map((part) => part.text).join("\n\n");
   const fileParts = React.useMemo(() => getFileParts(message), [message]);
 
   const showThinking =
@@ -106,7 +106,7 @@ function Message({
       <div
         className={cn(
           "flex flex-col gap-2 w-full",
-          resolvedVariant === "user" ? "items-end" : "items-start",
+          resolvedVariant === "user" ? "items-end" : "items-start"
         )}
       >
         {fileParts.length > 0 && (
@@ -152,9 +152,16 @@ function Message({
                         <MarkdownContent
                           content={textContent}
                           citations={
-                            (message?.metadata as
-                              | { citations?: Record<string, { name: string }> }
-                              | undefined)?.citations
+                            (
+                              message?.metadata as
+                                | {
+                                    citations?: Record<
+                                      string,
+                                      { name: string }
+                                    >;
+                                  }
+                                | undefined
+                            )?.citations
                           }
                         />
                         <CopyToClipboard text={textContent} />
@@ -231,7 +238,7 @@ function AttachmentGallery({
               "flex items-start gap-2 rounded-xl border px-2 py-2 text-sm",
               variant === "user"
                 ? "border-white/70 bg-white/90 text-foreground shadow-sm"
-                : "border-border bg-muted/30",
+                : "border-border bg-muted/30"
             )}
           >
             <div className="bg-neutral-100 rounded-[6px] p-2 shrink-0">
