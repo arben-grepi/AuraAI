@@ -9,9 +9,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { DeleteConvo } from "./delete-convo";
+import { motion } from "motion/react";
 import {
-  ChevronDown,
-  ChevronRight,
   Folder,
   FolderPlus,
   Loader2,
@@ -46,6 +45,7 @@ import {
   deleteChatFolder,
   updateConversationFolder,
 } from "@/lib/actions";
+import { AnimatePresence } from "motion/react";
 
 type ConversationStub = { id: string; title: string | null };
 type ChatFolderStub = {
@@ -63,7 +63,7 @@ export function Conversations({ slug }: { slug: string }) {
   const [isFolderDialogOpen, setIsFolderDialogOpen] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(
-    new Set(),
+    new Set()
   );
   const [isDragOverNewFolder, setIsDragOverNewFolder] = useState(false);
 
@@ -96,7 +96,7 @@ export function Conversations({ slug }: { slug: string }) {
       }
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to create folder",
+        error instanceof Error ? error.message : "Failed to create folder"
       );
     }
   };
@@ -156,10 +156,10 @@ export function Conversations({ slug }: { slug: string }) {
       <SidebarMenuItem>
         <SidebarMenuButton
           className={cn(
-            "cursor-pointer",
+            "cursor-pointer bg-white shadow-sm",
             folders.length > 0 &&
               isDragOverNewFolder &&
-              "ring-2 ring-primary/50 bg-primary/5",
+              "ring-2 ring-primary/50 bg-primary/5"
           )}
           onClick={() => setIsFolderDialogOpen(true)}
           onDragOver={folders.length > 0 ? handleNewFolderDragOver : undefined}
@@ -289,7 +289,7 @@ const ConversationItem = ({
   const handleMoveTo = async (chatFolderId: string | null) => {
     const result = await updateConversationFolder(
       conversation.id,
-      chatFolderId,
+      chatFolderId
     );
     if (result.success) {
       toast.success("Conversation moved");
@@ -349,14 +349,14 @@ const ConversationItem = ({
         isActive
           ? "bg-white font-normal border-sidebar-accent-foreground"
           : "hover:bg-sidebar-accent/50",
-        acceptDropToRoot && isDragOver && "ring-2 ring-primary/50 bg-primary/5",
+        acceptDropToRoot && isDragOver && "ring-2 ring-primary/50 bg-primary/5"
       )}
     >
       <Link
         href={`/org/${slug}/chat/${conversation.id}`}
         draggable={false}
         className={cn(
-          "flex-1 truncate flex items-center gap-2 min-w-0 cursor-pointer",
+          "flex-1 truncate flex items-center gap-2 min-w-0 cursor-pointer"
         )}
       >
         <span className="truncate leading-5">
@@ -493,7 +493,7 @@ const ChatFolderRow = ({
       }
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to delete folder",
+        error instanceof Error ? error.message : "Failed to delete folder"
       );
     } finally {
       setIsDeleting(false);
@@ -501,36 +501,33 @@ const ChatFolderRow = ({
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full px-2">
       <div
         className={cn(
-          "w-full flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 cursor-pointer hover:bg-sidebar-accent/50",
-          isDragOver && "ring-2 ring-primary/50 bg-primary/5",
+          "w-full flex items-center gap-1 py-2 px-2 rounded-md transition-all duration-200 cursor-pointer hover:bg-sidebar-accent/50",
+          isDragOver && "ring-2 ring-primary/50 bg-primary/5"
         )}
         onClick={onToggle}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        <button
+        {/* <button
           type="button"
           className="p-0.5 rounded hover:bg-sidebar-accent/50 transition-colors shrink-0"
           aria-label={isExpanded ? "Collapse folder" : "Expand folder"}
         >
           {isExpanded ? (
-            <ChevronDown className="size-4 text-muted-foreground" />
+            <ChevronDown className="size-3 text-muted-foreground" />
           ) : (
-            <ChevronRight className="size-4 text-muted-foreground" />
+            <ChevronRight className="size-3 text-muted-foreground" />
           )}
-        </button>
-        <div className="w-6 h-6 rounded flex justify-center items-center shrink-0 bg-amber-100">
-          <Folder className="size-3.5 text-amber-700" />
+        </button> */}
+        <div className="w-6 h-6 rounded flex justify-center items-center shrink-0">
+          <Folder className="size-4" />
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{name}</p>
-          <p className="text-xs text-muted-foreground">
-            {conversations.length} chat{conversations.length !== 1 ? "s" : ""}
-          </p>
+        <div className="flex-1 min-w-0 select-none">
+          <p className="text-sm truncate">{name}</p>
         </div>
         <Button
           variant="ghost"
@@ -546,39 +543,49 @@ const ChatFolderRow = ({
           )}
         </Button>
       </div>
-      {isExpanded && (
-        <div className="pl-8 pr-1 pb-1">
-          {conversations.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-2">
-              No chats in this folder
-            </p>
-          ) : (
-            conversations.map((convo) => (
-              <ConversationItem
-                key={convo.id}
-                conversation={convo}
-                slug={slug}
-                folders={folders}
-                onMoved={onMoved}
-              />
-            ))
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground mt-1"
-            onClick={handleNewChatInFolder}
-            disabled={isCreating}
+      <AnimatePresence mode="wait">
+        {isExpanded && (
+          <motion.div
+            initial={{ gridTemplateRows: "0fr", opacity: 0 }}
+            animate={{ gridTemplateRows: "1fr", opacity: 1 }}
+            exit={{ gridTemplateRows: "0fr", opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="grid overflow-hidden select-none"
           >
-            {isCreating ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Plus className="size-4" />
-            )}
-            New chat in this folder
-          </Button>
-        </div>
-      )}
+            <div className="min-h-0 bg-neutral-200 rounded-md ml-4 py-2 px-2">
+              {conversations.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2">
+                  No chats in this folder
+                </p>
+              ) : (
+                conversations.map((convo) => (
+                  <ConversationItem
+                    key={convo.id}
+                    conversation={convo}
+                    slug={slug}
+                    folders={folders}
+                    onMoved={onMoved}
+                  />
+                ))
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start cursor-pointer gap-2 text-muted-foreground hover:text-foreground mt-1"
+                onClick={handleNewChatInFolder}
+                disabled={isCreating}
+              >
+                {isCreating ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Plus className="size-4" />
+                )}
+                New chat in this folder
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
