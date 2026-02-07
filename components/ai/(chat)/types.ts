@@ -13,6 +13,17 @@ export type ChatFilePart = Extract<ChatMessagePart, FileUIPart>;
 
 export type ChatTextPart = Extract<ChatMessagePart, TextUIPart>;
 
+/** Tool invocation part (tool-* or dynamic-tool) for UI display. */
+export type ChatToolInvocationPart = ChatMessagePart & {
+  type: `tool-${string}` | "dynamic-tool";
+  toolCallId: string;
+  toolName?: string;
+  state: string;
+  input?: unknown;
+  output?: unknown;
+  errorText?: string;
+};
+
 export type UploadedAttachment = {
   id: string;
   name: string;

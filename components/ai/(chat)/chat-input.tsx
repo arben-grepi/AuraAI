@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { motion } from "motion/react";
 import { File as FileIcon, Loader2, Plus, X } from "lucide-react";
-import { Textarea } from "../ui/textarea";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { v4 as uuidv4 } from "uuid";
 

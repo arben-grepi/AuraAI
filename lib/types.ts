@@ -1,4 +1,5 @@
 import { UploadHookControl } from "better-upload/client";
+import { UIMessage } from "ai";
 
 export type SignUpForm = {
   email: string;
@@ -113,13 +114,32 @@ export type UploadDropzoneProps = {
   accept?: string;
   metadata?: Record<string, unknown>;
   description?:
-    | {
-        fileTypes?: string;
-        maxFileSize?: string;
-        maxFiles?: number;
-      }
-    | string;
+  | {
+    fileTypes?: string;
+    maxFileSize?: string;
+    maxFiles?: number;
+  }
+  | string;
   uploadOverride?: (
     ...args: Parameters<UploadHookControl<true>["upload"]>
   ) => void;
 };
+
+
+export interface BuildAttachmentContextArgs {
+  attachments: NormalizedAttachment[];
+  organizationId?: string | null;
+}
+
+export interface NormalizedAttachment {
+  part: MessageFilePart;
+  metadata: AttachmentMetadata;
+}
+
+export interface AttachmentMetadata {
+  objectKey?: string;
+  size?: number;
+  organizationId?: string | null;
+}
+
+export type MessageFilePart = Extract<UIMessage["parts"][number], { type: "file" }>;

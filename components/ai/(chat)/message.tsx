@@ -11,8 +11,9 @@ import type {
   ChatMessage,
   ChatMessagePart,
   ChatTextPart,
+  ChatToolInvocationPart,
 } from "./types";
-import { File } from "lucide-react";
+import { File, Cloud } from "lucide-react";
 
 const messageVariants = cva("flex w-full min-w-0 mb-4", {
   variants: {
@@ -80,6 +81,7 @@ function Message({
   const textParts = React.useMemo(() => getTextParts(message), [message]);
   const textContent = textParts.map((part) => part.text).join("\n\n");
   const fileParts = React.useMemo(() => getFileParts(message), [message]);
+  const toolParts = React.useMemo(() => getToolInvocationParts(message), [message]);
 
   const showThinking =
     resolvedVariant === "assistant" &&
@@ -117,6 +119,20 @@ function Message({
             className="flex flex-wrap gap-2"
           >
             <AttachmentGallery files={fileParts} variant={resolvedVariant} />
+          </motion.div>
+        )}
+
+        {toolParts.length > 0 && resolvedVariant === "assistant" && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="flex flex-wrap gap-2"
+            aria-label="Tool calls"
+          >
+            {toolParts.map((part) => (
+              <ToolInvocationPill key={part.toolCallId} part={part} />
+            ))}
           </motion.div>
         )}
 
@@ -267,12 +283,76 @@ function getFileParts(message?: ChatMessage): ChatFilePart[] {
   return message.parts.filter(isFilePart);
 }
 
+function getToolInvocationParts(
+  message?: ChatMessage,
+): ChatToolInvocationPart[] {
+  if (!message) return [];
+  return message.parts.filter(isToolInvocationPart) as ChatToolInvocationPart[];
+}
+
 function isTextPart(part: ChatMessagePart): part is ChatTextPart {
   return part.type === "text";
 }
 
 function isFilePart(part: ChatMessagePart): part is ChatFilePart {
   return part.type === "file";
+}
+
+function isToolInvocationPart(
+  part: ChatMessagePart,
+): part is ChatToolInvocationPart {
+  return (
+    typeof part === "object" &&
+    part !== null &&
+    "type" in part &&
+    (String((part as { type: string }).type).startsWith("tool-") ||
+      (part as { type: string }).type === "dynamic-tool")
+  );
+}
+
+function ToolInvocationPill({ part }: { part: ChatToolInvocationPart }) {
+  const toolName =
+    part.type === "dynamic-tool"
+      ? (part as { toolName?: string }).toolName ?? "tool"
+      : String(part.type).replace(/^tool-/, "");
+  const isStreaming =
+    part.state === "input-streaming" || part.state === "input-available";
+  const hasOutput = part.state === "output-available" && part.output != null;
+  const hasError = part.state === "output-error" && part.errorText;
+
+  const label = hasOutput
+    ? formatToolOutput(toolName, part.output)
+    : hasError
+      ? `${toolName}: Error`
+      : isStreaming
+        ? `Calling ${toolName}…`
+        : `${toolName}`;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium",
+        "border-primary/30 bg-primary/10 text-primary",
+        isStreaming && "animate-pulse",
+      )}
+      role="status"
+      aria-live="polite"
+    >
+      <Cloud className="h-3 w-3 shrink-0" aria-hidden />
+      <span>{label}</span>
+    </span>
+  );
+}
+
+function formatToolOutput(toolName: string, output: unknown): string {
+  if (toolName === "get_weather" && output && typeof output === "object") {
+    const o = output as { temperature?: number; condition?: string; location?: string };
+    const temp = o.temperature ?? "?";
+    const cond = o.condition ?? "";
+    const loc = o.location ?? "";
+    return [loc, `${temp}°C`, cond].filter(Boolean).join(" · ");
+  }
+  return `${toolName}: done`;
 }
 
 export { Message, messageVariants, messageContentVariants };

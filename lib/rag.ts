@@ -1,8 +1,10 @@
-import OpenAI from "openai";
 import prisma from "@/lib/prisma";
 
-const EMBED_MODEL = "text-embedding-3-small";
-const EXPECTED_VECTOR_DIMENSION = 1536;
+import { ollama } from 'ai-sdk-ollama';
+import { embed } from 'ai';
+
+/** nomic-embed-text (Ollama) output dimension */
+const EXPECTED_VECTOR_DIMENSION = 768;
 
 function validateVector(vec: number[]): void {
   if (!Array.isArray(vec)) {
@@ -23,7 +25,6 @@ function validateVector(vec: number[]): void {
 
 function toPgVectorLiteral(vec: number[]): string {
   validateVector(vec);
-  // Ensure all numbers are properly formatted (no NaN, Infinity, etc.)
   const sanitized = vec.map((v) => {
     if (!Number.isFinite(v)) {
       throw new Error(`Invalid vector value: ${v}`);
@@ -33,7 +34,8 @@ function toPgVectorLiteral(vec: number[]): string {
   return `'[${sanitized.join(",")}]'::vector`;
 }
 
-const MIN_SCORE = 0.72;
+/** Minimum similarity (0–1) to include a chunk. Lower = more inclusive for queries like "tell me about me". */
+const MIN_SCORE = 0.52;
 const MAX_CONTEXT_CHARS = 1200;
 
 export async function retrieveContext(
@@ -41,17 +43,21 @@ export async function retrieveContext(
   topK = 6,
   organizationId?: string | null,
 ) {
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const trimmed = query?.trim() ?? "";
+  if (!trimmed) {
+    return { context: "", results: [] };
+  }
 
-  const { data } = await openai.embeddings.create({
-    model: EMBED_MODEL,
-    input: query,
+  const { embedding } = await embed({
+    model: ollama.embedding('nomic-embed-text'),
+    value: trimmed,
   });
-  const qvec = data[0].embedding as number[];
+
+  const qvec = embedding;
 
   const qvecLit = toPgVectorLiteral(qvec);
 
-  const retrievalLimit = Math.min(Math.max(topK * 3, topK), 18);
+  const retrievalLimit = Math.min(Math.max(topK * 4, topK), 24);
 
   let sqlQuery: string;
   let params: unknown[] = [];

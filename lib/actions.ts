@@ -16,7 +16,7 @@ import {
 import { z } from "zod";
 import { generateSlug } from "./utils";
 import { UIMessage, generateText } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { ollama } from "ai-sdk-ollama";
 
 async function getMembership(organizationId: string, userId: string) {
   return prisma.member.findFirst({
@@ -632,7 +632,7 @@ export async function generateTitleFromUserMessage({
   message: UIMessage;
 }) {
   const { text: title } = await generateText({
-    model: openai("gpt-4o-mini"),
+    model: ollama("llama3:8b"),
     system: `\n
     - you will generate a short title based on the first message a user begins a conversation with
     - ensure it is not more than 80 characters long

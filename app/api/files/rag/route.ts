@@ -1,15 +1,16 @@
 import { prisma } from "@/lib/prisma";
-import OpenAI from "openai";
+import { ollama } from "ai-sdk-ollama";
+import { embedMany } from "ai";
 import crypto from "crypto";
 import { extractText } from "@/lib/file-extraction";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
-const EMBEDDING_MODEL = "text-embedding-3-small";
 const CHUNK_SIZE = 1800;
 const CHUNK_OVERLAP = 300;
-const EXPECTED_VECTOR_DIMENSION = 1536;
+/** nomic-embed-text (Ollama) output dimension */
+const EXPECTED_VECTOR_DIMENSION = 768;
 
 function validateVector(vec: number[]): void {
   if (!Array.isArray(vec)) {
@@ -161,14 +162,10 @@ export async function POST(req: Request) {
 
     console.log(`RAG: Extracted ${chunks.length} chunks from ${file.name}`);
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-    const embRes = await openai.embeddings.create({
-      model: EMBEDDING_MODEL,
-      input: chunks,
+    const { embeddings: vectors } = await embedMany({
+      model: ollama.embedding("nomic-embed-text"),
+      values: chunks,
     });
-
-    const vectors = embRes.data.map((d) => d.embedding as number[]);
 
     if (fileFolderId) {
       const folder = await prisma.fileFolder.findFirst({

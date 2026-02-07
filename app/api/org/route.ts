@@ -11,34 +11,40 @@ export async function GET(req: Request) {
   }
 
   const slug = normalizeSlugParam(slugRaw);
-  const org = await prisma.organization.findUnique({
-    where: {
-      slug,
-    },
-  });
 
-  if (!org) {
+  try {
+    const org = await prisma.organization.findUnique({
+      where: {
+        slug,
+      },
+    });
+
+    if (!org) {
+      return NextResponse.json(
+        { error: "Organization not found" },
+        { status: 404 },
+      );
+    }
+    let parsedMetadata: unknown = null;
+    if (org.metadata) {
+      if (typeof org.metadata === "string") {
+        try {
+          parsedMetadata = JSON.parse(org.metadata);
+        } catch {
+          parsedMetadata = null;
+        }
+      } else {
+        parsedMetadata = org.metadata;
+      }
+    }
+    return NextResponse.json({
+      ...org,
+      metadata: parsedMetadata,
+    });
+  } catch (error) {
     return NextResponse.json(
-      { error: "Organization not found" },
-      { status: 404 },
+      { error: "Something went wrong" },
+      { status: 500 },
     );
   }
-
-  let parsedMetadata: unknown = null;
-  if (org.metadata) {
-    if (typeof org.metadata === "string") {
-      try {
-        parsedMetadata = JSON.parse(org.metadata);
-      } catch {
-        parsedMetadata = null;
-      }
-    } else {
-      parsedMetadata = org.metadata;
-    }
-  }
-
-  return NextResponse.json({
-    ...org,
-    metadata: parsedMetadata,
-  });
 }

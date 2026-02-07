@@ -1,10 +1,13 @@
-import { openai } from "@ai-sdk/openai";
 import {
   streamText,
   UIMessage,
   convertToModelMessages,
   smoothStream,
+  tool,
+  stepCountIs,
 } from "ai";
+import { z } from "zod";
+import { ollama } from "ai-sdk-ollama";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
@@ -14,13 +17,12 @@ import { extractText } from "@/lib/file-extraction";
 import { getS3BucketName, getS3Client } from "@/lib/s3";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSystemPrompt } from "@/lib/utils";
+import { BuildAttachmentContextArgs, NormalizedAttachment, AttachmentMetadata, MessageFilePart } from "@/lib/types";
+
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-
-
-type MessageFilePart = Extract<UIMessage["parts"][number], { type: "file" }>;
 
 export async function POST(req: Request) {
   const body = await req.json();
@@ -41,6 +43,7 @@ export async function POST(req: Request) {
 
   const requestHeaders = await headers();
   const session = await auth.api.getSession({ headers: requestHeaders });
+
   if (!session) return new Response("Unauthorized", { status: 401 });
 
   const organizationId = session.session?.activeOrganizationId;
@@ -101,26 +104,13 @@ export async function POST(req: Request) {
     }
 
     if (lastMessage?.role === "user") {
-      const content = lastMessage.parts
-        .map((p) => (p.type === "text" ? p.text : ""))
-        .join("");
-      prisma.message
-        .create({
-          data: {
-            conversationId,
-            role: "user",
-            content,
-            parts: JSON.parse(JSON.stringify(lastMessage.parts ?? [])),
-          },
-        })
-        .catch((e) => console.error("user save failed", e));
+      persistUserMessage(conversationId, lastMessage).catch((e) =>
+        console.error("user save failed", e),
+      );
     }
   }
 
-  const latestText =
-    messages[messages.length - 1]?.parts
-      ?.map((p) => (p.type === "text" ? p.text : ""))
-      .join("") ?? "";
+  const latestText = getMessageTextContent(messages[messages.length - 1]);
 
   const [user, organization] = await Promise.all([
     prisma.user.findUnique({
@@ -174,7 +164,7 @@ You are chatting with ${user?.name || "the user"} from ${organization?.name || "
         type: "text" as const,
         text: context
           ? `Context documents (top-k):\n\n${context}\n\nInstruction: cite snippet markers like [[1]] when you reference them and avoid speculation.`
-          : "No matching internal documents were retrieved. If you answer, make it clear you are relying on general knowledge.",
+          : "No matching internal documents were retrieved for this organization. If you answer, say you have no information from the organization's knowledge base and rely only on general knowledge. If the user expects their documents (e.g. CV) to be available, suggest they confirm they are in the correct organization and that the file was uploaded to RAG for this org.",
       },
     ],
   } satisfies Omit<UIMessage, "id">;
@@ -198,54 +188,44 @@ You are chatting with ${user?.name || "the user"} from ${organization?.name || "
     Omit<UIMessage, "id">
   >;
 
-  const sanitizedRequestMessages = requestMessages.map((message) => {
-    const nonFileParts = message.parts?.filter((part) => part.type !== "file");
-
-    if (nonFileParts && nonFileParts.length > 0) {
-      return { ...message, parts: nonFileParts };
-    }
-
-    if (message.role === "user") {
-      return {
-        ...message,
-        parts: [
-          {
-            type: "text" as const,
-            text: "[User uploaded attachments for review]",
-          },
-        ],
-      } satisfies Omit<UIMessage, "id">;
-    }
-
-    if (message.role === "assistant") {
-      return {
-        ...message,
-        parts: [
-          {
-            type: "text" as const,
-            text: "[Assistant processed attachment metadata]",
-          },
-        ],
-      } satisfies Omit<UIMessage, "id">;
-    }
-
-    return {
-      ...message,
-      parts: [{ type: "text" as const, text: "" }],
-    } satisfies Omit<UIMessage, "id">;
-  });
+  const messagesForModel = sanitizeFilePartsForOllama(requestMessages);
 
   const finalMessages = convertToModelMessages([
     baseSystem,
     userContextMsg,
     contextMsg,
     ...(attachmentsMessage ? [attachmentsMessage] : []),
-    ...sanitizedRequestMessages,
+    ...messagesForModel,
   ]);
 
+  /** Use a tool-capable model (e.g. qwen3, llama3.1, qwen2.5). Llama 3:8b does not support tools. */
+  const chatModel = "qwen3";
+
   const result = streamText({
-    model: openai("gpt-4o"),
-    messages: finalMessages,
+    model: ollama(chatModel),
+    messages: await finalMessages,
+    tools: {
+      get_weather: tool({
+        description:
+          "Get the current weather for a location. Use this when the user asks about weather.",
+        inputSchema: z.object({
+          location: z
+            .string()
+            .describe("City or place name, e.g. London, San Francisco"),
+        }),
+        execute: async ({ location }) => {
+          return {
+            location,
+            temperature: 22,
+            unit: "celsius",
+            condition: "Sunny",
+            humidity: 65,
+            wind: "12 km/h NE",
+          };
+        },
+      }),
+    },
+    stopWhen: stepCountIs(5),
     experimental_transform: smoothStream({ chunking: "word" }),
     onFinish: (r) => {
       // Skip message persistence in anonymous mode - explicitly check for true
@@ -278,9 +258,67 @@ You are chatting with ${user?.name || "the user"} from ${organization?.name || "
   return result.toUIMessageStreamResponse();
 }
 
-interface BuildAttachmentContextArgs {
-  attachments: NormalizedAttachment[];
-  organizationId?: string | null;
+/**
+ * Replaces file parts that use HTTP(S) URLs with text placeholders.
+ * Ollama expects base64 image data; passing a URL causes "illegal base64 data" errors.
+ */
+function sanitizeFilePartsForOllama(
+  messages: Array<Omit<UIMessage, "id">>,
+): Array<Omit<UIMessage, "id">> {
+  return messages.map((message) => {
+    const parts = message.parts ?? [];
+    if (!parts.length) return message;
+
+    const newParts: UIMessage["parts"] = [];
+    for (const part of parts) {
+      if (part.type !== "file") {
+        newParts.push(part);
+        continue;
+      }
+      const filePart = part as MessageFilePart;
+      const url = filePart.url;
+      if (!url || (!url.startsWith("http://") && !url.startsWith("https://"))) {
+        newParts.push(part);
+        continue;
+      }
+      const name = filePart.filename ?? "image";
+      newParts.push({
+        type: "text" as const,
+        text: `[User attached an image: ${name}]`,
+      });
+    }
+
+    return { ...message, parts: newParts };
+  });
+}
+
+/**
+ * Returns the concatenated text from all text parts of a message.
+ */
+function getMessageTextContent(message: UIMessage | undefined): string {
+  if (!message?.parts?.length) return "";
+  return message.parts
+    .map((p) => (p.type === "text" ? p.text : ""))
+    .join("");
+}
+
+/**
+ * Persists a user message to the database (fire-and-forget).
+ * Extracts text content from message parts and stores raw parts for replay.
+ */
+function persistUserMessage(
+  conversationId: string,
+  message: UIMessage,
+): Promise<unknown> {
+  const content = getMessageTextContent(message);
+  return prisma.message.create({
+    data: {
+      conversationId,
+      role: "user",
+      content,
+      parts: JSON.parse(JSON.stringify(message.parts ?? [])),
+    },
+  });
 }
 
 async function buildAttachmentContext({
@@ -334,6 +372,10 @@ async function summarizeAttachmentWithTimeout(
     } • ${sizeLabel} • objectKey:${objectKeyLabel} • organizationId:${providerOrgLabel} • url:${part.url ?? "(missing url)"
     }`;
 
+  if (isImagePart(part)) {
+    return `${baseLine}\nImage attached; it is included in the user message for the model to process.`;
+  }
+
   let preview: string;
 
   try {
@@ -350,16 +392,9 @@ async function summarizeAttachmentWithTimeout(
   return `${baseLine}\n${preview}`;
 }
 
-interface AttachmentMetadata {
-  objectKey?: string;
-  size?: number;
-  organizationId?: string | null;
-}
 
-interface NormalizedAttachment {
-  part: MessageFilePart;
-  metadata: AttachmentMetadata;
-}
+
+
 
 function normalizeAttachment(
   part: MessageFilePart,
@@ -451,6 +486,15 @@ function canExtractText(part: MessageFilePart): boolean {
     mediaType === "application/pdf" ||
     filename.endsWith(".txt") ||
     filename.endsWith(".pdf")
+  );
+}
+
+function isImagePart(part: MessageFilePart): boolean {
+  const mediaType = (part.mediaType ?? "").toLowerCase();
+  const filename = (part.filename ?? "").toLowerCase();
+  return (
+    mediaType.startsWith("image/") ||
+    /\.(png|jpe?g|gif|webp|avif|bmp|ico|svg)$/i.test(filename)
   );
 }
 

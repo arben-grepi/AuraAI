@@ -1,4 +1,4 @@
-import { SidebarTrigger } from "../ui/sidebar";
+import { SidebarTrigger } from "../../ui/sidebar";
 import Image from "next/image";
 
 export function ChatHeader() {
