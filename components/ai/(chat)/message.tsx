@@ -39,7 +39,7 @@ const messageContentVariants = cva(
     defaultVariants: {
       variant: "assistant",
     },
-  }
+  },
 );
 
 export interface MessageProps
@@ -81,11 +81,14 @@ function Message({
   const textParts = React.useMemo(() => getTextParts(message), [message]);
   const textContent = textParts.map((part) => part.text).join("\n\n");
   const fileParts = React.useMemo(() => getFileParts(message), [message]);
-  const toolParts = React.useMemo(() => getToolInvocationParts(message), [message]);
+  const toolParts = React.useMemo(
+    () => getToolInvocationParts(message),
+    [message],
+  );
 
   const showThinking =
     resolvedVariant === "assistant" &&
-    submitted &&
+    (submitted || isStreaming) &&
     !textContent.trim() &&
     fileParts.length === 0;
 
@@ -108,7 +111,7 @@ function Message({
       <div
         className={cn(
           "flex flex-col gap-2 w-full",
-          resolvedVariant === "user" ? "items-end" : "items-start"
+          resolvedVariant === "user" ? "items-end" : "items-start",
         )}
       >
         {fileParts.length > 0 && (
@@ -122,21 +125,27 @@ function Message({
           </motion.div>
         )}
 
-        {toolParts.length > 0 && resolvedVariant === "assistant" && (
-          <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            className="flex flex-wrap gap-2"
-            aria-label="Tool calls"
-          >
-            {toolParts.map((part) => (
-              <ToolInvocationPill key={part.toolCallId} part={part} />
-            ))}
-          </motion.div>
-        )}
+        {resolvedVariant === "assistant" &&
+          (toolParts.length > 0 ? (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              className="flex flex-col gap-1.5"
+              aria-label="Tool calls"
+            >
+              {toolParts.map((part) => (
+                <ToolPartStatusLine key={part.toolCallId} part={part} />
+              ))}
+            </motion.div>
+          ) : (
+            isStreaming &&
+            !textContent.trim() && <ToolPartStatusLinePlaceholder />
+          ))}
 
-        {(textContent.trim().length > 0 || showThinking) && (
+        {(textContent.trim().length > 0 ||
+          showThinking ||
+          (resolvedVariant === "assistant" && toolParts.length > 0)) && (
           <motion.div
             className={cn(messageContentVariants({ variant: resolvedVariant }))}
             transition={{ duration: 0.3, delay: 0.1 }}
@@ -254,7 +263,7 @@ function AttachmentGallery({
               "flex items-start gap-2 rounded-xl border px-2 py-2 text-sm",
               variant === "user"
                 ? "border-white/70 bg-white/90 text-foreground shadow-sm"
-                : "border-border bg-muted/30"
+                : "border-border bg-muted/30",
             )}
           >
             <div className="bg-neutral-100 rounded-[6px] p-2 shrink-0">
@@ -310,43 +319,124 @@ function isToolInvocationPart(
   );
 }
 
-function ToolInvocationPill({ part }: { part: ChatToolInvocationPart }) {
-  const toolName =
-    part.type === "dynamic-tool"
-      ? (part as { toolName?: string }).toolName ?? "tool"
-      : String(part.type).replace(/^tool-/, "");
-  const isStreaming =
-    part.state === "input-streaming" || part.state === "input-available";
-  const hasOutput = part.state === "output-available" && part.output != null;
-  const hasError = part.state === "output-error" && part.errorText;
+/** Human-readable status shown while a tool is being called. */
+function getToolCallingStatusLabel(
+  toolName: string,
+  state: string,
+  input?: unknown,
+): string {
+  const isCalling = state === "input-streaming" || state === "input-available";
+  if (!isCalling) return toolName;
 
-  const label = hasOutput
-    ? formatToolOutput(toolName, part.output)
-    : hasError
-      ? `${toolName}: Error`
-      : isStreaming
-        ? `Calling ${toolName}…`
-        : `${toolName}`;
+  switch (toolName) {
+    case "get_weather": {
+      const loc =
+        input && typeof input === "object" && "location" in input
+          ? String((input as { location?: string }).location ?? "")
+          : "";
+      return loc ? `Getting weather for ${loc}…` : "Getting weather data…";
+    }
+    default:
+      return `Calling ${toolName}…`;
+  }
+}
 
+/** Shown while waiting for tool part to arrive (stream often sends tool only after it finishes). */
+function ToolPartStatusLinePlaceholder() {
   return (
-    <span
+    <div
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium",
-        "border-primary/30 bg-primary/10 text-primary",
-        isStreaming && "animate-pulse",
+        "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium",
+        "border-primary/30 bg-primary/10 text-primary animate-pulse",
       )}
       role="status"
       aria-live="polite"
     >
       <Cloud className="h-3 w-3 shrink-0" aria-hidden />
-      <span>{label}</span>
-    </span>
+      <span>Getting weather data…</span>
+    </div>
+  );
+}
+
+/**
+ * Renders a single tool part as a status line (input-streaming → "Getting…", result → "Done ✅").
+ */
+function ToolPartStatusLine({ part }: { part: ChatToolInvocationPart }) {
+  const toolName =
+    part.type === "dynamic-tool"
+      ? ((part as { toolName?: string }).toolName ?? "tool")
+      : String(part.type).replace(/^tool-/, "");
+
+  const content = (() => {
+    switch (part.state) {
+      case "input-streaming":
+        return (
+          <span className="animate-pulse">
+            {toolName === "get_weather"
+              ? "Getting latest weather data…"
+              : `Calling ${toolName}…`}
+          </span>
+        );
+      case "input-available":
+        return (
+          <span className="animate-pulse">
+            {getToolCallingStatusLabel(toolName, part.state, part.input)}
+          </span>
+        );
+      case "output-available":
+        const resultText =
+          part.output != null ? formatToolOutput(toolName, part.output) : "";
+        return (
+          <>
+            <span>Done</span>
+            <span aria-hidden className="select-none">
+              {" "}
+              ✅
+            </span>
+            {resultText && (
+              <span className="ml-1.5 text-muted-foreground">
+                — {resultText}
+              </span>
+            )}
+          </>
+        );
+      case "output-error":
+        return (
+          <span className="text-destructive">
+            Error{part.errorText ? `: ${part.errorText}` : ""}
+          </span>
+        );
+      default:
+        return (
+          <span>
+            {getToolCallingStatusLabel(toolName, part.state, part.input)}
+          </span>
+        );
+    }
+  })();
+
+  return (
+    <div
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium",
+        "border-primary/30 bg-primary/10 text-primary",
+      )}
+      role="status"
+      aria-live="polite"
+    >
+      <Cloud className="h-3 w-3 shrink-0" aria-hidden />
+      {content}
+    </div>
   );
 }
 
 function formatToolOutput(toolName: string, output: unknown): string {
   if (toolName === "get_weather" && output && typeof output === "object") {
-    const o = output as { temperature?: number; condition?: string; location?: string };
+    const o = output as {
+      temperature?: number;
+      condition?: string;
+      location?: string;
+    };
     const temp = o.temperature ?? "?";
     const cond = o.condition ?? "";
     const loc = o.location ?? "";

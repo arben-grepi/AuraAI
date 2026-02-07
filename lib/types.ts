@@ -126,15 +126,9 @@ export type UploadDropzoneProps = {
 };
 
 
-export interface BuildAttachmentContextArgs {
-  attachments: NormalizedAttachment[];
-  organizationId?: string | null;
-}
 
-export interface NormalizedAttachment {
-  part: MessageFilePart;
-  metadata: AttachmentMetadata;
-}
+
+
 
 export interface AttachmentMetadata {
   objectKey?: string;
@@ -143,3 +137,18 @@ export interface AttachmentMetadata {
 }
 
 export type MessageFilePart = Extract<UIMessage["parts"][number], { type: "file" }>;
+
+export type PersistedAssistantTextPart = {
+  type: "text";
+  text: string;
+  state: "done";
+};
+export type PersistedAssistantCitationsPart = {
+  type: "citations";
+  citations: Record<string, { name: string }>;
+};
+export type PersistedAssistantMessagePart =
+  | PersistedAssistantTextPart
+  | PersistedAssistantCitationsPart;
+
+

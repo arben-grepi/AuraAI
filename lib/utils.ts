@@ -1,5 +1,11 @@
+import { UIMessage } from "ai";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import type {
+  AttachmentMetadata,
+  MessageFilePart,
+  PersistedAssistantMessagePart,
+} from "./types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -20,30 +26,26 @@ export function generateSlug(name: string) {
   return name.toLowerCase().replace(/ /g, "-");
 }
 
-/** Decode and Unicode-normalize a slug from URL params (path or query) for DB lookup. */
 export function normalizeSlugParam(value: string): string {
   try {
     value = decodeURIComponent(value);
   } catch {
-    // already decoded or invalid % sequence; use as-is
   }
   return value.normalize("NFC");
 }
 
 export function generateChunks(
   input: string,
-  maxChars = 1800, // ~450 tokens
-  overlap = 300, // ~75 tokens
+  maxChars = 1800,
+  overlap = 300,
 ): string[] {
   if (!input) return [];
 
-  // Normalize
   const text = input
     .replace(/\r/g, "")
     .replace(/[ \t]+/g, " ")
     .trim();
 
-  // Split by high-signal section markers first (numbers, headings, dashes)
   const sectionSplits = text
     .split(/\n{2,}|(?:^|\n)\s*(?:\d+\.\s+|[-–—]{3,}|[A-Z][\w& ]+:\s*$)/m)
     .map((s) => s.trim())
@@ -59,13 +61,11 @@ export function generateChunks(
   };
 
   for (const sec of sectionSplits) {
-    // Sentence-ish split (don’t over-split bullet lists)
     const parts = sec.split(/(?<=[.!?])\s+(?=[A-Z(“"'])/);
     for (const p of parts) {
       if ((buf + " " + p).length > maxChars) {
         const prev = buf;
         flush();
-        // overlap tail from previous buffer
         const tail = prev.slice(Math.max(0, prev.length - overlap));
         buf = tail ? tail + " " + p : p;
       } else {
@@ -76,7 +76,6 @@ export function generateChunks(
   }
   if (buf) flush();
 
-  // Ensure at least a couple of chunks if the doc is medium-sized
   if (chunks.length === 1 && chunks[0].length > maxChars * 1.2) {
     const mid = Math.floor(chunks[0].length / 2);
     return [chunks[0].slice(0, mid), chunks[0].slice(mid)];
@@ -123,4 +122,109 @@ When users ask about your purpose, capabilities, or what you are, explain that y
 - Offer concrete suggestions for adjustments if the document may be non-compliant instead of deferring entirely to an external authority.
 - You may remind the user to confirm with officials when appropriate, but do not refuse or avoid the requested analysis.
 `;
+}
+
+export const getUserContextMsg = (user: string, organization: { name: string, description: string | null }) => {
+  if (!user || !organization) {
+    return null;
+  }
+  return {
+    role: "assistant" as const,
+    parts: [
+      {
+        type: "text" as const, text: `Current Context:
+      - User: ${user}
+        - Organization: ${organization.name}
+        ${organization.description ? `\n- Organization Description: ${organization.description}` : ""}
+        You are chatting with ${user} from ${organization.name}${organization.description ? `. ${organization.name} is: ${organization.description}` : ""}. Use this context to personalize your responses when appropriate and align your answers with the organization's purpose and values.`,
+      },
+    ],
+  } satisfies Omit<UIMessage, "id">;
+}
+
+export function sanitizeFilePartsForOllama(
+  messages: Array<Omit<UIMessage, "id">>,
+): Array<Omit<UIMessage, "id">> {
+  return messages.map((message) => {
+    const parts = message.parts ?? [];
+    if (!parts.length) return message;
+
+    const newParts: UIMessage["parts"] = [];
+    for (const part of parts) {
+      if (part.type !== "file") {
+        newParts.push(part);
+        continue;
+      }
+      const filePart = part as MessageFilePart;
+      const url = filePart.url;
+      if (!url || (!url.startsWith("http://") && !url.startsWith("https://"))) {
+        newParts.push(part);
+        continue;
+      }
+      const name = filePart.filename ?? "image";
+      newParts.push({
+        type: "text" as const,
+        text: `[User attached an image: ${name}]`,
+      });
+    }
+
+    return { ...message, parts: newParts };
+  });
+}
+
+export function normalizeAttachment(
+  part: MessageFilePart,
+  fallbackOrganizationId?: string | null,
+): { part: MessageFilePart; metadata: AttachmentMetadata } {
+  return { part, metadata: extractKommunMetadata(part, fallbackOrganizationId) };
+}
+
+export function extractKommunMetadata(
+  part: MessageFilePart,
+  fallbackOrganizationId?: string | null,
+): AttachmentMetadata {
+  const providerMetadata =
+    part.providerMetadata &&
+      typeof part.providerMetadata === "object" &&
+      part.providerMetadata !== null
+      ? (part.providerMetadata as Record<string, unknown>)
+      : {};
+
+  const kommunMetadata =
+    providerMetadata.kommun &&
+      typeof providerMetadata.kommun === "object" &&
+      providerMetadata.kommun !== null
+      ? (providerMetadata.kommun as Record<string, unknown>)
+      : providerMetadata;
+
+  const organizationIdValue = kommunMetadata.organizationId;
+  const organizationId =
+    typeof organizationIdValue === "string"
+      ? organizationIdValue
+      : organizationIdValue === null
+        ? null
+        : fallbackOrganizationId;
+
+  return {
+    objectKey:
+      typeof kommunMetadata.objectKey === "string"
+        ? kommunMetadata.objectKey
+        : undefined,
+    size:
+      typeof kommunMetadata.size === "number" ? kommunMetadata.size : undefined,
+    organizationId,
+  } satisfies AttachmentMetadata;
+}
+
+export function buildPersistedAssistantParts(
+  text: string,
+  citationMap: Record<string, { name: string }>,
+): PersistedAssistantMessagePart[] {
+  const parts: PersistedAssistantMessagePart[] = [
+    { type: "text", text, state: "done" },
+  ];
+  if (Object.keys(citationMap).length > 0) {
+    parts.push({ type: "citations", citations: citationMap });
+  }
+  return parts;
 }

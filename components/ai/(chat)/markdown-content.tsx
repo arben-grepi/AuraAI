@@ -11,17 +11,13 @@ interface MarkdownContentProps {
   citations?: Record<string, { name: string }>;
 }
 
-/**
- * Collapses 3+ consecutive newlines to exactly 2 so markdown produces at most
- * one blank line between blocks and avoids excessive vertical spacing.
- */
 function normalizeNewlines(content: string): string {
   return content.replace(/\n{3,}/g, "\n\n").trim();
 }
 
 function applyCitations(
   content: string,
-  citations?: Record<string, { name: string }>
+  citations?: Record<string, { name: string }>,
 ): string {
   if (!citations || Object.keys(citations).length === 0) return content;
   return content.replace(/\[\[\s*(\d+)\s*\]\]/g, (_, n) => {
@@ -266,7 +262,7 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
                 <code
                   className={cn(
                     "font-mono whitespace-pre block text-foreground",
-                    className
+                    className,
                   )}
                   {...props}
                 >

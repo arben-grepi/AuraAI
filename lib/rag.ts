@@ -1,42 +1,52 @@
-import prisma from "@/lib/prisma";
+import { ollama } from "ai-sdk-ollama";
+import { embed } from "ai";
+import { Prisma } from "@/app/generated/prisma";
+import prisma from "./prisma";
 
-import { ollama } from 'ai-sdk-ollama';
-import { embed } from 'ai';
+// function validateVector(vec: number[]): void {
+//   if (!Array.isArray(vec)) {
+//     throw new Error("Vector must be an array");
+//   }
+//   if (vec.length !== EXPECTED_VECTOR_DIMENSION) {
+//     throw new Error(
+//       `Vector dimension mismatch: expected ${EXPECTED_VECTOR_DIMENSION}, got ${vec.length}`,
+//     );
+//   }
+//   for (let i = 0; i < vec.length; i++) {
+//     const val = vec[i];
+//     if (typeof val !== "number" || !Number.isFinite(val)) {
+//       throw new Error(`Invalid vector value at index ${i}: ${val}`);
+//     }
+//   }
+// }
 
-/** nomic-embed-text (Ollama) output dimension */
-const EXPECTED_VECTOR_DIMENSION = 768;
+// function toPgVectorLiteral(vec: number[]): string {
+//   validateVector(vec);
+//   const sanitized = vec.map((v) => {
+//     if (!Number.isFinite(v)) {
+//       throw new Error(`Invalid vector value: ${v}`);
+//     }
+//     return v;
+//   });
+//   return `'[${sanitized.join(",")}]'::vector`;
+// }
 
-function validateVector(vec: number[]): void {
-  if (!Array.isArray(vec)) {
-    throw new Error("Vector must be an array");
-  }
-  if (vec.length !== EXPECTED_VECTOR_DIMENSION) {
-    throw new Error(
-      `Vector dimension mismatch: expected ${EXPECTED_VECTOR_DIMENSION}, got ${vec.length}`,
-    );
-  }
-  for (let i = 0; i < vec.length; i++) {
-    const val = vec[i];
-    if (typeof val !== "number" || !Number.isFinite(val)) {
-      throw new Error(`Invalid vector value at index ${i}: ${val}`);
-    }
-  }
-}
-
-function toPgVectorLiteral(vec: number[]): string {
-  validateVector(vec);
-  const sanitized = vec.map((v) => {
-    if (!Number.isFinite(v)) {
-      throw new Error(`Invalid vector value: ${v}`);
-    }
-    return v;
-  });
-  return `'[${sanitized.join(",")}]'::vector`;
-}
-
-/** Minimum similarity (0–1) to include a chunk. Lower = more inclusive for queries like "tell me about me". */
-const MIN_SCORE = 0.52;
 const MAX_CONTEXT_CHARS = 1200;
+const MAX_CANDIDATES_CAP = 48;
+const MIN_SCORE_BEST = 0.58;
+const MIN_SCORE_ITEM = 0.48;
+
+type RetrieveRow = {
+  content: string;
+  resource_id: string;
+  resource_name: string | null;
+  score: number;
+};
+
+function toVectorParam(vec: number[]) {
+  const cleaned = vec.map((n) => (Number.isFinite(n) ? n : 0));
+  return `[${cleaned.map((n) => n.toFixed(8)).join(",")}]`;
+}
 
 export async function retrieveContext(
   query: string,
@@ -44,63 +54,40 @@ export async function retrieveContext(
   organizationId?: string | null,
 ) {
   const trimmed = query?.trim() ?? "";
-  if (!trimmed) {
-    return { context: "", results: [] };
-  }
+  if (!trimmed) return { context: "", results: [] as RetrieveRow[] };
+
+  const safeTopK = Math.min(Math.max(1, topK), 20);
+  const retrievalLimit = Math.min(Math.max(safeTopK * 6, safeTopK), MAX_CANDIDATES_CAP);
 
   const { embedding } = await embed({
-    model: ollama.embedding('nomic-embed-text'),
+    model: ollama.embedding("nomic-embed-text"),
     value: trimmed,
   });
 
-  const qvec = embedding;
+  const vecParam = toVectorParam(embedding);
 
-  const qvecLit = toPgVectorLiteral(qvec);
+  const rows = (await prisma.$queryRaw(Prisma.sql`
+    SELECT
+      e."content",
+      e."resource_id",
+      r."name" AS resource_name,
+      (1 - (e."embedding" <=> ${vecParam}::vector)) AS score
+    FROM "embeddings" e
+    JOIN "resources" r ON e."resource_id" = r."id"
+    WHERE (${organizationId ?? null}::text IS NULL OR r."organization_id" = ${organizationId ?? null}::text)
+    ORDER BY e."embedding" <=> ${vecParam}::vector ASC
+    LIMIT ${retrievalLimit};
+  `)) as RetrieveRow[];
 
-  const retrievalLimit = Math.min(Math.max(topK * 4, topK), 24);
+  if (!rows.length) return { context: "", results: [] };
 
-  let sqlQuery: string;
-  let params: unknown[] = [];
-
-  if (organizationId) {
-    sqlQuery = `
-      SELECT
-        e."content",
-        e."resource_id",
-        r."name" AS resource_name,
-        1 - (e."embedding" <=> ${qvecLit}) AS score
-      FROM "embeddings" e
-      JOIN "resources" r ON e."resource_id" = r."id"
-      WHERE r."organization_id" = $1
-      ORDER BY e."embedding" <=> ${qvecLit} ASC
-      LIMIT $2;
-    `;
-    params = [organizationId, retrievalLimit];
-  } else {
-    sqlQuery = `
-      SELECT
-        e."content",
-        e."resource_id",
-        r."name" AS resource_name,
-        1 - (e."embedding" <=> ${qvecLit}) AS score
-      FROM "embeddings" e
-      LEFT JOIN "resources" r ON e."resource_id" = r."id"
-      ORDER BY e."embedding" <=> ${qvecLit} ASC
-      LIMIT $1;
-    `;
-    params = [retrievalLimit];
-  }
-
-  const rows = await prisma.$queryRawUnsafe<
-    { content: string; resource_id: string; resource_name: string | null; score: number }[]
-  >(sqlQuery, ...params);
-
-  if (!rows.length) {
+  const bestScore = rows[0]?.score ?? 0;
+  if (bestScore < MIN_SCORE_BEST) {
     return { context: "", results: [] };
   }
 
-  const filtered = rows.filter((row) => row.score >= MIN_SCORE);
-  const selected = (filtered.length ? filtered : rows).slice(0, topK);
+  const strong = rows.filter((r) => r.score >= MIN_SCORE_ITEM);
+  const selected = (strong.length ? strong : rows).slice(0, safeTopK);
 
   const context = selected
     .map((row, index) => {
