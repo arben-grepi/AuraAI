@@ -5,6 +5,7 @@ import {
   smoothStream,
   tool,
   stepCountIs,
+  generateText,
 } from "ai";
 import { z } from "zod";
 import { ollama } from "ai-sdk-ollama";
@@ -21,11 +22,11 @@ import {
   buildPersistedAssistantParts,
 } from "@/lib/utils";
 import { buildAttachmentContext } from "@/lib/attachments-server";
-import {
-  getMessageTextContent,
-  persistUserMessage,
-} from "@/lib/chat-server";
-import type { MessageFilePart, PersistedAssistantMessagePart } from "@/lib/types";
+import { persistUserMessage } from "@/lib/chat-server";
+import type {
+  MessageFilePart,
+  PersistedAssistantMessagePart,
+} from "@/lib/types";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
 
   const organizationName = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { name: true }
+    select: { name: true },
   });
 
   const systemPrompt = getSystemPrompt(organizationName?.name ?? "Diguro");
@@ -115,32 +116,15 @@ export async function POST(req: Request) {
     }
   }
 
-  const latestText = getMessageTextContent(messages[messages.length - 1]);
-
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: { name: true },
-  })
+  });
 
   const organization = await prisma.organization.findUnique({
     where: { id: organizationId },
     select: { name: true, description: true },
   });
-
-  const { context, results } = await retrieveContext(
-    latestText,
-    6,
-    organizationId,
-  );
-
-  const citationMap: Record<string, { name: string }> = Object.fromEntries(
-    (results as { resource_name?: string | null; resource_id?: string }[]).map(
-      (r, i) => [
-        String(i + 1),
-        { name: r.resource_name || r.resource_id || "Document" },
-      ],
-    ),
-  );
 
   const baseSystem = {
     role: "system" as const,
@@ -151,23 +135,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  const userContextMsg = getUserContextMsg(user.name, { name: organization.name, description: organization.description ?? null });
+  const userContextMsg = getUserContextMsg(user.name, {
+    name: organization.name,
+    description: organization.description ?? null,
+  });
 
   if (!userContextMsg) {
-    return NextResponse.json({ error: "User context not found" }, { status: 404 });
+    return NextResponse.json(
+      { error: "User context not found" },
+      { status: 404 },
+    );
   }
 
-  const contextMsg = {
-    role: "system" as const,
-    parts: [
-      {
-        type: "text" as const,
-        text: context
-          ? `Context documents (top-k):\n\n${context}\n\nInstruction: cite snippet markers like [[1]] when you reference them and avoid speculation.`
-          : "No matching internal documents were retrieved for this organization. If you answer, say you have no information from the organization's knowledge base and rely only on general knowledge. If the user expects their documents (e.g. CV) to be available, suggest they confirm they are in the correct organization and that the file was uploaded to RAG for this org.",
-      },
-    ],
-  } satisfies Omit<UIMessage, "id">;
+  // Initialize empty citationMap - will be populated by retrieve_context tool calls
+  const citationMap: Record<string, { name: string }> = {};
 
   const fileParts = (lastMessage?.parts ?? []).filter(
     (part): part is MessageFilePart => part.type === "file",
@@ -179,9 +160,9 @@ export async function POST(req: Request) {
 
   const attachmentsMessage = normalizedAttachments.length
     ? await buildAttachmentContext({
-      attachments: normalizedAttachments,
-      organizationId,
-    })
+        attachments: normalizedAttachments,
+        organizationId,
+      })
     : null;
 
   const requestMessages = messages.map(({ ...rest }) => rest) as Array<
@@ -193,7 +174,6 @@ export async function POST(req: Request) {
   const finalMessages = convertToModelMessages([
     baseSystem,
     userContextMsg,
-    contextMsg,
     ...(attachmentsMessage ? [attachmentsMessage] : []),
     ...messagesForModel,
   ]);
@@ -225,15 +205,69 @@ export async function POST(req: Request) {
       }),
       webSearch: ollama.tools.webSearch(),
       retrieve_context: tool({
-        description: "Retrieve context from the organization's knowledge base.",
+        description:
+          "Retrieve context from the organization's knowledge base. Pass the user's original request or question, and the tool will automatically generate an optimized search query.",
         inputSchema: z.object({
-          query: z.string().describe("The query to retrieve context for."),
+          userRequest: z
+            .string()
+            .describe(
+              "The user's original request or question about what they want to retrieve from the knowledge base. This can be conversational - the tool will automatically optimize it for search.",
+            ),
         }),
-        execute: async ({ query }) => {
-          const { context, results } = await retrieveContext(query, 6, organizationId);
+        execute: async ({ userRequest }) => {
+          console.log(
+            "[retrieve_context tool] User request received:",
+            userRequest,
+          );
+
+          // Generate an optimized search query from the user's request
+          const chatModel = process.env.OLLAMA_CHAT_MODEL ?? "qwen3";
+          const { text: optimizedQuery } = await generateText({
+            model: ollama(chatModel),
+            system: `You are a query optimization assistant for semantic search. Your task is to create an optimized search query that will effectively find relevant documents.
+
+Your goal is to extract the core topic and create a query that:
+1. Focuses on the main subject (person, project, concept, entity)
+2. Includes relevant context or related terms if helpful for semantic matching
+3. Is optimized for vector similarity search
+
+Examples:
+- User: "can you look into your context about Glenfell" -> "Glenfell"
+- User: "retrieve context about glenfell its happening again" -> "Glenfell incident"
+- User: "what do you know about project X" -> "project X"
+- User: "information about the budget proposal" -> "budget proposal"
+- User: "tell me about John's report" -> "John report"
+
+Rules:
+- Extract the core subject matter (names, projects, concepts)
+- Remove conversational phrases ("can you", "look into", "what do you know", "call retrieve_context tool")
+- If the user mentions an event or context (like "its happening again"), include that as part of the query
+- Keep it focused but descriptive enough for semantic matching (typically 1-4 words)
+- Use the exact spelling/capitalization of names when possible`,
+            prompt: `User request: "${userRequest}"
+
+Generate an optimized search query for semantic retrieval:`,
+            temperature: 0.2,
+          });
+
+          console.log(
+            "[retrieve_context tool] Optimized query generated:",
+            optimizedQuery,
+          );
+
+          const { context, results } = await retrieveContext(
+            optimizedQuery.trim(),
+            6,
+            organizationId,
+          );
           return {
-            context: context ? `Context documents (top-k):\n\n${context}\n\nInstruction: cite snippet markers like [[1]] when you reference them and avoid speculation.` : "No matching internal documents were retrieved for this organization. If you answer, say you have no information from the organization's knowledge base and rely only on general knowledge. If the user expects their documents (e.g. CV) to be available, suggest they confirm they are in the correct organization and that the file was uploaded to RAG for this org.",
-            results: results as { resource_name?: string | null; resource_id?: string }[],
+            context: context
+              ? `Context documents (top-k):\n\n${context}\n\nInstruction: cite snippet markers like [[1]] when you reference them and avoid speculation.`
+              : "No matching internal documents were retrieved for this organization. If you answer, say you have no information from the organization's knowledge base and rely only on general knowledge. If the user expects their documents (e.g. CV) to be available, suggest they confirm they are in the correct organization and that the file was uploaded to RAG for this org.",
+            results: results as {
+              resource_name?: string | null;
+              resource_id?: string;
+            }[],
             citationMap: Object.fromEntries(
               results.map((r, i) => [
                 String(i + 1),
@@ -242,7 +276,7 @@ export async function POST(req: Request) {
             ),
           };
         },
-      })
+      }),
     },
     stopWhen: stepCountIs(5),
     experimental_transform: smoothStream({ chunking: "word" }),
@@ -274,4 +308,3 @@ export async function POST(req: Request) {
 
   return result.toUIMessageStreamResponse();
 }
-

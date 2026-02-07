@@ -53,11 +53,15 @@ export async function retrieveContext(
   topK = 6,
   organizationId?: string | null,
 ) {
+  console.log("[retrieveContext function] Query received:", query);
   const trimmed = query?.trim() ?? "";
   if (!trimmed) return { context: "", results: [] as RetrieveRow[] };
 
   const safeTopK = Math.min(Math.max(1, topK), 20);
-  const retrievalLimit = Math.min(Math.max(safeTopK * 6, safeTopK), MAX_CANDIDATES_CAP);
+  const retrievalLimit = Math.min(
+    Math.max(safeTopK * 6, safeTopK),
+    MAX_CANDIDATES_CAP,
+  );
 
   const { embedding } = await embed({
     model: ollama.embedding("nomic-embed-text"),

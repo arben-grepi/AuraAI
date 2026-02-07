@@ -136,9 +136,9 @@ export async function signIn(
   };
 }
 
-export async function createConversation(chatFolderId?: string | null): Promise<
-  ActionResult<{ data: string; id: string }>
-> {
+export async function createConversation(
+  chatFolderId?: string | null,
+): Promise<ActionResult<{ data: string; id: string }>> {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -632,7 +632,7 @@ export async function generateTitleFromUserMessage({
   message: UIMessage;
 }) {
   const { text: title } = await generateText({
-    model: ollama("llama3:8b"),
+    model: ollama("qwen3"),
     system: `\n
     - you will generate a short title based on the first message a user begins a conversation with
     - ensure it is not more than 80 characters long
@@ -905,8 +905,10 @@ export async function handleUpdateOrganizationSystemPrompt({
   }
 }
 
-
-export async function createFileFolder(organizationId: string, name: string): Promise<ActionResult<{ data: string }>> {
+export async function createFileFolder(
+  organizationId: string,
+  name: string,
+): Promise<ActionResult<{ data: string }>> {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -931,16 +933,28 @@ export async function createFileFolder(organizationId: string, name: string): Pr
     });
 
     if (!data) {
-      return { success: false, data: null, error: "Failed to create file folder" };
+      return {
+        success: false,
+        data: null,
+        error: "Failed to create file folder",
+      };
     }
 
-    return { success: true, data: { data: "File folder created" }, error: null };
+    return {
+      success: true,
+      data: { data: "File folder created" },
+      error: null,
+    };
   } catch (error) {
     if (error instanceof APIError) {
       return { error: error.message, success: false, data: null };
     }
     console.error("[PRISMA] Create file folder has not worked", error);
-    return { success: false, data: null, error: "Failed to create file folder" };
+    return {
+      success: false,
+      data: null,
+      error: "Failed to create file folder",
+    };
   }
 }
 
@@ -1039,7 +1053,10 @@ export async function deleteChatFolder(
   }
 
   if (session.user.role !== "admin") {
-    const membership = await getMembership(folder.organizationId, session.user.id);
+    const membership = await getMembership(
+      folder.organizationId,
+      session.user.id,
+    );
     if (!membership) {
       return { success: false, data: null, error: "Unauthorized" };
     }
@@ -1085,7 +1102,11 @@ export async function updateConversationFolder(
     return { success: false, data: null, error: "Conversation not found" };
   }
   if (conversation.organizationId !== organizationId) {
-    return { success: false, data: null, error: "Conversation not in active organization" };
+    return {
+      success: false,
+      data: null,
+      error: "Conversation not in active organization",
+    };
   }
 
   if (chatFolderId) {

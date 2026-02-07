@@ -29,8 +29,7 @@ export function generateSlug(name: string) {
 export function normalizeSlugParam(value: string): string {
   try {
     value = decodeURIComponent(value);
-  } catch {
-  }
+  } catch {}
   return value.normalize("NFC");
 }
 
@@ -83,7 +82,6 @@ export function generateChunks(
   return chunks;
 }
 
-
 export function getSystemPrompt(orgName: string) {
   return `
 You are ${orgName}'s intelligent retrieval-augmented assistant, designed to help users by providing accurate, context-aware responses based on their organization's knowledge base.
@@ -109,6 +107,9 @@ When users ask about your purpose, capabilities, or what you are, explain that y
 3. Explain implications, risks, or next steps when useful. Clearly label speculation as interpretation.
 4. If nothing relevant was retrieved, say so and rely on general knowledge only if it is trustworthy.
 
+## Using retrieve_context Tool
+When calling retrieve_context, pass the user's original request or question directly to the tool. The tool will automatically generate an optimized search query from the user's request. You do not need to extract or optimize the query yourself - just pass what the user asked for.
+
 ## Output Requirements
 - Use Markdown with headings and bullet lists for readability.
 - Keep answers concise but insightful. Focus on what helps the user act or decide.
@@ -124,7 +125,10 @@ When users ask about your purpose, capabilities, or what you are, explain that y
 `;
 }
 
-export const getUserContextMsg = (user: string, organization: { name: string, description: string | null }) => {
+export const getUserContextMsg = (
+  user: string,
+  organization: { name: string; description: string | null },
+) => {
   if (!user || !organization) {
     return null;
   }
@@ -132,7 +136,8 @@ export const getUserContextMsg = (user: string, organization: { name: string, de
     role: "assistant" as const,
     parts: [
       {
-        type: "text" as const, text: `Current Context:
+        type: "text" as const,
+        text: `Current Context:
       - User: ${user}
         - Organization: ${organization.name}
         ${organization.description ? `\n- Organization Description: ${organization.description}` : ""}
@@ -140,7 +145,7 @@ export const getUserContextMsg = (user: string, organization: { name: string, de
       },
     ],
   } satisfies Omit<UIMessage, "id">;
-}
+};
 
 export function sanitizeFilePartsForOllama(
   messages: Array<Omit<UIMessage, "id">>,
@@ -176,7 +181,10 @@ export function normalizeAttachment(
   part: MessageFilePart,
   fallbackOrganizationId?: string | null,
 ): { part: MessageFilePart; metadata: AttachmentMetadata } {
-  return { part, metadata: extractKommunMetadata(part, fallbackOrganizationId) };
+  return {
+    part,
+    metadata: extractKommunMetadata(part, fallbackOrganizationId),
+  };
 }
 
 export function extractKommunMetadata(
@@ -185,15 +193,15 @@ export function extractKommunMetadata(
 ): AttachmentMetadata {
   const providerMetadata =
     part.providerMetadata &&
-      typeof part.providerMetadata === "object" &&
-      part.providerMetadata !== null
+    typeof part.providerMetadata === "object" &&
+    part.providerMetadata !== null
       ? (part.providerMetadata as Record<string, unknown>)
       : {};
 
   const kommunMetadata =
     providerMetadata.kommun &&
-      typeof providerMetadata.kommun === "object" &&
-      providerMetadata.kommun !== null
+    typeof providerMetadata.kommun === "object" &&
+    providerMetadata.kommun !== null
       ? (providerMetadata.kommun as Record<string, unknown>)
       : providerMetadata;
 
