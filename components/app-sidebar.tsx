@@ -18,6 +18,7 @@ import { headers } from "next/headers";
 import Image from "next/image";
 import prisma from "@/lib/prisma";
 import { AiSettingsDialog } from "./org/ai-settings-dialog";
+import { ScrollArea } from "./ui/scroll-area";
 
 export async function AppSidebar({ org }: { org: string }) {
   const session = await auth.api.getSession({
@@ -37,7 +38,6 @@ export async function AppSidebar({ org }: { org: string }) {
     return null;
   }
 
-  // Check if user is admin or owner of the organization
   let isOrgAdmin = false;
   if (session?.user.role === "admin") {
     isOrgAdmin = true;
@@ -71,8 +71,8 @@ export async function AppSidebar({ org }: { org: string }) {
 
   return (
     <Sidebar className="border-none">
-      <SidebarContent>
-        <SidebarHeader className="flex flex-row justify-between items-center ">
+      <SidebarContent className="overflow-hidden">
+        <SidebarHeader className="flex shrink-0 flex-row justify-between items-center">
           <div
             className="w-full h-12 rounded-[12px] border border-zinc-200 flex items-center justify-between px-2 py-4"
             style={{
@@ -98,11 +98,11 @@ export async function AppSidebar({ org }: { org: string }) {
             {isOrgAdmin && <AiSettingsDialog orgSlug={org} />}
           </div>
         </SidebarHeader>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
+        <SidebarGroup className="min-h-0 flex-1 flex flex-col">
+          <SidebarGroupContent className="min-h-0 flex-1 flex flex-col">
+            <SidebarMenu className="min-h-0 flex-1 flex flex-col">
               {items.map((item) => (
-                <SidebarMenuItem key={item.title}>
+                <SidebarMenuItem key={item.title} className="shrink-0">
                   <SidebarMenuButton
                     className={`${item.variant === "white" ? "bg-white shadow-sm" : ""}`}
                     asChild
@@ -114,17 +114,20 @@ export async function AppSidebar({ org }: { org: string }) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-              <SidebarGroupLabel>Chats</SidebarGroupLabel>
-              <Suspense fallback={<ConversationsSkeleton />}>
-                <Conversations slug={org} />
-              </Suspense>
+              <SidebarGroupLabel className="shrink-0">Chats</SidebarGroupLabel>
+              <ScrollArea className="min-h-0 min-w-0 flex-1 overflow-x-hidden">
+                <div className="flex min-h-full min-w-0 w-full flex-col">
+                  <div className="min-w-0 flex-1 flex flex-col">
+                    <Suspense fallback={<ConversationsSkeleton />}>
+                      <Conversations slug={org} />
+                    </Suspense>
+                  </div>
+                </div>
+              </ScrollArea>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      {/* <SidebarFooter>
-        <NavUser name={name || ""} email={email || ""} avatar={image || ""} />
-      </SidebarFooter> */}
     </Sidebar>
   );
 }

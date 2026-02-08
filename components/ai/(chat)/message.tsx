@@ -90,7 +90,8 @@ function Message({
     resolvedVariant === "assistant" &&
     (submitted || isStreaming) &&
     !textContent.trim() &&
-    fileParts.length === 0;
+    fileParts.length === 0 &&
+    toolParts.length === 0;
 
   if (!message && !submitted) {
     return null;
@@ -143,9 +144,7 @@ function Message({
             !textContent.trim() && <ToolPartStatusLinePlaceholder />
           ))}
 
-        {(textContent.trim().length > 0 ||
-          showThinking ||
-          (resolvedVariant === "assistant" && toolParts.length > 0)) && (
+        {(textContent.trim().length > 0 || showThinking) && (
           <motion.div
             className={cn(messageContentVariants({ variant: resolvedVariant }))}
             transition={{ duration: 0.3, delay: 0.1 }}
@@ -319,7 +318,6 @@ function isToolInvocationPart(
   );
 }
 
-/** Human-readable status shown while a tool is being called. */
 function getToolCallingStatusLabel(
   toolName: string,
   state: string,
@@ -336,12 +334,13 @@ function getToolCallingStatusLabel(
           : "";
       return loc ? `Getting weather for ${loc}…` : "Getting weather data…";
     }
+    case "retrieve_context":
+      return "Searching through files…";
     default:
       return `Calling ${toolName}…`;
   }
 }
 
-/** Shown while waiting for tool part to arrive (stream often sends tool only after it finishes). */
 function ToolPartStatusLinePlaceholder() {
   return (
     <div
@@ -358,10 +357,27 @@ function ToolPartStatusLinePlaceholder() {
   );
 }
 
-/**
- * Renders a single tool part as a status line (input-streaming → "Getting…", result → "Done ✅").
- */
+const TOOL_FINISHED_HIDE_DELAY_MS = 3000;
+
 function ToolPartStatusLine({ part }: { part: ChatToolInvocationPart }) {
+  const [hideFinished, setHideFinished] = React.useState(false);
+  const isFinished = part.state === "output-available";
+
+  React.useEffect(() => {
+    if (!isFinished) {
+      setHideFinished(false);
+      return;
+    }
+    const timeoutId = setTimeout(() => {
+      setHideFinished(true);
+    }, TOOL_FINISHED_HIDE_DELAY_MS);
+    return () => clearTimeout(timeoutId);
+  }, [isFinished, part.toolCallId]);
+
+  if (isFinished && hideFinished) {
+    return null;
+  }
+
   const toolName =
     part.type === "dynamic-tool"
       ? ((part as { toolName?: string }).toolName ?? "tool")
@@ -372,9 +388,7 @@ function ToolPartStatusLine({ part }: { part: ChatToolInvocationPart }) {
       case "input-streaming":
         return (
           <span className="animate-pulse">
-            {toolName === "get_weather"
-              ? "Getting latest weather data…"
-              : `Calling ${toolName}…`}
+            {getToolCallingStatusLabel(toolName, part.state, part.input)}
           </span>
         );
       case "input-available":
@@ -384,20 +398,9 @@ function ToolPartStatusLine({ part }: { part: ChatToolInvocationPart }) {
           </span>
         );
       case "output-available":
-        const resultText =
-          part.output != null ? formatToolOutput(toolName, part.output) : "";
         return (
           <>
-            <span>Done</span>
-            <span aria-hidden className="select-none">
-              {" "}
-              ✅
-            </span>
-            {resultText && (
-              <span className="ml-1.5 text-muted-foreground">
-                — {resultText}
-              </span>
-            )}
+            <span>Finished</span>
           </>
         );
       case "output-error":
@@ -416,17 +419,21 @@ function ToolPartStatusLine({ part }: { part: ChatToolInvocationPart }) {
   })();
 
   return (
-    <div
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium",
-        "border-primary/30 bg-primary/10 text-primary",
-      )}
+    <motion.div
+      className="flex items-center gap-2 text-muted-foreground animate-pulse"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
       role="status"
       aria-live="polite"
     >
-      <Cloud className="h-3 w-3 shrink-0" aria-hidden />
-      {content}
-    </div>
+      <div className="flex gap-2">
+        <div className="h-1 w-1 bg-muted-foreground rounded-full animate-bounce delay-0"></div>
+        <div className="h-1 w-1 bg-muted-foreground rounded-full animate-bounce delay-100"></div>
+        <div className="h-1 w-1 bg-muted-foreground rounded-full animate-bounce delay-200"></div>
+      </div>
+      <span className="text-sm animate-pulse">{content}</span>
+    </motion.div>
   );
 }
 

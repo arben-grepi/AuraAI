@@ -63,7 +63,7 @@ export function Conversations({ slug }: { slug: string }) {
   const [isFolderDialogOpen, setIsFolderDialogOpen] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [isDragOverNewFolder, setIsDragOverNewFolder] = useState(false);
 
@@ -96,7 +96,7 @@ export function Conversations({ slug }: { slug: string }) {
       }
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to create folder"
+        error instanceof Error ? error.message : "Failed to create folder",
       );
     }
   };
@@ -153,13 +153,13 @@ export function Conversations({ slug }: { slug: string }) {
 
   return (
     <>
-      <SidebarMenuItem>
+      <SidebarMenuItem className="min-w-0">
         <SidebarMenuButton
           className={cn(
             "cursor-pointer bg-white shadow-sm",
             folders.length > 0 &&
               isDragOverNewFolder &&
-              "ring-2 ring-primary/50 bg-primary/5"
+              "ring-2 ring-primary/50 bg-primary/5",
           )}
           onClick={() => setIsFolderDialogOpen(true)}
           onDragOver={folders.length > 0 ? handleNewFolderDragOver : undefined}
@@ -243,7 +243,7 @@ export function Conversations({ slug }: { slug: string }) {
       ))}
 
       {rootConversations.map((convo) => (
-        <div className="w-full" key={convo.id}>
+        <div className="w-full min-w-0" key={convo.id}>
           <ConversationItem
             conversation={convo}
             slug={slug}
@@ -257,7 +257,7 @@ export function Conversations({ slug }: { slug: string }) {
       ))}
 
       {isEmpty && (
-        <SidebarMenuItem>
+        <SidebarMenuItem className="min-w-0">
           <SidebarMenuButton disabled>
             <p>No conversations found</p>
           </SidebarMenuButton>
@@ -289,7 +289,7 @@ const ConversationItem = ({
   const handleMoveTo = async (chatFolderId: string | null) => {
     const result = await updateConversationFolder(
       conversation.id,
-      chatFolderId
+      chatFolderId,
     );
     if (result.success) {
       toast.success("Conversation moved");
@@ -345,25 +345,25 @@ const ConversationItem = ({
       onDragLeave={acceptDropToRoot ? handleRootDragLeave : undefined}
       onDrop={acceptDropToRoot ? handleRootDrop : undefined}
       className={cn(
-        "w-full flex justify-between items-center py-2 px-3 rounded-md transition-all duration-200 group cursor-grab active:cursor-grabbing",
+        "w-full min-w-0 group/conversation-row max-w-full flex justify-between items-center py-2 px-3 rounded-md transition-all duration-200 cursor-grab active:cursor-grabbing",
         isActive
           ? "bg-white font-normal border-sidebar-accent-foreground"
           : "hover:bg-sidebar-accent/50",
-        acceptDropToRoot && isDragOver && "ring-2 ring-primary/50 bg-primary/5"
+        acceptDropToRoot && isDragOver && "ring-2 ring-primary/50 bg-primary/5",
       )}
     >
       <Link
         href={`/org/${slug}/chat/${conversation.id}`}
         draggable={false}
         className={cn(
-          "flex-1 truncate flex items-center gap-2 min-w-0 cursor-pointer"
+          "flex-1 truncate flex items-center gap-2 min-w-0 cursor-pointer",
         )}
       >
-        <span className="truncate leading-5">
+        <span className="truncate max-w-[200px] leading-5">
           {conversation.title || "New chat"}
         </span>
       </Link>
-      <div className="shrink-0">
+      <div className="shrink-0 group-hover/conversation-row:flex hidden">
         <DropdownMenu>
           <DropdownMenuTrigger className="items-center flex" asChild>
             <Button
@@ -493,7 +493,7 @@ const ChatFolderRow = ({
       }
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to delete folder"
+        error instanceof Error ? error.message : "Failed to delete folder",
       );
     } finally {
       setIsDeleting(false);
@@ -501,11 +501,11 @@ const ChatFolderRow = ({
   };
 
   return (
-    <div className="w-full px-2">
+    <div className="w-full min-w-0 rounded-md my-2">
       <div
         className={cn(
-          "w-full flex items-center gap-1 py-2 px-2 rounded-md transition-all duration-200 cursor-pointer hover:bg-sidebar-accent/50",
-          isDragOver && "ring-2 ring-primary/50 bg-primary/5"
+          "w-full min-w-0 flex items-center gap-1 py-2 px-2 rounded-md transition-all duration-200 cursor-pointer",
+          isDragOver && "ring-2 ring-primary/50 bg-primary/5",
         )}
         onClick={onToggle}
         onDragOver={handleDragOver}
@@ -552,7 +552,7 @@ const ChatFolderRow = ({
             transition={{ duration: 0.2, ease: "easeInOut" }}
             className="grid overflow-hidden select-none"
           >
-            <div className="min-h-0 bg-neutral-200 rounded-md ml-4 py-2 px-2">
+            <div className="min-h-0 min-w-0 bg-neutral-200 rounded-md ml-4 mr-4 py-2 px-2 overflow-hidden">
               {conversations.length === 0 ? (
                 <p className="text-xs text-muted-foreground py-2">
                   No chats in this folder

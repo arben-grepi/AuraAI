@@ -33,8 +33,10 @@ import prisma from "./prisma";
 
 const MAX_CONTEXT_CHARS = 1200;
 const MAX_CANDIDATES_CAP = 48;
-const MIN_SCORE_BEST = 0.58;
-const MIN_SCORE_ITEM = 0.48;
+/** Minimum score for the single best match to return any context. Lowered from 0.58 so short queries (e.g. "Alius Values") still match relevant chunks. */
+const MIN_SCORE_BEST = 0.46;
+/** Minimum score for a chunk to be included in the returned set. */
+const MIN_SCORE_ITEM = 0.42;
 
 type RetrieveRow = {
   content: string;
@@ -83,15 +85,55 @@ export async function retrieveContext(
     LIMIT ${retrievalLimit};
   `)) as RetrieveRow[];
 
-  if (!rows.length) return { context: "", results: [] };
+  if (!rows.length) {
+    console.log(
+      "[retrieveContext] No rows found for org",
+      organizationId ?? "any",
+    );
+    return { context: "", results: [] };
+  }
 
   const bestScore = rows[0]?.score ?? 0;
+  console.log(
+    "[retrieveContext] Candidates:",
+    rows.length,
+    "bestScore:",
+    bestScore.toFixed(3),
+    "resource:",
+    rows[0]?.resource_name ?? rows[0]?.resource_id,
+  );
+
   if (bestScore < MIN_SCORE_BEST) {
+    console.log(
+      "[retrieveContext] Best score below threshold",
+      MIN_SCORE_BEST,
+      "- returning no context. Top snippet preview:",
+      rows[0]?.content?.slice(0, 120) ?? "",
+    );
     return { context: "", results: [] };
   }
 
   const strong = rows.filter((r) => r.score >= MIN_SCORE_ITEM);
-  const selected = (strong.length ? strong : rows).slice(0, safeTopK);
+  const pool = strong.length ? strong : rows;
+
+  // Prefer chunks from the best-matching resource to avoid mixing in irrelevant documents
+  // (e.g. "Alius company values" should not pull in John Galt from another PDF).
+  const bestResourceId = pool[0]?.resource_id;
+  const fromBestResource = pool.filter((r) => r.resource_id === bestResourceId);
+  const fromOthers = pool.filter((r) => r.resource_id !== bestResourceId);
+  const selected = [...fromBestResource, ...fromOthers].slice(0, safeTopK);
+  if (
+    fromOthers.length &&
+    selected.some((r) => r.resource_id !== bestResourceId)
+  ) {
+    console.log(
+      "[retrieveContext] Selected",
+      fromBestResource.length,
+      "from best resource,",
+      selected.length - fromBestResource.length,
+      "from others",
+    );
+  }
 
   const context = selected
     .map((row, index) => {
