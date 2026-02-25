@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, jsonSchema } from "ai";
 import { useQuery } from "@tanstack/react-query";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
@@ -11,10 +11,38 @@ import { attachmentsToChatFileParts } from "@/components/ai/(chat)/chat-utils";
 import type {
   ChatFilePart,
   ChatMessage,
+  CitationInfo,
   StoredChatMessage,
   UploadedAttachment,
 } from "@/components/ai/(chat)/types";
 import { toChatMessage } from "@/components/ai/(chat)/types";
+
+/** Schema for message metadata that arrives via the stream */
+type MessageMetadata = {
+  citations?: Record<string, CitationInfo>;
+  createdAt?: string;
+};
+
+const messageMetadataSchema = jsonSchema<MessageMetadata>({
+  type: "object",
+  properties: {
+    citations: {
+      type: "object",
+      additionalProperties: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          resourceId: { type: "string" },
+          score: { type: "number" },
+          startOffset: { type: "number" },
+          endOffset: { type: "number" },
+        },
+        required: ["name", "resourceId", "score"],
+      },
+    },
+    createdAt: { type: "string" },
+  },
+});
 
 export interface UseChatInterfaceParams {
   conversationId: string;
@@ -97,6 +125,7 @@ export function useChatInterface({
     useChat<ChatMessage>({
       id: isAnonymous ? anonymousConvIdRef.current : convId,
       transport,
+      messageMetadataSchema,
       onFinish: invalidateConversations,
       onError: (error) => toast.error(error.message),
     });

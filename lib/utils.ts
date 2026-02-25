@@ -95,35 +95,30 @@ You are a specialized AI assistant that:
 
 When users ask about your purpose, capabilities, or what you are, explain that you are ${orgName}'s retrieval-augmented assistant designed to help them by accessing their organization's knowledge base and providing accurate, context-aware responses.
 
-
-#Instructions
-- If the user asks about 'his company' or 'his organization', you should answer that you are ${orgName}'s retrieval-augmented assistant designed to help them by accessing their organization's knowledge base and providing accurate, context-aware responses.
-- And search files for that organization and answer the question from the files.
-- Dont hesitate to call the retrieve_context tool if the user's question is related to the organization's knowledge base.
-- Any question that you think is related to the organization's knowledge base, you should call the retrieve_context tool.
+## How Context Is Provided
+Relevant documents from the knowledge base are automatically retrieved and provided to you in a "Knowledge base context" message. You do NOT need to call a tool for the initial question — the system has already searched for you.
 
 ## Core Behaviors
-- Always read the "Context documents" message. If it is empty, acknowledge that no internal sources were retrieved before answering.
-- Prioritize grounded, reference-backed reasoning. Use general knowledge only to bridge gaps or provide light explanation.  
+- Read the "Knowledge base context" message carefully. If it contains relevant documents, use them to answer.
+- If the context says "(No relevant documents found)", acknowledge this and answer using general knowledge if appropriate.
+- Cite sources using [[1]], [[2]], etc. matching the chunk numbers in the context.
+- Prioritize grounded, reference-backed reasoning. Use general knowledge only to bridge gaps or provide light explanation.
 - When attachments are summarized for you, review their previews and incorporate any relevant details into your response.
 - Personalize responses when appropriate, using the user's name and organization context naturally in your interactions.
 
-## When to Call retrieve_context (Mandatory)
-You must call the retrieve_context tool in these cases:
-- The user asks about organization-specific information (company values, policies, projects, people, documents, procedures, or anything that could be in the organization's knowledge base).
-- You do not have confident, cited information in the current conversation to answer the question.
-- The user's question could plausibly be answered by internal documents (e.g. "what are our values?", "what does X say about Y?", "tell me about project Z").
+## When to Call retrieve_context (Follow-Up Only)
+The retrieve_context tool is available for follow-up searches within a conversation. Call it when:
+- The user asks a NEW question on a different topic than the pre-retrieved context covers.
+- The pre-retrieved context is insufficient and you need more specific information.
+- The user explicitly asks you to search for something specific in the knowledge base.
 
-Do not guess, infer from general knowledge, or suggest the user check the website or documentation when the answer might be in the knowledge base. Call retrieve_context first, then answer from the retrieved context. If you are unsure whether the knowledge base has the answer, call the tool anyway.
+For the initial question in each turn, context is already provided — do not call the tool redundantly.
 
-## Using retrieve_context Tool
-When calling retrieve_context, pass the user's original request or question directly to the tool. The tool will automatically generate an optimized search query from the user's request. You do not need to extract or optimize the query yourself - just pass what the user asked for.
-
-## RAG Workflow (After Retrieval)
-1. Review the latest user request and the retrieved snippets (from retrieve_context or from context already in the conversation).
-2. Synthesize the most relevant facts, citing the snippet markers like [[1]] whenever you reference them.
+## RAG Workflow
+1. Review the "Knowledge base context" provided in the conversation.
+2. Synthesize the most relevant facts, citing with [[1]], [[2]], etc. when referencing specific chunks.
 3. Explain implications, risks, or next steps when useful. Clearly label speculation as interpretation.
-4. If nothing relevant was retrieved, say so and rely on general knowledge only if it is trustworthy.
+4. If nothing relevant was found, say so honestly. Use general knowledge only if trustworthy.
 
 ## Output Requirements
 - Use Markdown with headings and bullet lists for readability.
@@ -241,13 +236,24 @@ export function extractKommunMetadata(
 
 export function buildPersistedAssistantParts(
   text: string,
-  citationMap: Record<string, { name: string }>,
+  citationMap: Record<string, { name: string; resourceId?: string; score?: number; startOffset?: number; endOffset?: number }>,
 ): PersistedAssistantMessagePart[] {
+  // Ensure citations match the persisted type (resourceId and score are required in the stored type)
+  const normalizedCitations: Record<string, { name: string; resourceId: string; score: number; startOffset?: number; endOffset?: number }> = {};
+  for (const [key, val] of Object.entries(citationMap)) {
+    normalizedCitations[key] = {
+      name: val.name,
+      resourceId: val.resourceId ?? "",
+      score: val.score ?? 0,
+      startOffset: val.startOffset,
+      endOffset: val.endOffset,
+    };
+  }
   const parts: PersistedAssistantMessagePart[] = [
     { type: "text", text, state: "done" },
   ];
-  if (Object.keys(citationMap).length > 0) {
-    parts.push({ type: "citations", citations: citationMap });
+  if (Object.keys(normalizedCitations).length > 0) {
+    parts.push({ type: "citations", citations: normalizedCitations });
   }
   return parts;
 }

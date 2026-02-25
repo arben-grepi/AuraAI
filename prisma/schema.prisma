@@ -152,13 +152,16 @@ model Invitation {
 }
 
 model Embedding {
-  id         String                @id
-  resourceId String?               @map("resource_id")
-  content    String
-  embedding  Unsupported("vector")
-  fileName   String?               @map("file_name")
-  tags       String[]              @default([])
-  resource   Resource?             @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  id          String                @id
+  resourceId  String?               @map("resource_id")
+  content     String
+  embedding   Unsupported("vector")
+  fileName    String?               @map("file_name")
+  tags        String[]              @default([])
+  startOffset Int?                  @map("start_offset")
+  endOffset   Int?                  @map("end_offset")
+  chunkIndex  Int?                  @map("chunk_index")
+  resource    Resource?             @relation(fields: [resourceId], references: [id], onDelete: Cascade)
 
   @@map("embeddings")
 }
@@ -169,6 +172,9 @@ model Resource {
   fileFolderId   String?       @map("file_folder_id")
   name           String
   tags           String[]      @default([])
+  fullText       String?       @map("full_text")
+  mimeType       String?       @map("mime_type")
+  fileSize       Int?          @map("file_size")
   embeddings     Embedding[]
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   fileFolder     FileFolder?   @relation(fields: [fileFolderId], references: [id], onDelete: SetNull)

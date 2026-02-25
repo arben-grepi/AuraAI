@@ -1,13 +1,16 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import { AnimatePresence } from "motion/react";
 import { ChatHeader } from "./chat-header";
 import { ChatLayout } from "./chat-layout";
 import { ChatHeaderStrip } from "./chat-header-strip";
 import { Message } from "./message";
+import { SourcePanel } from "./source-panel";
+import type { SourcePanelState } from "./source-panel";
 import { useChatInterface } from "@/hooks/use-chat-interface";
 import { auth } from "@/lib/auth";
-import type { ChatMessage } from "./types";
+import type { ChatMessage, CitationInfo } from "./types";
 import type { Organization } from "@/lib/types";
 
 export interface ChatInterfaceProps {
@@ -37,6 +40,24 @@ export function ChatInterface({
     isLoadingMessages,
   } = useChatInterface({ conversationId, initialMessages, slug });
 
+  const [sourcePanelState, setSourcePanelState] =
+    useState<SourcePanelState | null>(null);
+
+  const handleCitationClick = useCallback((citation: CitationInfo) => {
+    if (!citation.resourceId) return;
+    setSourcePanelState({
+      open: true,
+      resourceId: citation.resourceId,
+      resourceName: citation.name,
+      startOffset: citation.startOffset,
+      endOffset: citation.endOffset,
+    });
+  }, []);
+
+  const handleCloseSourcePanel = useCallback(() => {
+    setSourcePanelState(null);
+  }, []);
+
   const loading = status === "streaming" || status === "submitted";
   const showLoadingState = isLoadingMessages && convId && !isAnonymous;
 
@@ -61,6 +82,7 @@ export function ChatInterface({
                 status === "streaming" &&
                 index === messages.length - 1
               }
+              onCitationClick={handleCitationClick}
             />
           ))}
           {waitingForAssistant && (
@@ -72,14 +94,18 @@ export function ChatInterface({
   );
 
   return (
-    <ChatLayout
-      header={<ChatHeader />}
-      isAnonymous={isAnonymous}
-      loading={loading}
-      onSend={handleSendMessage}
-      onStop={stopRequest}
-    >
-      {showLoadingState ? null : content}
-    </ChatLayout>
+    <>
+      <ChatLayout
+        header={<ChatHeader />}
+        isAnonymous={isAnonymous}
+        loading={loading}
+        onSend={handleSendMessage}
+        onStop={stopRequest}
+      >
+        {showLoadingState ? null : content}
+      </ChatLayout>
+
+      <SourcePanel state={sourcePanelState} onClose={handleCloseSourcePanel} />
+    </>
   );
 }

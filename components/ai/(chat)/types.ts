@@ -1,6 +1,12 @@
 import type { FileUIPart, TextUIPart, UIMessage } from "ai";
 
-export type CitationInfo = { name: string };
+export type CitationInfo = {
+  name: string;
+  resourceId: string;
+  score: number;
+  startOffset?: number;
+  endOffset?: number;
+};
 
 export type ChatMessage = UIMessage<{
   createdAt?: string;

@@ -3,7 +3,7 @@
 import crypto from "crypto";
 import prisma from "@/lib/prisma";
 import { generateEmbeddings } from "../embeddings";
-import { chunkContent } from "../chunking";
+import { chunkContentWithOffsets } from "../chunking";
 import { toPgVectorLiteral } from "../vector";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -31,7 +31,7 @@ export async function processRagFile(
     return {
       success: false,
       error:
-        "Unsupported file type. Supported: .pdf, .txt, .md, .csv, .json, .html, .xml",
+        "Unsupported file type. Supported: .pdf, .txt, .md, .csv, .json, .html, .xml, .docx, .xlsx, .xls",
     };
   }
 
@@ -105,19 +105,20 @@ export async function processRagFile(
     }
   }
 
-  let text: string;
+  let fullText: string;
   try {
-    text = await extractText(file);
+    fullText = await extractText(file);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to extract text";
     return { success: false, error: message };
   }
 
-  if (!text?.trim()) {
+  if (!fullText?.trim()) {
     return { success: false, error: "File is empty" };
   }
 
-  const chunks = await chunkContent(text);
+  // Sentence-aware chunking with offsets
+  const chunks = chunkContentWithOffsets(fullText.trim());
   if (!chunks.length) {
     return {
       success: false,
@@ -127,7 +128,7 @@ export async function processRagFile(
 
   let embeddings: number[][];
   try {
-    embeddings = await generateEmbeddings(chunks);
+    embeddings = await generateEmbeddings(chunks.map((c) => c.text));
   } catch (e) {
     console.error("RAG embedding error:", e);
     return {
@@ -140,33 +141,48 @@ export async function processRagFile(
     const result = await prisma.$transaction(async (tx) => {
       const resourceId = crypto.randomUUID();
 
+      // Store resource with full text, mime type, and file size
       await tx.$executeRawUnsafe(
-        `INSERT INTO "resources" ("id", "organization_id", "file_folder_id", "name", "tags") VALUES ($1, $2, $3, $4, $5::text[])`,
+        `INSERT INTO "resources" ("id", "organization_id", "file_folder_id", "name", "tags", "full_text", "mime_type", "file_size")
+         VALUES ($1, $2, $3, $4, $5::text[], $6, $7, $8)`,
         resourceId,
         organizationId,
         fileFolderId,
         file.name,
         tags,
+        fullText.trim(),
+        file.type || null,
+        file.size,
       );
 
+      // Insert embeddings with offsets
       const valuesSqlParts: string[] = [];
       const params: unknown[] = [];
       let paramIndex = 1;
 
       for (let i = 0; i < embeddings.length; i++) {
         const id = crypto.randomUUID();
-        const content = chunks[i];
+        const chunk = chunks[i];
         const vectorLiteral = toPgVectorLiteral(embeddings[i]);
 
         valuesSqlParts.push(
-          `($${paramIndex}, $${paramIndex + 1}, ${vectorLiteral}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}::text[])`,
+          `($${paramIndex}, $${paramIndex + 1}, ${vectorLiteral}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}::text[], $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7})`,
         );
-        params.push(id, content, resourceId, file.name, tags);
-        paramIndex += 5;
+        params.push(
+          id,
+          chunk.text,
+          resourceId,
+          file.name,
+          tags,
+          chunk.startOffset,
+          chunk.endOffset,
+          chunk.index,
+        );
+        paramIndex += 8;
       }
 
       const sql = `
-        INSERT INTO "embeddings" ("id","content","embedding","resource_id","file_name","tags")
+        INSERT INTO "embeddings" ("id","content","embedding","resource_id","file_name","tags","start_offset","end_offset","chunk_index")
         VALUES ${valuesSqlParts.join(",")}
       `;
       await tx.$executeRawUnsafe(sql, ...params);

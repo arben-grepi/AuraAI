@@ -5,7 +5,6 @@ import {
   smoothStream,
   tool,
   stepCountIs,
-  generateText,
 } from "ai";
 import { z } from "zod";
 import { ollama } from "ai-sdk-ollama";
@@ -13,7 +12,6 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
 import { generateTitleFromUserMessage } from "@/lib/actions";
-import { retrieveContext } from "@/lib/rag";
 import {
   getSystemPrompt,
   getUserContextMsg,
@@ -28,10 +26,41 @@ import type {
   PersistedAssistantMessagePart,
 } from "@/lib/types";
 import { NextResponse } from "next/server";
-import { searchDocuments } from "@/lib/rag/search";
+import { hybridSearch, searchDocuments } from "@/lib/rag/search";
+import type { SearchRow } from "@/lib/rag/search";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 120; // generous timeout for Ollama on slow machines
+
+type CitationMapEntry = {
+  name: string;
+  resourceId: string;
+  score: number;
+  startOffset?: number;
+  endOffset?: number;
+};
+
+/**
+ * Extract the text content from the last user message.
+ */
+function getLastUserText(messages: UIMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m?.role !== "user") continue;
+    const parts = Array.isArray(m.parts) ? m.parts : [];
+    const text = parts
+      .filter(
+        (p) => p && typeof p === "object" && "type" in p && p.type === "text",
+      )
+      .map((p) =>
+        "text" in p ? String((p as { text?: unknown }).text ?? "") : "",
+      )
+      .join("")
+      .trim();
+    if (text) return text;
+  }
+  return "";
+}
 
 export async function POST(req: Request) {
   const body = await req.json();
@@ -127,11 +156,6 @@ export async function POST(req: Request) {
     select: { name: true, description: true },
   });
 
-  const baseSystem = {
-    role: "system" as const,
-    parts: [{ type: "text" as const, text: systemPrompt }],
-  } satisfies Omit<UIMessage, "id">;
-
   if (!user || !organization) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
@@ -148,7 +172,70 @@ export async function POST(req: Request) {
     );
   }
 
-  const citationMap: Record<string, { name: string }> = {};
+  // -----------------------------------------------------------------------
+  // Server-side pre-retrieval: ALWAYS search before the model responds
+  // -----------------------------------------------------------------------
+  const lastUserText = getLastUserText(messages);
+  const citationMap: Record<string, CitationMapEntry> = {};
+
+  let preRetrievalResults: SearchRow[] = [];
+  if (lastUserText.trim()) {
+    try {
+      preRetrievalResults = await hybridSearch(
+        lastUserText,
+        8,
+        organizationId,
+      );
+      console.log("[chat] Pre-retrieval:", {
+        query: lastUserText.slice(0, 200),
+        results: preRetrievalResults.length,
+        topScore: preRetrievalResults[0]?.score?.toFixed(3) ?? "n/a",
+      });
+    } catch (e) {
+      console.error("[chat] Pre-retrieval failed:", e);
+    }
+  }
+
+  // Build citation map from pre-retrieval
+  for (let i = 0; i < preRetrievalResults.length; i++) {
+    const row = preRetrievalResults[i];
+    citationMap[String(i + 1)] = {
+      name: row.resource_name ?? "Document",
+      resourceId: row.resource_id,
+      score: row.score,
+      startOffset: row.start_offset ?? undefined,
+      endOffset: row.end_offset ?? undefined,
+    };
+  }
+
+  // Build context message with retrieved chunks
+  const contextText =
+    preRetrievalResults.length > 0
+      ? preRetrievalResults
+          .map(
+            (r, i) =>
+              `[[${i + 1} | source:${r.resource_name ?? r.resource_id}]]\n${r.content}`,
+          )
+          .join("\n\n---\n\n")
+      : "(No relevant documents found in the knowledge base)";
+
+  const contextMsg = {
+    role: "system" as const,
+    parts: [
+      {
+        type: "text" as const,
+        text: `Knowledge base context:\n\n${contextText}`,
+      },
+    ],
+  } satisfies Omit<UIMessage, "id">;
+
+  // -----------------------------------------------------------------------
+  // Build messages for the model
+  // -----------------------------------------------------------------------
+  const baseSystem = {
+    role: "system" as const,
+    parts: [{ type: "text" as const, text: systemPrompt }],
+  } satisfies Omit<UIMessage, "id">;
 
   const fileParts = (lastMessage?.parts ?? []).filter(
     (part): part is MessageFilePart => part.type === "file",
@@ -173,6 +260,7 @@ export async function POST(req: Request) {
 
   const finalMessages = convertToModelMessages([
     baseSystem,
+    contextMsg, // pre-retrieved knowledge base context
     userContextMsg,
     ...(attachmentsMessage ? [attachmentsMessage] : []),
     ...messagesForModel,
@@ -180,39 +268,20 @@ export async function POST(req: Request) {
 
   const chatModel = process.env.OLLAMA_CHAT_MODEL ?? "qwen3";
 
+  // -----------------------------------------------------------------------
+  // Stream response with retrieve_context tool as fallback for follow-ups
+  // -----------------------------------------------------------------------
   const result = streamText({
     model: ollama(chatModel),
     messages: await finalMessages,
     tools: {
-      get_weather: tool({
-        description:
-          "Get the current weather for a location. Use this when the user asks about weather.",
-        inputSchema: z.object({
-          location: z
-            .string()
-            .describe("City or place name, e.g. London, San Francisco"),
-        }),
-        execute: async ({ location }) => {
-          return {
-            location,
-            temperature: 22,
-            unit: "celsius",
-            condition: "Sunny",
-            humidity: 65,
-            wind: "12 km/h NE",
-          };
-        },
-      }),
-      webSearch: ollama.tools.webSearch(),
       retrieve_context: tool({
         description:
-          "Search the organization's knowledge base for relevant information. Call this whenever the user asks about something that might be in the knowledge base (company values, policies, projects, people, documents) or whenever you do not have cited information to answer—call before answering rather than inferring or suggesting external sources. Pass the user's original request or question; the tool will optimize it for search.",
+          "Search the organization's knowledge base for additional information. Use this ONLY for follow-up questions on new topics not covered by the pre-retrieved context.",
         inputSchema: z.object({
           userRequest: z
             .string()
-            .describe(
-              "The user's original request or question about what they want to retrieve from the knowledge base. This can be conversational - the tool will automatically optimize it for search.",
-            ),
+            .describe("The follow-up question or topic to search for."),
         }),
         execute: async ({ userRequest }) => {
           const results = await searchDocuments(
@@ -230,7 +299,7 @@ export async function POST(req: Request) {
     onFinish: (r) => {
       if (isAnonymous === true) return;
       const parts = buildPersistedAssistantParts(r.text, citationMap);
-      const body: {
+      const persistBody: {
         conversationId: string;
         role: "assistant";
         content: string;
@@ -248,10 +317,22 @@ export async function POST(req: Request) {
           "content-type": "application/json",
           ...(cookie ? { cookie } : {}),
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(persistBody),
       }).catch(console.error);
     },
   });
 
-  return result.toUIMessageStreamResponse();
+  const hasCitations = Object.keys(citationMap).length > 0;
+
+  return result.toUIMessageStreamResponse({
+    messageMetadata: hasCitations
+      ? ({ part }) => {
+          // Send citations on the "finish" event so the client gets them
+          if (part.type === "finish") {
+            return { citations: citationMap } as Record<string, unknown>;
+          }
+          return undefined;
+        }
+      : undefined,
+  });
 }

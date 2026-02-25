@@ -145,7 +145,16 @@ export type PersistedAssistantTextPart = {
 };
 export type PersistedAssistantCitationsPart = {
   type: "citations";
-  citations: Record<string, { name: string }>;
+  citations: Record<
+    string,
+    {
+      name: string;
+      resourceId: string;
+      score: number;
+      startOffset?: number;
+      endOffset?: number;
+    }
+  >;
 };
 export type PersistedAssistantMessagePart =
   | PersistedAssistantTextPart

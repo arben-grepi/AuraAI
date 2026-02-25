@@ -5,42 +5,143 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import type { Pluggable } from "unified";
+import type { CitationInfo } from "./types";
+import { FileText } from "lucide-react";
 
 interface MarkdownContentProps {
   content: string;
-  citations?: Record<string, { name: string }>;
+  citations?: Record<string, CitationInfo>;
+  onCitationClick?: (citation: CitationInfo) => void;
 }
 
 function normalizeNewlines(content: string): string {
   return content.replace(/\n{3,}/g, "\n\n").trim();
 }
 
-function applyCitations(
-  content: string,
-  citations?: Record<string, { name: string }>,
-): string {
-  if (!citations || Object.keys(citations).length === 0) return content;
-  return content.replace(/\[\[\s*(\d+)\s*\]\]/g, (_, n) => {
-    const c = citations[n];
-    return c ? `(Source: ${c.name})` : `(Source: Document ${n})`;
-  });
+/**
+ * Replace [[N]] markers with a placeholder that won't be mangled by Markdown.
+ * We use a unique token and post-process in React.
+ */
+const CITATION_TOKEN = "%%CITE%%";
+
+function replaceCitationMarkers(content: string): string {
+  // Match both [[1]] and [[1 | source:filename.pdf]] formats
+  return content.replace(
+    /\[\[\s*(\d+)\s*(?:\|[^\]]*)?\]\]/g,
+    (_, n) => `${CITATION_TOKEN}${n}${CITATION_TOKEN}`,
+  );
 }
 
 /**
- * Collapses excessive newlines around citation lines so "(Source: ...)" does
- * not create huge vertical gaps. At most one blank line before and after each.
+ * Collapses excessive newlines around citation tokens.
  */
 function normalizeCitationSpacing(content: string): string {
   return content
-    .replace(/(\n{2,})(\s*\(Source:[^)]+\)\s*)(\n{2,})/g, "\n\n$2\n\n")
-    .replace(/^(\n{2,})(\s*\(Source:[^)]+\)\s*)/m, "\n\n$2")
-    .replace(/(\s*\(Source:[^)]+\)\s*)(\n{2,})$/m, "$1\n\n");
+    .replace(
+      new RegExp(
+        `(\\n{2,})(\\s*${CITATION_TOKEN}\\d+${CITATION_TOKEN}\\s*)(\\n{2,})`,
+        "g",
+      ),
+      "\n\n$2\n\n",
+    )
+    .replace(
+      new RegExp(
+        `^(\\n{2,})(\\s*${CITATION_TOKEN}\\d+${CITATION_TOKEN}\\s*)`,
+        "m",
+      ),
+      "\n\n$2",
+    )
+    .replace(
+      new RegExp(
+        `(\\s*${CITATION_TOKEN}\\d+${CITATION_TOKEN}\\s*)(\\n{2,})$`,
+        "m",
+      ),
+      "$1\n\n",
+    );
 }
 
-export function MarkdownContent({ content, citations }: MarkdownContentProps) {
+/**
+ * Inline citation badge component.
+ */
+function CitationBadge({
+  num,
+  citation,
+  onClick,
+}: {
+  num: string;
+  citation: CitationInfo | undefined;
+  onClick?: (citation: CitationInfo) => void;
+}) {
+  const name = citation?.name ?? `Document ${num}`;
+  const isClickable = onClick && citation?.resourceId;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs font-medium mx-0.5 align-baseline",
+        isClickable
+          ? "border-primary/30 bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors"
+          : "border-border bg-muted text-muted-foreground",
+      )}
+      role={isClickable ? "button" : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      onClick={() => {
+        if (isClickable && citation) onClick(citation);
+      }}
+      onKeyDown={(e) => {
+        if (isClickable && citation && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          onClick(citation);
+        }
+      }}
+      title={`Source: ${name}`}
+    >
+      <FileText className="h-3 w-3 shrink-0" />
+      <span className="truncate max-w-[120px]">{name}</span>
+    </span>
+  );
+}
+
+/**
+ * Process children of a React element to replace citation tokens with badges.
+ */
+function processChildren(
+  children: React.ReactNode,
+  citations: Record<string, CitationInfo> | undefined,
+  onCitationClick: ((citation: CitationInfo) => void) | undefined,
+): React.ReactNode {
+  return React.Children.map(children, (child) => {
+    if (typeof child !== "string") return child;
+
+    const parts = child.split(new RegExp(`${CITATION_TOKEN}(\\d+)${CITATION_TOKEN}`, "g"));
+    if (parts.length === 1) return child; // no citations
+
+    return parts.map((part, i) => {
+      // Odd indices are the captured citation numbers
+      if (i % 2 === 1) {
+        return (
+          <CitationBadge
+            key={`cite-${part}-${i}`}
+            num={part}
+            citation={citations?.[part]}
+            onClick={onCitationClick}
+          />
+        );
+      }
+      return part || null;
+    });
+  });
+}
+
+export function MarkdownContent({
+  content,
+  citations,
+  onCitationClick,
+}: MarkdownContentProps) {
   const normalized = normalizeNewlines(content);
-  const withCitations = applyCitations(normalized, citations);
-  const renderedContent = normalizeCitationSpacing(withCitations);
+  const withTokens = replaceCitationMarkers(normalized);
+  const renderedContent = normalizeCitationSpacing(withTokens);
+
   const [rehypeHighlight, setRehypeHighlight] =
     React.useState<Pluggable | null>(null);
 
@@ -53,7 +154,7 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
         };
         if (mounted) setRehypeHighlight(() => mod.default);
       } catch {
-        // no-op if unavailable,
+        // no-op if unavailable
       }
     }
     load();
@@ -61,8 +162,6 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
       mounted = false;
     };
   }, []);
-
-  // Syntax highlighting theme is imported globally via app/globals.css
 
   return (
     <div className="text-base prose dark:prose-invert max-w-none sm:prose-base prose-sm w-full min-w-0 overflow-x-hidden prose-code:before:content-none prose-code:after:content-none">
@@ -72,7 +171,7 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
         components={{
           img({ src, alt, ...props }) {
             return (
-              // eslint-disable-next-line @next/next/no-img-element,
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={src ?? ""}
                 alt={alt ?? ""}
@@ -87,7 +186,7 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
                 className="text-foreground leading-6 mb-1.5 last:mb-0"
                 {...props}
               >
-                {children}
+                {processChildren(children, citations, onCitationClick)}
               </p>
             );
           },
@@ -194,7 +293,7 @@ export function MarkdownContent({ content, citations }: MarkdownContentProps) {
                 style={{ listStylePosition: "outside" }}
                 {...props}
               >
-                {children}
+                {processChildren(children, citations, onCitationClick)}
               </li>
             );
           },

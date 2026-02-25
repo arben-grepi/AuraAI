@@ -65,6 +65,7 @@ export interface MessageProps
   message?: ChatMessage;
   isStreaming?: boolean;
   submitted?: boolean;
+  onCitationClick?: (citation: import("./types").CitationInfo) => void;
 }
 
 function Message({
@@ -73,6 +74,7 @@ function Message({
   message,
   isStreaming = false,
   submitted = false,
+  onCitationClick,
   ...props
 }: MessageProps) {
   const resolvedVariant =
@@ -181,12 +183,13 @@ function Message({
                                 | {
                                     citations?: Record<
                                       string,
-                                      { name: string }
+                                      import("./types").CitationInfo
                                     >;
                                   }
                                 | undefined
                             )?.citations
                           }
+                          onCitationClick={onCitationClick}
                         />
                         <CopyToClipboard text={textContent} />
                       </>
@@ -321,19 +324,12 @@ function isToolInvocationPart(
 function getToolCallingStatusLabel(
   toolName: string,
   state: string,
-  input?: unknown,
+  _input?: unknown,
 ): string {
   const isCalling = state === "input-streaming" || state === "input-available";
   if (!isCalling) return toolName;
 
   switch (toolName) {
-    case "get_weather": {
-      const loc =
-        input && typeof input === "object" && "location" in input
-          ? String((input as { location?: string }).location ?? "")
-          : "";
-      return loc ? `Getting weather for ${loc}…` : "Getting weather data…";
-    }
     case "retrieve_context":
       return "Searching through files…";
     default:
@@ -352,7 +348,7 @@ function ToolPartStatusLinePlaceholder() {
       aria-live="polite"
     >
       <Cloud className="h-3 w-3 shrink-0" aria-hidden />
-      <span>Getting weather data…</span>
+      <span>Processing…</span>
     </div>
   );
 }
@@ -437,19 +433,5 @@ function ToolPartStatusLine({ part }: { part: ChatToolInvocationPart }) {
   );
 }
 
-function formatToolOutput(toolName: string, output: unknown): string {
-  if (toolName === "get_weather" && output && typeof output === "object") {
-    const o = output as {
-      temperature?: number;
-      condition?: string;
-      location?: string;
-    };
-    const temp = o.temperature ?? "?";
-    const cond = o.condition ?? "";
-    const loc = o.location ?? "";
-    return [loc, `${temp}°C`, cond].filter(Boolean).join(" · ");
-  }
-  return `${toolName}: done`;
-}
 
 export { Message, messageVariants, messageContentVariants };
