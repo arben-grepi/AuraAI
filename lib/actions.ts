@@ -12,11 +12,12 @@ import {
   requestPasswordResetSchema,
   resetPasswordSchema,
   createOrganizationSchema,
+  organizationSourcesSchema,
 } from "./schema";
 import { z } from "zod";
 import { generateSlug } from "./utils";
 import { UIMessage, generateText } from "ai";
-import { ollama } from "ai-sdk-ollama";
+import { openai } from "@ai-sdk/openai";
 
 async function getMembership(organizationId: string, userId: string) {
   return prisma.member.findFirst({
@@ -632,7 +633,7 @@ export async function generateTitleFromUserMessage({
   message: UIMessage;
 }) {
   const { text: title } = await generateText({
-    model: ollama("qwen3"),
+    model: openai("gpt-4o-mini"),
     system: `\n
     - you will generate a short title based on the first message a user begins a conversation with
     - ensure it is not more than 80 characters long
@@ -1069,6 +1070,63 @@ export async function deleteChatFolder(
   } catch (error) {
     console.error("[PRISMA] Delete chat folder failed", error);
     return { success: false, data: null, error: "Failed to delete folder" };
+  }
+}
+
+export async function handleUpdateOrganizationSources({
+  organizationId,
+  sources,
+}: {
+  organizationId: string;
+  sources: string[];
+}): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const canManageOrg = await userHasOrgAdminAccess({
+    organizationId,
+    userId: session.user.id,
+    sessionRole: session.user.role,
+  });
+
+  if (!canManageOrg) {
+    return { success: false, data: null, error: "Insufficient permissions" };
+  }
+
+  const validated = organizationSourcesSchema.safeParse({ sources });
+  if (!validated.success) {
+    return { success: false, data: null, error: validated.error.message };
+  }
+
+  try {
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: { sources: validated.data.sources },
+    });
+
+    return {
+      success: true,
+      data: { data: "Organization sources updated" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error(
+      "[PRISMA] Update organization sources has not worked",
+      error,
+    );
+    return {
+      error: "Could not update organization sources",
+      success: false,
+      data: null,
+    };
   }
 }
 

@@ -133,7 +133,7 @@ export async function processRagFile(
     console.error("RAG embedding error:", e);
     return {
       success: false,
-      error: "Failed to generate embeddings. Ensure Ollama is running with nomic-embed-text.",
+      error: "Failed to generate embeddings.",
     };
   }
 

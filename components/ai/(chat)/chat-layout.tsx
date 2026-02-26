@@ -1,12 +1,18 @@
 "use client";
 
+import * as React from "react";
 import { StickToBottom } from "use-stick-to-bottom";
 import { ScrollToBottom } from "./scroll-to-bottom";
 import { ChatInput } from "./chat-input";
+import type { ChatInputHandle } from "./chat-input";
 import type { UploadedAttachment } from "./types";
 
 const scrollAreaClassName =
   "flex flex-col gap-6 bg-background scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/40 scrollbar-thumb-rounded-full min-w-0";
+
+export interface ChatLayoutHandle {
+  focusInput: () => void;
+}
 
 export interface ChatLayoutProps {
   header?: React.ReactNode;
@@ -20,14 +26,19 @@ export interface ChatLayoutProps {
   onStop: () => void;
 }
 
-export function ChatLayout({
+export const ChatLayout = React.forwardRef<ChatLayoutHandle, ChatLayoutProps>(function ChatLayout({
   header,
   children,
   isAnonymous,
   loading,
   onSend,
   onStop,
-}: ChatLayoutProps) {
+}, ref) {
+  const chatInputRef = React.useRef<ChatInputHandle>(null);
+
+  React.useImperativeHandle(ref, () => ({
+    focusInput: () => chatInputRef.current?.focus(),
+  }));
   return (
     <div className="mx-auto flex flex-col overflow-hidden w-full h-screen relative">
       {header}
@@ -52,6 +63,7 @@ export function ChatLayout({
       <div className="w-full bg-linear-to-t from-white dark:from-background from-80% to-transparent">
         <div className="max-w-3xl mx-auto w-full">
           <ChatInput
+            ref={chatInputRef}
             isAnonymous={isAnonymous}
             loading={loading}
             onSend={onSend}
@@ -61,4 +73,4 @@ export function ChatLayout({
       </div>
     </div>
   );
-}
+});

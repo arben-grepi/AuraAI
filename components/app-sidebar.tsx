@@ -1,4 +1,4 @@
-import { PenLine, Search } from "lucide-react";
+import { Loader2, PenLine, Search } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -10,9 +10,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Conversations } from "./sidebar/conversations";
+import { Conversations } from "./ai/(chat)/sidebar/conversations";
 import { Suspense } from "react";
-import { ConversationsSkeleton } from "./sidebar/conversations-skeleton";
+import { ConversationsSkeleton } from "./ai/(chat)/sidebar/conversations-skeleton";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import Image from "next/image";
@@ -74,26 +74,34 @@ export async function AppSidebar({ org }: { org: string }) {
       <SidebarContent className="overflow-hidden">
         <SidebarHeader className="flex shrink-0 flex-row justify-between items-center">
           <div
-            className="w-full h-12 rounded-[12px] border border-zinc-200 flex items-center justify-between px-2 py-4"
+            className="w-full h-12 rounded-[12px] bg-white shadow-sm border border-zinc-200 flex items-center justify-between px-2 py-4"
             style={{
               backgroundImage: `linear-gradient(to bottom, transparent, ${organization?.backgroundColor || ""})`,
             }}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex gap-4">
               {!organization ? (
-                <div>Loading...</div>
+                <div className="w-[60px] h-[60px] rounded-[6px] bg-zinc-200 flex items-center justify-center">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                </div>
               ) : (
-                <Image
-                  src={organization?.logo || ""}
-                  alt={organization?.name || ""}
-                  width={34}
-                  height={34}
-                  className="block rounded-[6px] aspect-square object-cover"
-                />
+                <div className="relative size-[60px] shrink-0 overflow-hidden rounded-[6px]">
+                  <Image
+                    src={organization?.logo || ""}
+                    alt={organization?.name || ""}
+                    fill
+                    className="object-contain"
+                  />
+                </div>
               )}
-              <p className="text-sm font-medium text-zinc-800 ml-2">
-                {organization?.name}
-              </p>
+              <div className="flex flex-col justify-center text-left gap-1">
+                <p className="text-sm font-medium text-zinc-800">
+                  {organization?.name}
+                </p>
+                <p className="text-xs font-medium text-zinc-500">
+                  Organization
+                </p>
+              </div>
             </div>
             {isOrgAdmin && <AiSettingsDialog orgSlug={org} />}
           </div>

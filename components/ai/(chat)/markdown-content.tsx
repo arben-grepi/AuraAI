@@ -7,11 +7,15 @@ import { cn } from "@/lib/utils";
 import type { Pluggable } from "unified";
 import type { CitationInfo } from "./types";
 import { FileText } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface MarkdownContentProps {
   content: string;
   citations?: Record<string, CitationInfo>;
-  onCitationClick?: (citation: CitationInfo) => void;
 }
 
 function normalizeNewlines(content: string): string {
@@ -61,44 +65,70 @@ function normalizeCitationSpacing(content: string): string {
 }
 
 /**
- * Inline citation badge component.
+ * Inline citation badge component with hover popover.
  */
 function CitationBadge({
   num,
   citation,
-  onClick,
 }: {
   num: string;
   citation: CitationInfo | undefined;
-  onClick?: (citation: CitationInfo) => void;
 }) {
+  const [open, setOpen] = React.useState(false);
   const name = citation?.name ?? `Document ${num}`;
-  const isClickable = onClick && citation?.resourceId;
 
-  return (
+  const badge = (
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs font-medium mx-0.5 align-baseline",
-        isClickable
-          ? "border-primary/30 bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors"
-          : "border-border bg-muted text-muted-foreground",
+        "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors",
       )}
-      role={isClickable ? "button" : undefined}
-      tabIndex={isClickable ? 0 : undefined}
-      onClick={() => {
-        if (isClickable && citation) onClick(citation);
-      }}
-      onKeyDown={(e) => {
-        if (isClickable && citation && (e.key === "Enter" || e.key === " ")) {
-          e.preventDefault();
-          onClick(citation);
-        }
-      }}
-      title={`Source: ${name}`}
     >
       <FileText className="h-3 w-3 shrink-0" />
       <span className="truncate max-w-[120px]">{name}</span>
     </span>
+  );
+
+  if (!citation) return badge;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <span
+          onMouseEnter={() => setOpen(true)}
+          onMouseLeave={() => setOpen(false)}
+        >
+          {badge}
+        </span>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-64 p-3 text-sm"
+        side="top"
+        align="center"
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5 font-medium text-foreground">
+            <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span className="truncate">{name}</span>
+          </div>
+          {citation.tags && citation.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-0.5">
+              {citation.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-block rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -108,7 +138,6 @@ function CitationBadge({
 function processChildren(
   children: React.ReactNode,
   citations: Record<string, CitationInfo> | undefined,
-  onCitationClick: ((citation: CitationInfo) => void) | undefined,
 ): React.ReactNode {
   return React.Children.map(children, (child) => {
     if (typeof child !== "string") return child;
@@ -124,7 +153,6 @@ function processChildren(
             key={`cite-${part}-${i}`}
             num={part}
             citation={citations?.[part]}
-            onClick={onCitationClick}
           />
         );
       }
@@ -136,7 +164,6 @@ function processChildren(
 export function MarkdownContent({
   content,
   citations,
-  onCitationClick,
 }: MarkdownContentProps) {
   const normalized = normalizeNewlines(content);
   const withTokens = replaceCitationMarkers(normalized);
@@ -186,7 +213,7 @@ export function MarkdownContent({
                 className="text-foreground leading-6 mb-1.5 last:mb-0"
                 {...props}
               >
-                {processChildren(children, citations, onCitationClick)}
+                {processChildren(children, citations)}
               </p>
             );
           },
@@ -293,7 +320,7 @@ export function MarkdownContent({
                 style={{ listStylePosition: "outside" }}
                 {...props}
               >
-                {processChildren(children, citations, onCitationClick)}
+                {processChildren(children, citations)}
               </li>
             );
           },

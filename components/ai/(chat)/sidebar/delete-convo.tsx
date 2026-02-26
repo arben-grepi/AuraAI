@@ -1,7 +1,7 @@
 "use client";
 
 import { deleteConversation } from "@/lib/actions";
-import { DropdownMenuItem } from "../ui/dropdown-menu";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useConversations } from "@/hooks/use-conversations";
 import { toast } from "sonner";
 import { useRouter, usePathname } from "next/navigation";

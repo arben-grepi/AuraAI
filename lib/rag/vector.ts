@@ -1,4 +1,4 @@
-export const EXPECTED_VECTOR_DIMENSION = 768;
+export const EXPECTED_VECTOR_DIMENSION = 1536;
 
 export function validateVector(vec: number[]): void {
   if (!Array.isArray(vec)) {

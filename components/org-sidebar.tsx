@@ -4,9 +4,8 @@ import {
   Sparkles,
   ChevronLeft,
   Users,
-  Coins,
-  GitMerge,
   LogOut,
+  FileText,
 } from "lucide-react";
 import {
   Sidebar,
@@ -22,10 +21,32 @@ import {
 } from "@/components/ui/sidebar";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { signOut } from "@/lib/auth-client";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+
 const items = [
   { title: "General", url: "", icon: Settings2 },
   { title: "Ai Customization", url: "ai", icon: Sparkles },
   { title: "Users", url: "users", icon: Users },
+  { title: "Sources", url: "sources", icon: FileText },
 ];
 
 export function OrgSidebar({ name }: { name: string }) {
@@ -87,21 +108,42 @@ export function OrgSidebar({ name }: { name: string }) {
           </SidebarGroup>
         </div>
         <SidebarFooter className="justify-end p-4">
-          <SidebarMenuButton
-            className="hover:bg-zinc-100 transition-all duration-200"
-            onClick={() =>
-              void signOut({
-                fetchOptions: {
-                  onSuccess: () => {
-                    router.push("/sign-in");
-                  },
-                },
-              })
-            }
-          >
-            <LogOut className="size-4" />
-            Log Out
-          </SidebarMenuButton>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <SidebarMenuButton
+                variant="outline"
+                className="hover:bg-zinc-100 transition-all duration-200 w-full justify-start border border-zinc-200 py-2 px-4 cursor-pointer"
+              >
+                <LogOut className="size-4" />
+                <span className="text-sm font-medium">Log Out</span>
+              </SidebarMenuButton>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Log Out</AlertDialogTitle>
+              </AlertDialogHeader>
+              <AlertDialogDescription>
+                Are you sure you want to log out?
+              </AlertDialogDescription>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <Button
+                  variant="destructive"
+                  onClick={() =>
+                    signOut({
+                      fetchOptions: {
+                        onSuccess: () => {
+                          router.push("/sign-in");
+                        },
+                      },
+                    })
+                  }
+                >
+                  Log Out
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </SidebarFooter>
       </SidebarContent>
     </Sidebar>

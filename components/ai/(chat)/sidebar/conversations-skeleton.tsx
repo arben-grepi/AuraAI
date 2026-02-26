@@ -1,5 +1,5 @@
-import { SidebarMenuButton } from "../ui/sidebar";
-import { SidebarMenuItem } from "../ui/sidebar";
+import { SidebarMenuButton } from "@/components/ui/sidebar";
+import { SidebarMenuItem } from "@/components/ui/sidebar";
 
 export function ConversationsSkeleton() {
   return (

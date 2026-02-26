@@ -63,9 +63,10 @@ export function ChatHeaderStrip({
             <Image
               src={organization?.logo || "/logo.svg"}
               alt={organization?.name || "Organization Logo"}
-              width={70}
-              height={70}
-              className="rounded-sm aspect-square object-cover"
+              width={100}
+              height={100}
+              quality={100}
+              className="rounded-sm object-fit"
             />
           </motion.div>
         )}

@@ -121,10 +121,11 @@ model Organization {
   resources       Resource[]
   fileFolders     FileFolder[]
   chatFolders     ChatFolder[]
+  sources         String[]      @default([])
+  sourceIndexes   SourceIndex[]
 
   @@map("organization")
 }
-
 model Member {
   id             String       @id
   organizationId String
@@ -200,4 +201,17 @@ model ChatFolder {
   conversations  Conversation[]
 
   @@map("chat_folders")
+}
+
+model SourceIndex {
+  id             String       @id @default(uuid())
+  organizationId String       @map("organization_id")
+  sourceUrl      String       @map("source_url")
+  lastIndexedAt  DateTime     @map("last_indexed_at")
+  pagesIndexed   Int          @map("pages_indexed")
+  totalChunks    Int          @map("total_chunks")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, sourceUrl])
+  @@map("source_indexes")
 }

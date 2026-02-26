@@ -4,8 +4,7 @@ export type CitationInfo = {
   name: string;
   resourceId: string;
   score: number;
-  startOffset?: number;
-  endOffset?: number;
+  tags?: string[];
 };
 
 export type ChatMessage = UIMessage<{

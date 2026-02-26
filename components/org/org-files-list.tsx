@@ -66,6 +66,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string>("");
   const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(
     new Set(),
   );
@@ -127,6 +128,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
   };
 
   const handleUploadFile = async () => {
+    setIsUploading(true);
     if (!file) {
       toast.error("Please select a file");
       return;
@@ -159,6 +161,8 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
       toast.error(
         error instanceof Error ? error.message : "Failed to upload file",
       );
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -311,7 +315,13 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                 <Button
                   onClick={handleUploadFile}
                   className="w-fit py-5 rounded-[10px] cursor-pointer"
+                  disabled={isUploading}
                 >
+                  {isUploading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <p>Upload</p>
+                  )}
                   <p>Upload</p>
                 </Button>
               </DialogFooter>

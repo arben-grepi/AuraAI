@@ -65,7 +65,6 @@ export interface MessageProps
   message?: ChatMessage;
   isStreaming?: boolean;
   submitted?: boolean;
-  onCitationClick?: (citation: import("./types").CitationInfo) => void;
 }
 
 function Message({
@@ -74,7 +73,6 @@ function Message({
   message,
   isStreaming = false,
   submitted = false,
-  onCitationClick,
   ...props
 }: MessageProps) {
   const resolvedVariant =
@@ -189,7 +187,6 @@ function Message({
                                 | undefined
                             )?.citations
                           }
-                          onCitationClick={onCitationClick}
                         />
                         <CopyToClipboard text={textContent} />
                       </>
@@ -332,6 +329,8 @@ function getToolCallingStatusLabel(
   switch (toolName) {
     case "retrieve_context":
       return "Searching through files…";
+    case "web_search":
+      return "Searching the web…";
     default:
       return `Calling ${toolName}…`;
   }
@@ -432,6 +431,5 @@ function ToolPartStatusLine({ part }: { part: ChatToolInvocationPart }) {
     </motion.div>
   );
 }
-
 
 export { Message, messageVariants, messageContentVariants };

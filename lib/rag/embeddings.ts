@@ -1,11 +1,11 @@
 import { embed, embedMany } from "ai";
-import { ollama } from "ai-sdk-ollama";
+import { openai } from "@ai-sdk/openai";
 
 export async function generateEmbedding(text: string) {
   const input = text.replace("/n", " ");
 
   const { embedding } = await embed({
-    model: ollama.embedding("nomic-embed-text"),
+    model: openai.embedding("text-embedding-3-small"),
     value: input,
   });
 
@@ -16,7 +16,7 @@ export async function generateEmbeddings(texts: string[]) {
   const inputs = texts.map((text) => text.replace("/n", " "));
 
   const { embeddings } = await embedMany({
-    model: ollama.embedding("nomic-embed-text"),
+    model: openai.embedding("text-embedding-3-small"),
     values: inputs,
   });
 

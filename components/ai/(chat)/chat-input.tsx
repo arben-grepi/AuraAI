@@ -22,6 +22,10 @@ const ALLOWED_MEDIA_TYPES = [
   "image/webp",
 ];
 
+export interface ChatInputHandle {
+  focus: () => void;
+}
+
 interface ChatInputProps {
   onSend: (payload: {
     text?: string;
@@ -42,15 +46,21 @@ interface ComposerAttachment extends UploadedAttachment {
   fingerprint: string;
 }
 
-export function ChatInput({
+export const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput({
   isAnonymous,
   onSend,
   loading,
   className,
-}: ChatInputProps) {
+}: ChatInputProps, ref) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  React.useImperativeHandle(ref, () => ({
+    focus: () => textareaRef.current?.focus(),
+  }));
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -69,12 +79,16 @@ export function ChatInput({
   const dropZoneClassName = useMemo(
     () =>
       cn(
-        "flex items-end relative z-20 justify-center w-full px-2 py-2 gap-2 rounded-[30px] mb-4 border border-border bg-white transition",
-        isDragging ? "ring-2 ring-primary/50 border-primary/40" : "ring-0",
+        "flex items-end relative z-20 justify-center w-full px-2 py-2 gap-2 rounded-[30px] mb-4 border bg-white transition-all duration-300",
+        isDragging
+          ? "ring-2 ring-primary/50 border-primary/40"
+          : isFocused
+            ? "border-primary/30 shadow-[0_0_12px_rgba(99,102,241,0.15)]"
+            : "border-border ring-0",
         isAnonymous && "bg-zinc-800 text-white",
         className,
       ),
-    [className, isDragging, isAnonymous],
+    [className, isDragging, isFocused, isAnonymous],
   );
 
   const uploadAndFinalize = useCallback((file: File, attachmentId: string) => {
@@ -361,9 +375,12 @@ export function ChatInput({
             />
 
             <Textarea
+              ref={textareaRef}
               placeholder="Ask me anything…"
               value={message}
               onKeyDown={handleTextareaKeyDown}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               data-no-open
               onChange={(event) => setMessage(event.target.value)}
               disabled={loading}
@@ -384,7 +401,7 @@ export function ChatInput({
       </div>
     </ChatUploaderWrapper>
   );
-}
+});
 
 type ComposerFormProps = React.FormHTMLAttributes<HTMLFormElement>;
 

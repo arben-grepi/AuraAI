@@ -1,13 +1,13 @@
 "use client";
 
-import { SidebarMenuButton, SidebarMenuItem } from "../ui/sidebar";
+import { SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ConversationsSkeleton } from "./conversations-skeleton";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { DeleteConvo } from "./delete-convo";
 import { motion } from "motion/react";
 import {
@@ -27,7 +27,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -35,7 +35,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "../ui/dialog";
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -156,7 +156,7 @@ export function Conversations({ slug }: { slug: string }) {
       <SidebarMenuItem className="min-w-0">
         <SidebarMenuButton
           className={cn(
-            "cursor-pointer bg-white shadow-sm",
+            "cursor-pointer bg-white shadow-sm my-2 border border-sidebar-border rounded-md py-4.5",
             folders.length > 0 &&
               isDragOverNewFolder &&
               "ring-2 ring-primary/50 bg-primary/5",

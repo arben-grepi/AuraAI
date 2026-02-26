@@ -61,6 +61,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ folders: foldersWithResources, rootFiles });
   } catch (error) {
+    console.error(error);
     return NextResponse.json(
       { error: "Something went wrong" },
       { status: 500 },

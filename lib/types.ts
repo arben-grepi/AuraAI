@@ -38,6 +38,7 @@ export type Organization = {
   createdAt: string;
   updatedAt: string;
   metadata: { [key: string]: string };
+  sources: string[];
 };
 
 export type OrganizationMembersFilter = {
@@ -160,4 +161,10 @@ export type PersistedAssistantMessagePart =
   | PersistedAssistantTextPart
   | PersistedAssistantCitationsPart;
 
-
+export type SourceIndexInfo = {
+  id: string;
+  sourceUrl: string;
+  lastIndexedAt: string;
+  pagesIndexed: number;
+  totalChunks: number;
+};

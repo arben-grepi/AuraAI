@@ -157,36 +157,6 @@ export const getUserContextMsg = (
   } satisfies Omit<UIMessage, "id">;
 };
 
-export function sanitizeFilePartsForOllama(
-  messages: Array<Omit<UIMessage, "id">>,
-): Array<Omit<UIMessage, "id">> {
-  return messages.map((message) => {
-    const parts = message.parts ?? [];
-    if (!parts.length) return message;
-
-    const newParts: UIMessage["parts"] = [];
-    for (const part of parts) {
-      if (part.type !== "file") {
-        newParts.push(part);
-        continue;
-      }
-      const filePart = part as MessageFilePart;
-      const url = filePart.url;
-      if (!url || (!url.startsWith("http://") && !url.startsWith("https://"))) {
-        newParts.push(part);
-        continue;
-      }
-      const name = filePart.filename ?? "image";
-      newParts.push({
-        type: "text" as const,
-        text: `[User attached an image: ${name}]`,
-      });
-    }
-
-    return { ...message, parts: newParts };
-  });
-}
-
 export function normalizeAttachment(
   part: MessageFilePart,
   fallbackOrganizationId?: string | null,

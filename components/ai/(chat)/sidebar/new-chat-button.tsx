@@ -2,9 +2,9 @@
 
 import { createConversation } from "@/lib/actions";
 import { useConversations } from "@/hooks/use-conversations";
-import { Button } from "../ui/button";
-import { SidebarMenuButton } from "../ui/sidebar";
-import { SidebarMenuItem } from "../ui/sidebar";
+import { Button } from "@/components/ui/button";
+import { SidebarMenuButton } from "@/components/ui/sidebar";
+import { SidebarMenuItem } from "@/components/ui/sidebar";
 import { toast } from "sonner";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";

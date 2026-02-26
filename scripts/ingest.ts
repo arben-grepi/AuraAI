@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { Client } from "pg";
-import { ollama } from "ai-sdk-ollama";
+import { openai } from "@ai-sdk/openai";
 import { embedMany } from "ai";
 import crypto from "crypto";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
@@ -85,7 +85,7 @@ async function main() {
   console.log(`Chunks: ${chunks.length}`);
 
   const { embeddings } = await embedMany({
-    model: ollama.embedding("nomic-embed-text"),
+    model: openai.embedding("text-embedding-3-small"),
     values: chunks,
   });
 

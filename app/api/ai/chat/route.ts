@@ -7,7 +7,6 @@ import {
   stepCountIs,
 } from "ai";
 import { z } from "zod";
-import { ollama } from "ai-sdk-ollama";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { headers } from "next/headers";
@@ -15,7 +14,6 @@ import { generateTitleFromUserMessage } from "@/lib/actions";
 import {
   getSystemPrompt,
   getUserContextMsg,
-  sanitizeFilePartsForOllama,
   normalizeAttachment,
   buildPersistedAssistantParts,
 } from "@/lib/utils";
@@ -28,21 +26,18 @@ import type {
 import { NextResponse } from "next/server";
 import { hybridSearch, searchDocuments } from "@/lib/rag/search";
 import type { SearchRow } from "@/lib/rag/search";
+import { openai } from "@ai-sdk/openai";
 
 export const runtime = "nodejs";
-export const maxDuration = 120; // generous timeout for Ollama on slow machines
+export const maxDuration = 120;
 
 type CitationMapEntry = {
   name: string;
   resourceId: string;
   score: number;
-  startOffset?: number;
-  endOffset?: number;
+  tags?: string[];
 };
 
-/**
- * Extract the text content from the last user message.
- */
 function getLastUserText(messages: UIMessage[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
@@ -172,9 +167,6 @@ export async function POST(req: Request) {
     );
   }
 
-  // -----------------------------------------------------------------------
-  // Server-side pre-retrieval: ALWAYS search before the model responds
-  // -----------------------------------------------------------------------
   const lastUserText = getLastUserText(messages);
   const citationMap: Record<string, CitationMapEntry> = {};
 
@@ -196,27 +188,24 @@ export async function POST(req: Request) {
     }
   }
 
-  // Build citation map from pre-retrieval
   for (let i = 0; i < preRetrievalResults.length; i++) {
     const row = preRetrievalResults[i];
     citationMap[String(i + 1)] = {
       name: row.resource_name ?? "Document",
       resourceId: row.resource_id,
       score: row.score,
-      startOffset: row.start_offset ?? undefined,
-      endOffset: row.end_offset ?? undefined,
+      tags: row.tags ?? undefined,
     };
   }
 
-  // Build context message with retrieved chunks
   const contextText =
     preRetrievalResults.length > 0
       ? preRetrievalResults
-          .map(
-            (r, i) =>
-              `[[${i + 1} | source:${r.resource_name ?? r.resource_id}]]\n${r.content}`,
-          )
-          .join("\n\n---\n\n")
+        .map(
+          (r, i) =>
+            `[[${i + 1} | source:${r.resource_name ?? r.resource_id}]]\n${r.content}`,
+        )
+        .join("\n\n---\n\n")
       : "(No relevant documents found in the knowledge base)";
 
   const contextMsg = {
@@ -229,9 +218,6 @@ export async function POST(req: Request) {
     ],
   } satisfies Omit<UIMessage, "id">;
 
-  // -----------------------------------------------------------------------
-  // Build messages for the model
-  // -----------------------------------------------------------------------
   const baseSystem = {
     role: "system" as const,
     parts: [{ type: "text" as const, text: systemPrompt }],
@@ -247,32 +233,27 @@ export async function POST(req: Request) {
 
   const attachmentsMessage = normalizedAttachments.length
     ? await buildAttachmentContext({
-        attachments: normalizedAttachments,
-        organizationId,
-      })
+      attachments: normalizedAttachments,
+      organizationId,
+    })
     : null;
 
   const requestMessages = messages.map(({ ...rest }) => rest) as Array<
     Omit<UIMessage, "id">
   >;
 
-  const messagesForModel = sanitizeFilePartsForOllama(requestMessages);
-
   const finalMessages = convertToModelMessages([
     baseSystem,
-    contextMsg, // pre-retrieved knowledge base context
+    contextMsg,
     userContextMsg,
     ...(attachmentsMessage ? [attachmentsMessage] : []),
-    ...messagesForModel,
+    ...requestMessages,
   ]);
 
-  const chatModel = process.env.OLLAMA_CHAT_MODEL ?? "qwen3";
+  const chatModel = "gpt-4o-mini";
 
-  // -----------------------------------------------------------------------
-  // Stream response with retrieve_context tool as fallback for follow-ups
-  // -----------------------------------------------------------------------
   const result = streamText({
-    model: ollama(chatModel),
+    model: openai(chatModel),
     messages: await finalMessages,
     tools: {
       retrieve_context: tool({
@@ -293,6 +274,7 @@ export async function POST(req: Request) {
           return results;
         },
       }),
+      web_search: openai.tools.webSearch()
     },
     stopWhen: stepCountIs(5),
     experimental_transform: smoothStream({ chunking: "word" }),
@@ -327,12 +309,12 @@ export async function POST(req: Request) {
   return result.toUIMessageStreamResponse({
     messageMetadata: hasCitations
       ? ({ part }) => {
-          // Send citations on the "finish" event so the client gets them
-          if (part.type === "finish") {
-            return { citations: citationMap } as Record<string, unknown>;
-          }
-          return undefined;
+        // Send citations on the "finish" event so the client gets them
+        if (part.type === "finish") {
+          return { citations: citationMap } as Record<string, unknown>;
         }
+        return undefined;
+      }
       : undefined,
   });
 }

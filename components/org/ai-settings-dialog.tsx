@@ -50,7 +50,7 @@ export function AiSettingsDialog({ orgSlug }: AiSettingsDialogProps) {
       <DialogTrigger asChild>
         <Settings2 className="w-4 h-4 text-cyan-600 hover:text-cyan-700 cursor-pointer" />
       </DialogTrigger>
-      <DialogContent className="min-w-[1026px]">
+      <DialogContent className="min-w-[1026px] p-0">
         <ScrollArea className=" max-h-[90vh] overflow-y-auto p-0">
           <DialogHeader className="px-6 pt-6 pb-4 hidden">
             <DialogTitle>AI Customization</DialogTitle>
