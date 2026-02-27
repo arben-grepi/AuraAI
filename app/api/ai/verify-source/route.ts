@@ -37,8 +37,8 @@ Rules:
 - REJECT any URL that is associated with adult/pornographic content, gambling, malware, phishing, piracy, illegal activity, hate speech, or any other unsafe/inappropriate content.
 - REJECT URLs with suspicious or deceptive domain patterns (e.g. typosquatting, homograph attacks).
 - APPROVE URLs from well-known reputable domains (e.g. wikipedia.org, github.com, official documentation sites, news outlets, educational institutions, government sites, established businesses).
-- APPROVE URLs that appear to be legitimate business, educational, or informational websites.
-- If you are unsure about a domain, lean towards rejecting it and explain why.
+- APPROVE URLs that appear to be legitimate business, educational, or informational websites — even if you don't recognize the specific business. A normal company website (e.g. acme.com, atrinova.se) is safe by default.
+- Only REJECT if there is a concrete reason to believe the site is harmful. Do NOT reject simply because a business is small or unfamiliar.
 
 Respond with whether the URL is safe and a brief reason.`,
     });

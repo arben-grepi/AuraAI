@@ -23,6 +23,15 @@ import type { Organization, SourceIndexInfo } from "@/lib/types";
 
 const urlSchema = z.url({ error: "Please enter a valid URL" });
 
+function normalizeUrl(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+  return trimmed;
+}
+
 type VerificationStatus = "idle" | "verifying" | "safe" | "unsafe";
 
 interface SourceEntry {
@@ -235,9 +244,14 @@ function SourcesForm({ org }: { org: Organization }) {
 
     const timer = setTimeout(() => {
       debounceTimers.current.delete(index);
-      const parsed = urlSchema.safeParse(value.trim());
+      const normalized = normalizeUrl(value);
+      const parsed = urlSchema.safeParse(normalized);
       if (parsed.success) {
-        triggerVerification(index, value);
+        // Update the input with the normalized URL
+        setSources((prev) =>
+          prev.map((e, i) => (i === index ? { ...e, value: normalized } : e)),
+        );
+        triggerVerification(index, normalized);
       }
     }, DEBOUNCE_MS);
 
@@ -248,7 +262,8 @@ function SourcesForm({ org }: { org: Organization }) {
     const entry = sources[index];
     if (!entry.value.trim()) return;
 
-    const result = urlSchema.safeParse(entry.value.trim());
+    const normalized = normalizeUrl(entry.value);
+    const result = urlSchema.safeParse(normalized);
     if (!result.success) {
       setSources((prev) =>
         prev.map((e, i) =>
@@ -256,6 +271,11 @@ function SourcesForm({ org }: { org: Organization }) {
             ? { ...e, error: result.error.issues[0]?.message ?? "Invalid URL" }
             : e,
         ),
+      );
+    } else if (normalized !== entry.value) {
+      // Auto-fix the value with https://
+      setSources((prev) =>
+        prev.map((e, i) => (i === index ? { ...e, value: normalized } : e)),
       );
     }
   };
@@ -281,7 +301,8 @@ function SourcesForm({ org }: { org: Organization }) {
 
     let hasValidationError = false;
     const validated = nonEmptySources.map((entry) => {
-      const result = urlSchema.safeParse(entry.value.trim());
+      const normalized = normalizeUrl(entry.value);
+      const result = urlSchema.safeParse(normalized);
       if (!result.success) {
         hasValidationError = true;
         return {
@@ -289,7 +310,7 @@ function SourcesForm({ org }: { org: Organization }) {
           error: result.error.issues[0]?.message ?? "Invalid URL",
         };
       }
-      return { ...entry, value: entry.value.trim(), error: null };
+      return { ...entry, value: normalized, error: null };
     });
 
     if (hasValidationError) {
