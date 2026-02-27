@@ -1,4 +1,4 @@
-import { toChatMessage } from "@/components/ai/types";
+import { toChatMessage } from "./types";
 
 describe("toChatMessage", () => {
   it("converts minimal stored message to chat message", () => {
