@@ -16,14 +16,14 @@ export const prisma =
     log:
       process.env.NODE_ENV === "development"
         ? [
-            { level: "warn", emit: "stdout" },
-            { level: "error", emit: "stdout" },
-            // we’ll listen to queries via $on below (so no {level:'query'} here)
-          ]
+          { level: "warn", emit: "stdout" },
+          { level: "error", emit: "stdout" },
+          // we’ll listen to queries via $on below (so no {level:'query'} here)
+        ]
         : [
-            { level: "warn", emit: "stdout" },
-            { level: "error", emit: "stdout" },
-          ],
+          { level: "warn", emit: "stdout" },
+          { level: "error", emit: "stdout" },
+        ],
   });
 
 // Bind a single query logger in dev (avoid multiple on HMR/StrictMode)

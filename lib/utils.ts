@@ -1,5 +1,11 @@
+import { UIMessage } from "ai";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import type {
+  AttachmentMetadata,
+  MessageFilePart,
+  PersistedAssistantMessagePart,
+} from "./types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -20,30 +26,25 @@ export function generateSlug(name: string) {
   return name.toLowerCase().replace(/ /g, "-");
 }
 
-/** Decode and Unicode-normalize a slug from URL params (path or query) for DB lookup. */
 export function normalizeSlugParam(value: string): string {
   try {
     value = decodeURIComponent(value);
-  } catch {
-    // already decoded or invalid % sequence; use as-is
-  }
+  } catch {}
   return value.normalize("NFC");
 }
 
 export function generateChunks(
   input: string,
-  maxChars = 1800, // ~450 tokens
-  overlap = 300, // ~75 tokens
+  maxChars = 1800,
+  overlap = 300,
 ): string[] {
   if (!input) return [];
 
-  // Normalize
   const text = input
     .replace(/\r/g, "")
     .replace(/[ \t]+/g, " ")
     .trim();
 
-  // Split by high-signal section markers first (numbers, headings, dashes)
   const sectionSplits = text
     .split(/\n{2,}|(?:^|\n)\s*(?:\d+\.\s+|[-–—]{3,}|[A-Z][\w& ]+:\s*$)/m)
     .map((s) => s.trim())
@@ -59,13 +60,11 @@ export function generateChunks(
   };
 
   for (const sec of sectionSplits) {
-    // Sentence-ish split (don’t over-split bullet lists)
     const parts = sec.split(/(?<=[.!?])\s+(?=[A-Z(“"'])/);
     for (const p of parts) {
       if ((buf + " " + p).length > maxChars) {
         const prev = buf;
         flush();
-        // overlap tail from previous buffer
         const tail = prev.slice(Math.max(0, prev.length - overlap));
         buf = tail ? tail + " " + p : p;
       } else {
@@ -76,14 +75,12 @@ export function generateChunks(
   }
   if (buf) flush();
 
-  // Ensure at least a couple of chunks if the doc is medium-sized
   if (chunks.length === 1 && chunks[0].length > maxChars * 1.2) {
     const mid = Math.floor(chunks[0].length / 2);
     return [chunks[0].slice(0, mid), chunks[0].slice(mid)];
   }
   return chunks;
 }
-
 
 export function getSystemPrompt(orgName: string) {
   return `
@@ -98,17 +95,30 @@ You are a specialized AI assistant that:
 
 When users ask about your purpose, capabilities, or what you are, explain that you are ${orgName}'s retrieval-augmented assistant designed to help them by accessing their organization's knowledge base and providing accurate, context-aware responses.
 
+## How Context Is Provided
+Relevant documents from the knowledge base are automatically retrieved and provided to you in a "Knowledge base context" message. You do NOT need to call a tool for the initial question — the system has already searched for you.
+
 ## Core Behaviors
-- Always read the "Context documents" message. If it is empty, acknowledge that no internal sources were retrieved before answering.
+- Read the "Knowledge base context" message carefully. If it contains relevant documents, use them to answer.
+- If the context says "(No relevant documents found)", acknowledge this and answer using general knowledge if appropriate.
+- Cite sources using [[1]], [[2]], etc. matching the chunk numbers in the context.
 - Prioritize grounded, reference-backed reasoning. Use general knowledge only to bridge gaps or provide light explanation.
 - When attachments are summarized for you, review their previews and incorporate any relevant details into your response.
 - Personalize responses when appropriate, using the user's name and organization context naturally in your interactions.
 
+## When to Call retrieve_context (Follow-Up Only)
+The retrieve_context tool is available for follow-up searches within a conversation. Call it when:
+- The user asks a NEW question on a different topic than the pre-retrieved context covers.
+- The pre-retrieved context is insufficient and you need more specific information.
+- The user explicitly asks you to search for something specific in the knowledge base.
+
+For the initial question in each turn, context is already provided — do not call the tool redundantly.
+
 ## RAG Workflow
-1. Review the latest user request and the retrieved snippets.
-2. Synthesize the most relevant facts, citing the snippet markers like [[1]] whenever you reference them.
+1. Review the "Knowledge base context" provided in the conversation.
+2. Synthesize the most relevant facts, citing with [[1]], [[2]], etc. when referencing specific chunks.
 3. Explain implications, risks, or next steps when useful. Clearly label speculation as interpretation.
-4. If nothing relevant was retrieved, say so and rely on general knowledge only if it is trustworthy.
+4. If nothing relevant was found, say so honestly. Use general knowledge only if trustworthy.
 
 ## Output Requirements
 - Use Markdown with headings and bullet lists for readability.
@@ -123,4 +133,97 @@ When users ask about your purpose, capabilities, or what you are, explain that y
 - Offer concrete suggestions for adjustments if the document may be non-compliant instead of deferring entirely to an external authority.
 - You may remind the user to confirm with officials when appropriate, but do not refuse or avoid the requested analysis.
 `;
+}
+
+export const getUserContextMsg = (
+  user: string,
+  organization: { name: string; description: string | null },
+) => {
+  if (!user || !organization) {
+    return null;
+  }
+  return {
+    role: "assistant" as const,
+    parts: [
+      {
+        type: "text" as const,
+        text: `Current Context:
+      - User: ${user}
+        - Organization: ${organization.name}
+        ${organization.description ? `\n- Organization Description: ${organization.description}` : ""}
+        You are chatting with ${user} from ${organization.name}${organization.description ? `. ${organization.name} is: ${organization.description}` : ""}. Use this context to personalize your responses when appropriate and align your answers with the organization's purpose and values.`,
+      },
+    ],
+  } satisfies Omit<UIMessage, "id">;
+};
+
+export function normalizeAttachment(
+  part: MessageFilePart,
+  fallbackOrganizationId?: string | null,
+): { part: MessageFilePart; metadata: AttachmentMetadata } {
+  return {
+    part,
+    metadata: extractKommunMetadata(part, fallbackOrganizationId),
+  };
+}
+
+export function extractKommunMetadata(
+  part: MessageFilePart,
+  fallbackOrganizationId?: string | null,
+): AttachmentMetadata {
+  const providerMetadata =
+    part.providerMetadata &&
+    typeof part.providerMetadata === "object" &&
+    part.providerMetadata !== null
+      ? (part.providerMetadata as Record<string, unknown>)
+      : {};
+
+  const kommunMetadata =
+    providerMetadata.kommun &&
+    typeof providerMetadata.kommun === "object" &&
+    providerMetadata.kommun !== null
+      ? (providerMetadata.kommun as Record<string, unknown>)
+      : providerMetadata;
+
+  const organizationIdValue = kommunMetadata.organizationId;
+  const organizationId =
+    typeof organizationIdValue === "string"
+      ? organizationIdValue
+      : organizationIdValue === null
+        ? null
+        : fallbackOrganizationId;
+
+  return {
+    objectKey:
+      typeof kommunMetadata.objectKey === "string"
+        ? kommunMetadata.objectKey
+        : undefined,
+    size:
+      typeof kommunMetadata.size === "number" ? kommunMetadata.size : undefined,
+    organizationId,
+  } satisfies AttachmentMetadata;
+}
+
+export function buildPersistedAssistantParts(
+  text: string,
+  citationMap: Record<string, { name: string; resourceId?: string; score?: number; startOffset?: number; endOffset?: number }>,
+): PersistedAssistantMessagePart[] {
+  // Ensure citations match the persisted type (resourceId and score are required in the stored type)
+  const normalizedCitations: Record<string, { name: string; resourceId: string; score: number; startOffset?: number; endOffset?: number }> = {};
+  for (const [key, val] of Object.entries(citationMap)) {
+    normalizedCitations[key] = {
+      name: val.name,
+      resourceId: val.resourceId ?? "",
+      score: val.score ?? 0,
+      startOffset: val.startOffset,
+      endOffset: val.endOffset,
+    };
+  }
+  const parts: PersistedAssistantMessagePart[] = [
+    { type: "text", text, state: "done" },
+  ];
+  if (Object.keys(normalizedCitations).length > 0) {
+    parts.push({ type: "citations", citations: normalizedCitations });
+  }
+  return parts;
 }

@@ -104,6 +104,6 @@ describe("getSystemPrompt", () => {
   it("includes RAG and citation instructions", () => {
     const prompt = getSystemPrompt("X");
     expect(prompt).toContain("[[1]]");
-    expect(prompt).toContain("Context documents");
+    expect(prompt).toContain("Knowledge base context");
   });
 });

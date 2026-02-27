@@ -1,20 +1,19 @@
 import "dotenv/config";
 import { Client } from "pg";
-import OpenAI from "openai";
+import { openai } from "@ai-sdk/openai";
+import { embedMany } from "ai";
 import crypto from "crypto";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 
 const DATABASE_URL = process.env.DATABASE_URL!;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY!;
-const EMBEDDING_MODEL = "text-embedding-3-small";
 const CHUNK_SIZE = 1800;
 const CHUNK_OVERLAP = 300;
 
 const toVector = (vec: number[]) => `'[${vec.join(",")}]'::vector`;
 
 async function main() {
-  if (!DATABASE_URL || !OPENAI_API_KEY) {
-    throw new Error("Missing DATABASE_URL or OPENAI_API_KEY");
+  if (!DATABASE_URL) {
+    throw new Error("Missing DATABASE_URL");
   }
 
   const text = `NovaTech Solutions Inc.
@@ -85,13 +84,12 @@ async function main() {
   }
   console.log(`Chunks: ${chunks.length}`);
 
-  const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-  const emb = await openai.embeddings.create({
-    model: EMBEDDING_MODEL,
-    input: chunks,
+  const { embeddings } = await embedMany({
+    model: openai.embedding("text-embedding-3-small"),
+    values: chunks,
   });
 
-  if (!emb.data?.length) throw new Error("No embeddings returned");
+  if (!embeddings?.length) throw new Error("No embeddings returned");
 
   const pg = new Client({ connectionString: DATABASE_URL });
   await pg.connect();
@@ -108,10 +106,10 @@ async function main() {
     const params: unknown[] = [];
     let p = 1;
 
-    for (let i = 0; i < emb.data.length; i++) {
+    for (let i = 0; i < embeddings.length; i++) {
       const id = crypto.randomUUID();
       const content = chunks[i];
-      const vector = toVector(emb.data[i].embedding as number[]);
+      const vector = toVector(embeddings[i]);
 
       if (hasMetadataColumn) {
         const metadata = docs[i].metadata ?? {};

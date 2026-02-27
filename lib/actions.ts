@@ -12,6 +12,7 @@ import {
   requestPasswordResetSchema,
   resetPasswordSchema,
   createOrganizationSchema,
+  organizationSourcesSchema,
 } from "./schema";
 import { z } from "zod";
 import { generateSlug } from "./utils";
@@ -136,9 +137,9 @@ export async function signIn(
   };
 }
 
-export async function createConversation(chatFolderId?: string | null): Promise<
-  ActionResult<{ data: string; id: string }>
-> {
+export async function createConversation(
+  chatFolderId?: string | null,
+): Promise<ActionResult<{ data: string; id: string }>> {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -905,8 +906,10 @@ export async function handleUpdateOrganizationSystemPrompt({
   }
 }
 
-
-export async function createFileFolder(organizationId: string, name: string): Promise<ActionResult<{ data: string }>> {
+export async function createFileFolder(
+  organizationId: string,
+  name: string,
+): Promise<ActionResult<{ data: string }>> {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -931,16 +934,28 @@ export async function createFileFolder(organizationId: string, name: string): Pr
     });
 
     if (!data) {
-      return { success: false, data: null, error: "Failed to create file folder" };
+      return {
+        success: false,
+        data: null,
+        error: "Failed to create file folder",
+      };
     }
 
-    return { success: true, data: { data: "File folder created" }, error: null };
+    return {
+      success: true,
+      data: { data: "File folder created" },
+      error: null,
+    };
   } catch (error) {
     if (error instanceof APIError) {
       return { error: error.message, success: false, data: null };
     }
     console.error("[PRISMA] Create file folder has not worked", error);
-    return { success: false, data: null, error: "Failed to create file folder" };
+    return {
+      success: false,
+      data: null,
+      error: "Failed to create file folder",
+    };
   }
 }
 
@@ -1039,7 +1054,10 @@ export async function deleteChatFolder(
   }
 
   if (session.user.role !== "admin") {
-    const membership = await getMembership(folder.organizationId, session.user.id);
+    const membership = await getMembership(
+      folder.organizationId,
+      session.user.id,
+    );
     if (!membership) {
       return { success: false, data: null, error: "Unauthorized" };
     }
@@ -1052,6 +1070,63 @@ export async function deleteChatFolder(
   } catch (error) {
     console.error("[PRISMA] Delete chat folder failed", error);
     return { success: false, data: null, error: "Failed to delete folder" };
+  }
+}
+
+export async function handleUpdateOrganizationSources({
+  organizationId,
+  sources,
+}: {
+  organizationId: string;
+  sources: string[];
+}): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const canManageOrg = await userHasOrgAdminAccess({
+    organizationId,
+    userId: session.user.id,
+    sessionRole: session.user.role,
+  });
+
+  if (!canManageOrg) {
+    return { success: false, data: null, error: "Insufficient permissions" };
+  }
+
+  const validated = organizationSourcesSchema.safeParse({ sources });
+  if (!validated.success) {
+    return { success: false, data: null, error: validated.error.message };
+  }
+
+  try {
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: { sources: validated.data.sources },
+    });
+
+    return {
+      success: true,
+      data: { data: "Organization sources updated" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error(
+      "[PRISMA] Update organization sources has not worked",
+      error,
+    );
+    return {
+      error: "Could not update organization sources",
+      success: false,
+      data: null,
+    };
   }
 }
 
@@ -1085,7 +1160,11 @@ export async function updateConversationFolder(
     return { success: false, data: null, error: "Conversation not found" };
   }
   if (conversation.organizationId !== organizationId) {
-    return { success: false, data: null, error: "Conversation not in active organization" };
+    return {
+      success: false,
+      data: null,
+      error: "Conversation not in active organization",
+    };
   }
 
   if (chatFolderId) {

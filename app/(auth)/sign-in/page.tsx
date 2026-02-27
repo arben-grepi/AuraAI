@@ -53,12 +53,6 @@ export default function Page() {
           <p className="form-description">
             Sign in to your organization account
           </p>
-          <button className="flex items-center cursor-pointer justify-center gap-2 w-full border border-zinc-100 shadow-xs bg-white py-2.5 rounded-full mt-6">
-            <Image src="/google.svg" alt="Google" width={16} height={16} />
-            <p className="font-medium text-base leading-6 text-zinc-500">
-              Sign in with Google
-            </p>
-          </button>
         </CardHeader>
         <CardContent className="p-0">
           <Form {...form}>

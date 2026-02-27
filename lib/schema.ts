@@ -24,6 +24,10 @@ export const resetPasswordSchema = z.object({
   newPassword: z.string().min(8, { error: "Password is required" }),
 });
 
+export const organizationSourcesSchema = z.object({
+  sources: z.array(z.url({ error: "Please enter a valid URL" })).default([]),
+});
+
 export const createOrganizationSchema = z.object({
   name: z.string().min(1, { error: "Name is required" }),
   description: z.string().optional(),

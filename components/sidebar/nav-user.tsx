@@ -25,7 +25,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { SignOutButton } from "../auth/sign-out-button";
-import { ThemeToggle } from "../theme-toggle";
+import { ThemeToggle } from "../theme/theme-toggle";
 
 export function NavUser({
   name,
