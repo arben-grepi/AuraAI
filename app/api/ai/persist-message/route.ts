@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { isSystemAdmin } from "@/lib/auth-utils";
 
 export async function POST(req: Request) {
   try {
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
     }
 
     // Verify user has access to organization
-    if (session.user.role !== "admin") {
+    if (!isSystemAdmin(session.user.role)) {
       const membership = await prisma.member.findFirst({
         where: {
           organizationId,

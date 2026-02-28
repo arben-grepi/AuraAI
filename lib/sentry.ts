@@ -1,13 +1,5 @@
-/**
- * Sentry utility functions for setting user context and other common operations
- */
-
 import * as Sentry from "@sentry/nextjs";
 
-/**
- * Set user context in Sentry for error tracking
- * Call this in API routes or server components after verifying authentication
- */
 export function setSentryUser(user: {
   id: string;
   email?: string | null;
@@ -22,16 +14,10 @@ export function setSentryUser(user: {
   });
 }
 
-/**
- * Clear user context in Sentry (e.g., on logout)
- */
 export function clearSentryUser() {
   Sentry.setUser(null);
 }
 
-/**
- * Add breadcrumb to Sentry for debugging
- */
 export function addBreadcrumb(
   message: string,
   category?: string,

@@ -7,6 +7,7 @@ import crypto from "crypto";
 import { auth } from "@/lib/auth";
 import { getS3BucketName, getS3Client } from "@/lib/s3";
 import prisma from "@/lib/prisma";
+import { isSystemAdmin } from "@/lib/auth-utils";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
@@ -83,7 +84,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (session.user.role !== "admin") {
+    if (!isSystemAdmin(session.user.role)) {
       const membership = await prisma.member.findFirst({
         where: {
           organizationId: targetOrgId,

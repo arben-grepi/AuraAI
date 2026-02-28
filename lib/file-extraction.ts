@@ -1,18 +1,17 @@
 import PDFParser from "pdf2json";
+import mammoth from "mammoth";
+import * as XLSX from "xlsx";
 
-/**
- * Extract text from a TXT file
- */
-export async function extractTextFromTXT(file: File): Promise<string> {
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const text = buffer.toString("utf8").trim();
-  return text;
+function sanitizeForPostgres(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\x00/g, "");
 }
 
-/**
- * Extract text from a PDF file using pdf2json
- * Note: This function must only be used in server-side code (API routes, server components)
- */
+export async function extractTextFromTXT(file: File): Promise<string> {
+  const buffer = Buffer.from(await file.arrayBuffer());
+  return buffer.toString("utf8").trim();
+}
+
 export async function extractTextFromPDF(file: File): Promise<string> {
   const buffer = Buffer.from(await file.arrayBuffer());
 
@@ -24,127 +23,61 @@ export async function extractTextFromPDF(file: File): Promise<string> {
         errData && typeof errData === "object" && "parserError" in errData
           ? String((errData as { parserError: unknown }).parserError)
           : "Unknown PDF parsing error";
-      reject(
-        new Error(
-          `PDF parsing failed with both methods. pdf2json error: ${errorMessage}. This PDF may be image-based (scanned) and require OCR.`,
-        ),
-      );
+      reject(new Error(`PDF parsing failed: ${errorMessage}`));
     });
 
     pdfParser.on("pdfParser_dataReady", (pdfData) => {
       try {
         let text = "";
 
-        // Method 1: Try getRawTextContent() from parser
         try {
           text = pdfParser.getRawTextContent() || "";
-        } catch (e) {
-          console.warn("getRawTextContent failed:", e);
+        } catch {
+          // fallback below
         }
 
-        // Method 2: Extract from pdfData.Pages structure (most reliable)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const data = pdfData as any;
-        if ((!text || text.trim().length === 0) && data.Pages) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const extractedText = data.Pages.map((page: any) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            if (page.Texts && Array.isArray(page.Texts)) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              return page.Texts.map((textObj: any) => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                if (textObj.R && Array.isArray(textObj.R)) {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  return textObj.R.map((r: any) => {
-                    try {
-                      // Try decoding the text (may be URI encoded)
-                      const t = r.T || "";
-                      if (t) {
+        if (!text?.trim()) {
+          const data = pdfData as unknown as Record<string, unknown>;
+          if (data.Pages) {
+            text = (
+              data.Pages as Array<{
+                Texts?: Array<{ R?: Array<{ T?: string }> }>;
+              }>
+            )
+              .map((page) =>
+                (page.Texts ?? [])
+                  .map((textObj) =>
+                    (textObj.R ?? [])
+                      .map((r) => {
                         try {
-                          return decodeURIComponent(t);
+                          return r.T ? decodeURIComponent(r.T) : "";
                         } catch {
-                          return t;
+                          return r.T ?? "";
                         }
-                      }
-                      return "";
-                    } catch {
-                      return "";
-                    }
-                  }).join("");
-                }
-                // Fallback: try direct T property
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                if ((textObj as any).T) {
-                  try {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    return decodeURIComponent((textObj as any).T);
-                  } catch {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    return (textObj as any).T || "";
-                  }
-                }
-                return "";
-              }).join(" ");
-            }
-            return "";
-          })
-            .filter(Boolean)
-            .join("\n");
-
-          if (extractedText && extractedText.trim().length > 0) {
-            text = extractedText;
+                      })
+                      .join(""),
+                  )
+                  .join(" "),
+              )
+              .filter(Boolean)
+              .join("\n");
           }
         }
 
-        // Method 3: Try getFormFields if available (checking as any since type may not be accurate)
-        if (!text || text.trim().length === 0) {
-          try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const parserAny = pdfParser as any;
-            if (
-              parserAny.getFormFields &&
-              typeof parserAny.getFormFields === "function"
-            ) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const fields = parserAny.getFormFields();
-              if (fields && Array.isArray(fields) && fields.length > 0) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const fieldsText = fields
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  .map((f: any) => (f.value || f.V || "").toString())
-                  .filter(Boolean)
-                  .join(" ");
-                if (fieldsText.trim().length > 0) {
-                  text = fieldsText;
-                }
-              }
-            }
-          } catch {
-            // Ignore - method may not be available
-          }
-        }
-
-        if (!text || text.trim().length === 0) {
-          // Log debug info to help diagnose
-          console.log("PDF extraction failed. Data structure:", {
-            hasPages: !!data.Pages,
-            pagesCount: data.Pages?.length || 0,
-            hasTexts: !!data.Pages?.[0]?.Texts,
-          });
-
+        if (!text?.trim()) {
           reject(
-            console.error(
-              "PDF contains no extractable text. This may be an image-based (scanned) PDF that requires OCR to extract text. Please ensure your PDF has selectable text. You can verify by trying to select text in a PDF viewer.",
+            new Error(
+              "PDF contains no extractable text. This may be an image-based (scanned) PDF that requires OCR.",
             ),
           );
           return;
         }
+
         resolve(text.trim());
       } catch (error) {
         reject(
           new Error(
-            `Failed to extract text from PDF: ${error instanceof Error ? error.message : "Unknown error"
-            }. The PDF may be corrupted, password-protected, or image-based.`,
+            `Failed to extract text from PDF: ${error instanceof Error ? error.message : "Unknown error"}`,
           ),
         );
       }
@@ -154,23 +87,130 @@ export async function extractTextFromPDF(file: File): Promise<string> {
   });
 }
 
-/**
- * Extract text from a file (PDF or TXT)
- * Note: This function must only be used in server-side code (API routes, server components)
- */
-export async function extractText(file: File): Promise<string> {
+export async function extractTextFromDOCX(file: File): Promise<string> {
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const result = await mammoth.extractRawText({ buffer });
+  const text = result.value?.trim();
+
+  if (!text) {
+    throw new Error("DOCX file contains no extractable text.");
+  }
+  return text;
+}
+
+function csvToMarkdownTable(csv: string): string {
+  const lines = csv
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return "";
+
+  const rows = lines.map((line) => line.split(",").map((cell) => cell.trim()));
+  const header = rows[0];
+  const separator = header.map(() => "---");
+  const mdRows = [header, separator, ...rows.slice(1)].map(
+    (row) => `| ${row.join(" | ")} |`,
+  );
+  return mdRows.join("\n");
+}
+
+export async function extractTextFromSpreadsheet(
+  file: File,
+): Promise<string> {
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const workbook = XLSX.read(buffer);
+
+  const sections = workbook.SheetNames.map((name) => {
+    const sheet = workbook.Sheets[name];
+    const csv = XLSX.utils.sheet_to_csv(sheet);
+    const table = csvToMarkdownTable(csv);
+    return workbook.SheetNames.length > 1 ? `## ${name}\n\n${table}` : table;
+  });
+
+  const text = sections.filter(Boolean).join("\n\n");
+  if (!text.trim()) {
+    throw new Error("Spreadsheet contains no extractable data.");
+  }
+  return text.trim();
+}
+
+const PLAIN_TEXT_EXTENSIONS = [".txt", ".md", ".csv", ".json", ".html", ".xml"];
+const PLAIN_TEXT_MIMES = [
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+  "application/json",
+  "text/html",
+  "application/xml",
+  "text/xml",
+];
+
+const DOCX_MIMES = [
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+
+const SPREADSHEET_MIMES = [
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "text/csv",
+];
+
+const SPREADSHEET_EXTENSIONS = [".xlsx", ".xls"];
+
+export function isPlainTextFile(file: File): boolean {
   const fileType = (file.type || "").toLowerCase();
   const fileName = file.name.toLowerCase();
-  const isTXT = fileType === "text/plain" || fileName.endsWith(".txt");
-  const isPDF = fileType === "application/pdf" || fileName.endsWith(".pdf");
+  return (
+    PLAIN_TEXT_MIMES.some((m) => fileType === m) ||
+    PLAIN_TEXT_EXTENSIONS.some((ext) => fileName.endsWith(ext))
+  );
+}
 
-  if (isTXT) {
-    return extractTextFromTXT(file);
-  } else if (isPDF) {
-    return extractTextFromPDF(file);
-  } else {
+function isDOCXFile(file: File): boolean {
+  const fileType = (file.type || "").toLowerCase();
+  const fileName = file.name.toLowerCase();
+  return (
+    DOCX_MIMES.some((m) => fileType === m) || fileName.endsWith(".docx")
+  );
+}
+
+function isSpreadsheetFile(file: File): boolean {
+  const fileType = (file.type || "").toLowerCase();
+  const fileName = file.name.toLowerCase();
+  return (
+    SPREADSHEET_MIMES.some((m) => fileType === m) ||
+    SPREADSHEET_EXTENSIONS.some((ext) => fileName.endsWith(ext))
+  );
+}
+
+function isPDFFile(file: File): boolean {
+  return (
+    file.type === "application/pdf" ||
+    file.name.toLowerCase().endsWith(".pdf")
+  );
+}
+
+export function isSupportedRagFile(file: File): boolean {
+  return (
+    isPDFFile(file) ||
+    isPlainTextFile(file) ||
+    isDOCXFile(file) ||
+    isSpreadsheetFile(file)
+  );
+}
+
+export async function extractText(file: File): Promise<string> {
+  let text: string;
+
+  if (isPlainTextFile(file)) text = await extractTextFromTXT(file);
+  else if (isPDFFile(file)) text = await extractTextFromPDF(file);
+  else if (isDOCXFile(file)) text = await extractTextFromDOCX(file);
+  else if (isSpreadsheetFile(file)) text = await extractTextFromSpreadsheet(file);
+  else {
     throw new Error(
-      `Unsupported file type: ${file.type || "unknown"}. Only .txt and .pdf files are supported.`,
+      `Unsupported file type: ${file.type || "unknown"}. Supported: .pdf, .txt, .md, .csv, .json, .html, .xml, .docx, .xlsx, .xls`,
     );
   }
+
+  return sanitizeForPostgres(text);
 }

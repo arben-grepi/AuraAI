@@ -1,5 +1,5 @@
-import { ChatInterface } from "@/components/ai/chat-interface";
-import { toChatMessage } from "@/components/ai/types";
+import { ChatInterface } from "@/components/ai/(chat)/chat-interface";
+import { toChatMessage } from "@/components/ai/(chat)/types";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";

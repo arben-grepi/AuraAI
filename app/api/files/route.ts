@@ -7,6 +7,7 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { isSuperAdmin } from "@/lib/auth-utils";
 
 export const runtime = "nodejs";
 
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (session.user.role !== "admin") {
+  if (!isSuperAdmin(session.user.role)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   const bucketName = process.env.AWS_S3_BUCKET_NAME!;

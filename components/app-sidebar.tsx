@@ -1,4 +1,4 @@
-import { PenLine, Search } from "lucide-react";
+import { Loader, PenLine, Search } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -9,15 +9,19 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Conversations } from "./sidebar/conversations";
+import { Conversations } from "./ai/(chat)/sidebar/conversations";
 import { Suspense } from "react";
-import { ConversationsSkeleton } from "./sidebar/conversations-skeleton";
+import { ConversationsSkeleton } from "./ai/(chat)/sidebar/conversations-skeleton";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import Image from "next/image";
 import prisma from "@/lib/prisma";
+import { isSystemAdmin } from "@/lib/auth-utils";
 import { AiSettingsDialog } from "./org/ai-settings-dialog";
+import { ScrollArea } from "./ui/scroll-area";
+import { NavUser } from "./sidebar/nav-user";
 
 export async function AppSidebar({ org }: { org: string }) {
   const session = await auth.api.getSession({
@@ -27,7 +31,7 @@ export async function AppSidebar({ org }: { org: string }) {
   const organization = await prisma.organization.findFirst({
     where: {
       slug: org,
-      ...(session?.user.role === "admin"
+      ...(isSystemAdmin(session?.user.role)
         ? {}
         : { members: { some: { userId: session?.user.id ?? "" } } }),
     },
@@ -37,9 +41,8 @@ export async function AppSidebar({ org }: { org: string }) {
     return null;
   }
 
-  // Check if user is admin or owner of the organization
   let isOrgAdmin = false;
-  if (session?.user.role === "admin") {
+  if (isSystemAdmin(session?.user.role)) {
     isOrgAdmin = true;
   } else {
     const membership = await prisma.member.findFirst({
@@ -71,38 +74,46 @@ export async function AppSidebar({ org }: { org: string }) {
 
   return (
     <Sidebar className="border-none">
-      <SidebarContent>
-        <SidebarHeader className="flex flex-row justify-between items-center ">
+      <SidebarContent className="overflow-hidden">
+        <SidebarHeader className="flex shrink-0 flex-row justify-between items-center">
           <div
-            className="w-full h-12 rounded-[12px] border border-zinc-200 flex items-center justify-between px-2 py-4"
+            className="w-full h-12 rounded-[12px] bg-white shadow-sm border border-zinc-200 flex items-center justify-between px-2 py-4"
             style={{
               backgroundImage: `linear-gradient(to bottom, transparent, ${organization?.backgroundColor || ""})`,
             }}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex gap-4">
               {!organization ? (
-                <div>Loading...</div>
+                <div className="w-[60px] h-[60px] rounded-[6px] bg-zinc-200 flex items-center justify-center">
+                  <Loader className="size-4 animate-spin" />
+                </div>
               ) : (
-                <Image
-                  src={organization?.logo || ""}
-                  alt={organization?.name || ""}
-                  width={34}
-                  height={34}
-                  className="block rounded-[6px] aspect-square object-cover"
-                />
+                <div className="relative size-[60px] shrink-0 overflow-hidden rounded-[6px]">
+                  <Image
+                    src={organization?.logo || ""}
+                    alt={organization?.name || ""}
+                    fill
+                    className="object-contain"
+                  />
+                </div>
               )}
-              <p className="text-sm font-medium text-zinc-800 ml-2">
-                {organization?.name}
-              </p>
+              <div className="flex flex-col justify-center text-left gap-1">
+                <p className="text-sm font-medium text-zinc-800">
+                  {organization?.name}
+                </p>
+                <p className="text-xs font-medium text-zinc-500">
+                  Organization
+                </p>
+              </div>
             </div>
             {isOrgAdmin && <AiSettingsDialog orgSlug={org} />}
           </div>
         </SidebarHeader>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
+        <SidebarGroup className="min-h-0 flex-1 flex flex-col">
+          <SidebarGroupContent className="min-h-0 flex-1 flex flex-col">
+            <SidebarMenu className="min-h-0 flex-1 flex flex-col">
               {items.map((item) => (
-                <SidebarMenuItem key={item.title}>
+                <SidebarMenuItem key={item.title} className="shrink-0">
                   <SidebarMenuButton
                     className={`${item.variant === "white" ? "bg-white shadow-sm" : ""}`}
                     asChild
@@ -114,17 +125,29 @@ export async function AppSidebar({ org }: { org: string }) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-              <SidebarGroupLabel>Chats</SidebarGroupLabel>
-              <Suspense fallback={<ConversationsSkeleton />}>
-                <Conversations slug={org} />
-              </Suspense>
+              <SidebarGroupLabel className="shrink-0">Chats</SidebarGroupLabel>
+              <ScrollArea className="min-h-0 min-w-0 flex-1 overflow-x-hidden">
+                <div className="flex min-h-full min-w-0 w-full flex-col">
+                  <div className="min-w-0 flex-1 flex flex-col">
+                    <Suspense fallback={<ConversationsSkeleton />}>
+                      <Conversations slug={org} />
+                    </Suspense>
+                  </div>
+                </div>
+              </ScrollArea>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        <SidebarFooter>
+          <NavUser
+            userId={session?.user.id ?? ""}
+            name={session?.user.name ?? ""}
+            email={session?.user.email ?? ""}
+            avatar={session?.user.image ?? ""}
+            role={session?.user.role ?? ""}
+          />
+        </SidebarFooter>
       </SidebarContent>
-      {/* <SidebarFooter>
-        <NavUser name={name || ""} email={email || ""} avatar={image || ""} />
-      </SidebarFooter> */}
     </Sidebar>
   );
 }

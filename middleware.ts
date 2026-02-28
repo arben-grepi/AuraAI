@@ -2,6 +2,7 @@ import { betterFetch } from "@better-fetch/fetch";
 import type { auth as AuthType } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
+import { isSystemAdmin, isSuperAdmin } from "@/lib/auth-utils";
 
 type Session = typeof AuthType.$Infer.Session;
 
@@ -49,11 +50,25 @@ export async function middleware(request: NextRequest) {
     // Allow authenticated users to access auth pages (redirect handled at page level)
     // This prevents redirect loops in production
 
+    // Check superadmin routes
+    if (pathname.startsWith("/superadmin")) {
+      if (!isSuperAdmin(session.user.role)) {
+        return NextResponse.redirect(new URL("/", request.url));
+      }
+      return NextResponse.next();
+    }
+
     // Check admin routes
     if (pathname.startsWith("/admin")) {
       console.log(`[Middleware] Admin route detected: ${pathname}`);
+
+      // Redirect superadmin from /admin root to /superadmin
+      if (pathname === "/admin" && isSuperAdmin(session.user.role)) {
+        return NextResponse.redirect(new URL("/superadmin", request.url));
+      }
+
       // Check if user has admin role
-      if (session.user.role !== "admin") {
+      if (!isSystemAdmin(session.user.role)) {
         console.log(
           `[Middleware] Non-admin user trying to access admin route, redirecting to org chat`,
         );
@@ -86,11 +101,12 @@ export async function middleware(request: NextRequest) {
           );
 
           if (orgResponse?.slug) {
+            const encodedSlug = encodeURIComponent(orgResponse.slug);
             console.log(
-              `[Middleware] Redirecting non-admin to org chat: /org/${orgResponse.slug}/chat`,
+              `[Middleware] Redirecting non-admin to org chat: /org/${encodedSlug}/chat`,
             );
             return NextResponse.redirect(
-              new URL(`/org/${orgResponse.slug}/chat`, request.url),
+              new URL(`/org/${encodedSlug}/chat`, request.url),
             );
           }
           console.log(
@@ -108,10 +124,16 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
-    // Home page - redirect admin users to /admin
+    // Home page - redirect based on role
     if (pathname === "/") {
       console.log(`[Middleware] Home page access detected`);
-      if (session.user.role === "admin") {
+      if (isSuperAdmin(session.user.role)) {
+        console.log(
+          `[Middleware] Superadmin user accessing home page, redirecting to /superadmin`,
+        );
+        return NextResponse.redirect(new URL("/superadmin", request.url));
+      }
+      if (isSystemAdmin(session.user.role)) {
         console.log(
           `[Middleware] Admin user accessing home page, redirecting to /admin`,
         );
@@ -125,7 +147,7 @@ export async function middleware(request: NextRequest) {
     // Check organization routes - verify org exists (membership checked in layout)
     if (pathname.startsWith("/org/") && pathname !== "/org") {
       console.log(`[Middleware] Org route detected: ${pathname}`);
-      if (session.user.role === "admin") {
+      if (isSystemAdmin(session.user.role)) {
         console.log(`[Middleware] Admin user accessing org route, allowing`);
         return NextResponse.next();
       }
@@ -158,14 +180,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
     "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

@@ -3,8 +3,9 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
-import { redirect } from "next/navigation";
 import { normalizeSlugParam } from "@/lib/utils";
+import { notFound } from "next/navigation";
+import { isSystemAdmin } from "@/lib/auth-utils";
 
 export default async function Layout({
   children,
@@ -21,37 +22,40 @@ export default async function Layout({
   });
 
   if (!session) {
-    redirect("/sign-in");
+    notFound();
   }
 
-  const organization = await prisma.organization.findUnique({
-    where: { slug: org },
-    select: { id: true },
-  });
-
-  if (!organization) {
-    redirect("/");
-  }
-
-  if (session.user.role !== "admin") {
-    const membership = await prisma.member.findFirst({
-      where: {
-        organizationId: organization.id,
-        userId: session.user.id,
-      },
+  try {
+    const organization = await prisma.organization.findUnique({
+      where: { slug: org },
       select: { id: true },
     });
-
-    if (!membership) {
-      redirect("/");
+    if (!organization) {
+      notFound();
     }
-  }
+    if (!isSystemAdmin(session.user.role)) {
+      const membership = await prisma.member.findFirst({
+        where: {
+          organizationId: organization.id,
+          userId: session.user.id,
+        },
+        select: { id: true },
+      });
 
-  if (session.session?.activeOrganizationId !== organization.id) {
-    await auth.api.setActiveOrganization({
-      headers: requestHeaders,
-      body: { organizationId: organization.id },
-    });
+      if (!membership) {
+        notFound();
+      }
+    }
+
+    if (session.session?.activeOrganizationId !== organization.id) {
+      await auth.api.setActiveOrganization({
+        headers: requestHeaders,
+        body: { organizationId: organization.id },
+      });
+    }
+  } catch (error) {
+    console.log(error);
+    notFound();
   }
 
   return (

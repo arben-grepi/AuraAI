@@ -5,7 +5,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { useRef, useState } from "react";
-import { Loader2, Upload } from "lucide-react";
+import { Loader, Upload } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
 import { organization } from "@/lib/auth-client";
@@ -137,7 +137,7 @@ export default function General({ org }: { org: Organization }) {
             disabled={isUploading || !hasChanges}
           >
             {isUploading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader className="size-4 animate-spin" />
             ) : (
               "Save Changes"
             )}
@@ -172,7 +172,7 @@ export default function General({ org }: { org: Organization }) {
           <div className="border border-zinc-200 rounded-[12px] bg-white w-[238px] h-[178px] flex flex-col">
             <div className="flex-1 relative flex items-center justify-center">
               {isUploading ? (
-                <Loader2 className="w-8 h-8 animate-spin" />
+                <Loader className="size-8 animate-spin" />
               ) : (
                 <Image
                   className="object-cover"

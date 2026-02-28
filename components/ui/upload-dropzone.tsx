@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Loader2, Upload } from "lucide-react";
+import { Loader, Upload } from "lucide-react";
 import { useId } from "react";
 import { useDropzone } from "react-dropzone";
 import { UploadDropzoneProps } from "@/lib/types";
@@ -49,7 +49,7 @@ export function UploadDropzone({
       >
         <div className="my-2">
           {isPending ? (
-            <Loader2 className="size-6 animate-spin" />
+            <Loader className="size-6 animate-spin" />
           ) : (
             <Upload className="size-6" />
           )}

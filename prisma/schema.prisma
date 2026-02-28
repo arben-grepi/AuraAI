@@ -6,7 +6,6 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -21,6 +20,7 @@ model User {
   banReason     String?
   banned        Boolean?       @default(false)
   role          String?
+  maxOrgs       Int?
   accounts      Account[]
   conversations Conversation[]
   invitations   Invitation[]
@@ -116,16 +116,18 @@ model Organization {
   tone            String?
   description     String?
   systemPrompt    String?
+  maxMembers      Int?
   conversations   Conversation[]
   invitations     Invitation[]
   members         Member[]
   resources       Resource[]
   fileFolders     FileFolder[]
   chatFolders     ChatFolder[]
+  sources         String[]      @default([])
+  sourceIndexes   SourceIndex[]
 
   @@map("organization")
 }
-
 model Member {
   id             String       @id
   organizationId String
@@ -153,13 +155,16 @@ model Invitation {
 }
 
 model Embedding {
-  id         String                @id
-  resourceId String?               @map("resource_id")
-  content    String
-  embedding  Unsupported("vector")
-  fileName   String?               @map("file_name")
-  tags       String[]              @default([])
-  resource   Resource?             @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  id          String                @id
+  resourceId  String?               @map("resource_id")
+  content     String
+  embedding   Unsupported("vector")
+  fileName    String?               @map("file_name")
+  tags        String[]              @default([])
+  startOffset Int?                  @map("start_offset")
+  endOffset   Int?                  @map("end_offset")
+  chunkIndex  Int?                  @map("chunk_index")
+  resource    Resource?             @relation(fields: [resourceId], references: [id], onDelete: Cascade)
 
   @@map("embeddings")
 }
@@ -170,6 +175,9 @@ model Resource {
   fileFolderId   String?       @map("file_folder_id")
   name           String
   tags           String[]      @default([])
+  fullText       String?       @map("full_text")
+  mimeType       String?       @map("mime_type")
+  fileSize       Int?          @map("file_size")
   embeddings     Embedding[]
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   fileFolder     FileFolder?   @relation(fields: [fileFolderId], references: [id], onDelete: SetNull)
@@ -195,4 +203,17 @@ model ChatFolder {
   conversations  Conversation[]
 
   @@map("chat_folders")
+}
+
+model SourceIndex {
+  id             String       @id @default(uuid())
+  organizationId String       @map("organization_id")
+  sourceUrl      String       @map("source_url")
+  lastIndexedAt  DateTime     @map("last_indexed_at")
+  pagesIndexed   Int          @map("pages_indexed")
+  totalChunks    Int          @map("total_chunks")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, sourceUrl])
+  @@map("source_indexes")
 }

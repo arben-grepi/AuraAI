@@ -1,3 +1,25 @@
 {
-  "prisma.pinToPrisma6": true
+  "prisma.pinToPrisma6": true,
+  "workbench.colorCustomizations": {
+    "terminal.background": "#191919",
+    "terminal.foreground": "#A7A7A7",
+    "terminalCursor.background": "#A7A7A7",
+    "terminalCursor.foreground": "#A7A7A7",
+    "terminal.ansiBlack": "#191919",
+    "terminal.ansiBlue": "#639EE4",
+    "terminal.ansiBrightBlack": "#5F5A60",
+    "terminal.ansiBrightBlue": "#639EE4",
+    "terminal.ansiBrightCyan": "#4BB1A7",
+    "terminal.ansiBrightGreen": "#84B97C",
+    "terminal.ansiBrightMagenta": "#B888E2",
+    "terminal.ansiBrightRed": "#DC657D",
+    "terminal.ansiBrightWhite": "#FFFFFF",
+    "terminal.ansiBrightYellow": "#C3BA63",
+    "terminal.ansiCyan": "#4BB1A7",
+    "terminal.ansiGreen": "#84B97C",
+    "terminal.ansiMagenta": "#B888E2",
+    "terminal.ansiRed": "#DC657D",
+    "terminal.ansiWhite": "#A7A7A7",
+    "terminal.ansiYellow": "#C3BA63"
+  }
 }

@@ -1,4 +1,4 @@
-import { ChatInterface } from "@/components/ai/chat-interface";
+import { ChatInterface } from "@/components/ai/(chat)/chat-interface";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";

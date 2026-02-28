@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { revalidateTag } from "next/cache";
+import { isSystemAdmin } from "@/lib/auth-utils";
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -20,7 +21,7 @@ export async function GET() {
     );
   }
 
-  if (session.user.role !== "admin") {
+  if (!isSystemAdmin(session.user.role)) {
     const membership = await prisma.member.findFirst({
       where: {
         organizationId,
@@ -94,7 +95,7 @@ export async function POST(req: Request) {
     );
   }
 
-  if (session.user.role !== "admin") {
+  if (!isSystemAdmin(session.user.role)) {
     const membership = await prisma.member.findFirst({
       where: {
         organizationId,

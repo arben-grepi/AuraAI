@@ -26,7 +26,7 @@ import {
 } from "../ui/form";
 import { createOrgUser, updateMemberRole } from "@/lib/actions";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Role, RoleCombobox } from "./combobox";
 
@@ -184,7 +184,7 @@ export default function Users({
                       className="py-5 cursor-pointer w-full"
                     >
                       {isLoadingForm ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <Loader className="size-4 animate-spin" />
                       ) : (
                         "Add Member"
                       )}
