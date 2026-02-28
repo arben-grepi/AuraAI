@@ -24,6 +24,7 @@ import type {
   PersistedAssistantMessagePart,
 } from "@/lib/types";
 import { NextResponse } from "next/server";
+import { isSystemAdmin } from "@/lib/auth-utils";
 import { hybridSearch, searchDocuments } from "@/lib/rag/search";
 import type { SearchRow } from "@/lib/rag/search";
 import { openai } from "@ai-sdk/openai";
@@ -92,7 +93,7 @@ export async function POST(req: Request) {
 
   const systemPrompt = getSystemPrompt(organizationName?.name ?? "Diguro");
 
-  if (session.user.role !== "admin") {
+  if (!isSystemAdmin(session.user.role)) {
     const membership = await prisma.member.findFirst({
       where: {
         organizationId,

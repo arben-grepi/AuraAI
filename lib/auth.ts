@@ -8,6 +8,7 @@ import {
   sendEmailVerificationEmail,
   sendPasswordResetEmailEmail,
 } from "@/email/email";
+import { ac, admin as adminRole, superadmin } from "./permissions";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -85,6 +86,12 @@ export const auth = betterAuth({
       },
     }),
     admin({
+      ac,
+      roles: {
+        admin: adminRole,
+        superadmin,
+      },
+      defaultRole: "user",
       adminUserIds: ["9vhMSKPOfU4MTR3g4O4VjsBW4cE4cPBm"],
     }),
   ],

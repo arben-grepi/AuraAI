@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { isSystemAdmin } from "@/lib/auth-utils";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -31,7 +32,7 @@ export async function GET(req: Request) {
     );
   }
 
-  if (session.user.role !== "admin") {
+  if (!isSystemAdmin(session.user.role)) {
     const membership = await prisma.member.findFirst({
       where: {
         organizationId,

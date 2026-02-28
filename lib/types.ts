@@ -126,11 +126,6 @@ export type UploadDropzoneProps = {
   ) => void;
 };
 
-
-
-
-
-
 export interface AttachmentMetadata {
   objectKey?: string;
   size?: number;

@@ -2,12 +2,14 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { processRagFile } from "@/lib/rag/upload/actions";
 import { isSupportedRagFile } from "@/lib/file-extraction";
+import { ORG_RAG_FILE_LIMIT_ERROR } from "@/lib/rag/limits";
 
 function statusFromError(error: string): number {
   if (error === "Unauthorized") return 401;
   if (error.startsWith("Unauthorized:")) return 403;
   if (error.includes("not found")) return 404;
   if (error.includes("Unsupported file type")) return 415;
+  if (error.includes(ORG_RAG_FILE_LIMIT_ERROR)) return 409;
   return 400;
 }
 

@@ -5,6 +5,7 @@ import {
   adminClient,
 } from "better-auth/client/plugins";
 import type { auth } from "./auth";
+import { ac, admin as adminRole, superadmin } from "./permissions";
 
 export const {
   signIn,
@@ -26,6 +27,12 @@ export const {
     organizationClient({
       schema: inferOrgAdditionalFields<typeof auth>(),
     }),
-    adminClient(),
+    adminClient({
+      ac,
+      roles: {
+        admin: adminRole,
+        superadmin,
+      },
+    }),
   ],
 });

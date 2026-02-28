@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { isSystemAdmin } from "@/lib/auth-utils";
 
 export async function GET(req: NextRequest) {
   console.log(`[API /user/first-org] Request received`);
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
     `[API /user/first-org] Session found - User ID: ${session.user.id}, Role: ${session.user.role}`,
   );
 
-  if (session.user.role === "admin") {
+  if (isSystemAdmin(session.user.role)) {
     console.log(`[API /user/first-org] Admin user, returning null slug`);
     return NextResponse.json({ slug: null });
   }

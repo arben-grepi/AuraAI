@@ -4,7 +4,7 @@ import { Organization, OrganizationMember } from "@/lib/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Loader2, Trash2 } from "lucide-react";
+import { ArrowRight, Loader, Trash2 } from "lucide-react";
 import { deleteOrg } from "@/lib/actions";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -46,7 +46,7 @@ export default function OrgItem({
         className="group-hover:opacity-100 opacity-0 transition-all duration-200 absolute cursor-pointer p-2 top-[-5px] left-[-16px] w-8 h-8 bg-red-500/10 flex items-center justify-center rounded-full"
       >
         {isDeleting ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
+          <Loader className="size-4 animate-spin" />
         ) : (
           <Trash2 className="w-4 h-4 text-red-500" />
         )}

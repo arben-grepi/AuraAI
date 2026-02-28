@@ -18,6 +18,7 @@ import { z } from "zod";
 import { generateSlug } from "./utils";
 import { UIMessage, generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
+import { isSystemAdmin, isSuperAdmin } from "./auth-utils";
 
 async function getMembership(organizationId: string, userId: string) {
   return prisma.member.findFirst({
@@ -47,7 +48,7 @@ async function userHasOrgAdminAccess({
   userId: string;
   sessionRole: string | null | undefined;
 }) {
-  if (sessionRole === "admin") {
+  if (isSystemAdmin(sessionRole)) {
     return true;
   }
 
@@ -158,7 +159,7 @@ export async function createConversation(
     };
   }
 
-  if (session.user.role !== "admin") {
+  if (!isSystemAdmin(session.user.role)) {
     const membership = await getMembership(organizationId, session.user.id);
 
     if (!membership) {
@@ -225,7 +226,7 @@ export async function deleteConversation(
     };
   }
 
-  if (session.user.role !== "admin") {
+  if (!isSystemAdmin(session.user.role)) {
     const membership = await getMembership(organizationId, session.user.id);
 
     if (!membership) {
@@ -343,8 +344,27 @@ export async function createOrganization(
     return { success: false, data: null, error: "Unauthorized" };
   }
 
-  if (session.user.role !== "admin") {
+  if (!isSystemAdmin(session.user.role)) {
     return { success: false, data: null, error: "Insufficient permissions" };
+  }
+
+  // Check org creation limit
+  const creator = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { maxOrgs: true },
+  });
+
+  if (creator?.maxOrgs !== null && creator?.maxOrgs !== undefined) {
+    const ownedOrgCount = await prisma.member.count({
+      where: { userId: session.user.id, role: "owner" },
+    });
+    if (ownedOrgCount >= creator.maxOrgs) {
+      return {
+        success: false,
+        data: null,
+        error: `You have reached your organization limit (${creator.maxOrgs})`,
+      };
+    }
   }
 
   const validated = createOrganizationSchema.safeParse(values);
@@ -441,8 +461,22 @@ export async function deleteOrg(
     return { success: false, data: null, error: "Unauthorized" };
   }
 
-  if (session.user.role !== "admin") {
+  if (!isSystemAdmin(session.user.role)) {
     return { success: false, data: null, error: "Insufficient permissions" };
+  }
+
+  // Admin can only delete orgs they own
+  if (!isSuperAdmin(session.user.role)) {
+    const ownership = await prisma.member.findFirst({
+      where: {
+        organizationId: id,
+        userId: session.user.id,
+        role: "owner",
+      },
+    });
+    if (!ownership) {
+      return { success: false, data: null, error: "Insufficient permissions" };
+    }
   }
 
   try {
@@ -489,6 +523,25 @@ export async function addMemberToOrg(
 
   if (!canManageMembers) {
     return { success: false, data: null, error: "Insufficient permissions" };
+  }
+
+  // Check member limit
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { maxMembers: true },
+  });
+
+  if (org?.maxMembers !== null && org?.maxMembers !== undefined) {
+    const currentMemberCount = await prisma.member.count({
+      where: { organizationId },
+    });
+    if (currentMemberCount >= org.maxMembers) {
+      return {
+        success: false,
+        data: null,
+        error: `Organization has reached its member limit (${org.maxMembers})`,
+      };
+    }
   }
 
   try {
@@ -676,7 +729,7 @@ export async function deleteResource(
       },
     });
 
-    if (!member && session.user.role !== "admin") {
+    if (!member && !isSystemAdmin(session.user.role)) {
       return { success: false, data: null, error: "Unauthorized" };
     }
   }
@@ -740,6 +793,25 @@ export async function createOrgUser({
     };
   }
 
+  // Check member limit before creating user to avoid orphaned accounts
+  const orgData = await prisma.organization.findUnique({
+    where: { id: organization.id },
+    select: { maxMembers: true },
+  });
+
+  if (orgData?.maxMembers !== null && orgData?.maxMembers !== undefined) {
+    const currentMemberCount = await prisma.member.count({
+      where: { organizationId: organization.id },
+    });
+    if (currentMemberCount >= orgData.maxMembers) {
+      return {
+        success: false,
+        data: null,
+        error: `Organization has reached its member limit (${orgData.maxMembers})`,
+      };
+    }
+  }
+
   const { email, password, firstName, lastName } = validated.data;
 
   try {
@@ -748,7 +820,6 @@ export async function createOrgUser({
         email,
         password,
         name: `${firstName} ${lastName}`,
-        role: "user",
       },
     });
 
@@ -1014,7 +1085,7 @@ export async function createChatFolder(
     };
   }
 
-  if (session.user.role !== "admin") {
+  if (!isSystemAdmin(session.user.role)) {
     const membership = await getMembership(organizationId, session.user.id);
     if (!membership) {
       return { success: false, data: null, error: "Unauthorized" };
@@ -1053,7 +1124,7 @@ export async function deleteChatFolder(
     return { success: false, data: null, error: "Folder not found" };
   }
 
-  if (session.user.role !== "admin") {
+  if (!isSystemAdmin(session.user.role)) {
     const membership = await getMembership(
       folder.organizationId,
       session.user.id,

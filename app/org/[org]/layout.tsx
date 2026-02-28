@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
 import { normalizeSlugParam } from "@/lib/utils";
 import { notFound } from "next/navigation";
+import { isSystemAdmin } from "@/lib/auth-utils";
 
 export default async function Layout({
   children,
@@ -32,7 +33,7 @@ export default async function Layout({
     if (!organization) {
       notFound();
     }
-    if (session.user.role !== "admin") {
+    if (!isSystemAdmin(session.user.role)) {
       const membership = await prisma.member.findFirst({
         where: {
           organizationId: organization.id,

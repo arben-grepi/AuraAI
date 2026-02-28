@@ -5,8 +5,9 @@ import {
   Bell,
   ChevronsUpDown,
   CreditCard,
-  Sparkles,
+  Settings,
 } from "lucide-react";
+import BoringAvatar from "boring-avatars";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -25,19 +26,25 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { SignOutButton } from "../auth/sign-out-button";
-import { ThemeToggle } from "../theme/theme-toggle";
+import { isSuperAdmin } from "@/lib/auth-utils";
+import { useRouter } from "next/navigation";
 
 export function NavUser({
+  userId,
   name,
   email,
   avatar,
+  role,
 }: {
+  userId: string;
   name: string;
   email: string;
   avatar: string;
+  role?: string;
 }) {
   const { isMobile } = useSidebar();
-
+  const avatarSeed = userId || email || name || "user";
+  const router = useRouter();
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -47,9 +54,16 @@ export function NavUser({
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <Avatar className="h-8 w-8 rounded-lg">
+              <Avatar className="h-8 w-8 rounded-full">
                 <AvatarImage src={avatar} alt={name} />
-                <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+                <AvatarFallback className="rounded-full p-0 bg-transparent">
+                  <BoringAvatar
+                    size={32}
+                    name={avatarSeed}
+                    variant="pixel"
+                    square={false}
+                  />
+                </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{name}</span>
@@ -66,9 +80,16 @@ export function NavUser({
           >
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar className="h-8 w-8 rounded-lg">
+                <Avatar className="h-8 w-8 rounded-full">
                   <AvatarImage src={avatar} alt={name} />
-                  <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+                  <AvatarFallback className="rounded-full p-0 bg-transparent">
+                    <BoringAvatar
+                      size={32}
+                      name={avatarSeed}
+                      variant="pixel"
+                      square={false}
+                    />
+                  </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{name}</span>
@@ -78,34 +99,30 @@ export function NavUser({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <Sparkles />
-                Upgrade to Pro
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem disabled>
                 <BadgeCheck />
                 Account
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem disabled>
                 <CreditCard />
                 Billing
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem disabled>
                 <Bell />
                 Notifications
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                Theme
-                <ThemeToggle />
-              </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <SignOutButton />
-            </DropdownMenuItem>
+            {isSuperAdmin(role) && (
+              <DropdownMenuItem
+                onClick={() => router.push("/superadmin")}
+                className="cursor-pointer"
+              >
+                <Settings />
+                Superadmin Dashboard
+              </DropdownMenuItem>
+            )}
+            <SignOutButton />
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

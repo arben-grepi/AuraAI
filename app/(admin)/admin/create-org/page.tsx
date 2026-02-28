@@ -19,9 +19,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
-import { SquareDashed } from "lucide-react";
+import { Loader, SquareDashed } from "lucide-react";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
 import { Upload } from "lucide-react";
 import { toast } from "sonner";
 import { createOrganization, createOrgUser } from "@/lib/actions";
@@ -269,7 +268,7 @@ export default function Page() {
                       <div className="border border-zinc-200 rounded-[12px] bg-white w-[238px] h-[178px] flex flex-col">
                         <div className="flex-1 relative flex items-center justify-center">
                           {isUploading ? (
-                            <Loader2 className="w-8 h-8 animate-spin" />
+                            <Loader className="size-8 animate-spin" />
                           ) : (
                             <Image
                               className="object-cover rounded-[12px] aspect-square"
@@ -430,11 +429,7 @@ export default function Page() {
               }}
               className="bg-cyan-600 text-white w-full max-w-[400px] mt-8 cursor-pointer"
             >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                "Next"
-              )}
+              {isLoading ? <Loader className="size-4 animate-spin" /> : "Next"}
             </Button>
             {existingUser.length > 0 && (
               <Link

@@ -2,27 +2,15 @@ import PDFParser from "pdf2json";
 import mammoth from "mammoth";
 import * as XLSX from "xlsx";
 
-/**
- * Strip null bytes and other characters that PostgreSQL's UTF-8 encoding rejects.
- * pdf2json sometimes produces \x00 in extracted text.
- */
 function sanitizeForPostgres(text: string): string {
   // eslint-disable-next-line no-control-regex
   return text.replace(/\x00/g, "");
 }
 
-// ---------------------------------------------------------------------------
-// Plain text
-// ---------------------------------------------------------------------------
-
 export async function extractTextFromTXT(file: File): Promise<string> {
   const buffer = Buffer.from(await file.arrayBuffer());
   return buffer.toString("utf8").trim();
 }
-
-// ---------------------------------------------------------------------------
-// PDF — use pdf2json
-// ---------------------------------------------------------------------------
 
 export async function extractTextFromPDF(file: File): Promise<string> {
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -99,10 +87,6 @@ export async function extractTextFromPDF(file: File): Promise<string> {
   });
 }
 
-// ---------------------------------------------------------------------------
-// DOCX
-// ---------------------------------------------------------------------------
-
 export async function extractTextFromDOCX(file: File): Promise<string> {
   const buffer = Buffer.from(await file.arrayBuffer());
   const result = await mammoth.extractRawText({ buffer });
@@ -113,10 +97,6 @@ export async function extractTextFromDOCX(file: File): Promise<string> {
   }
   return text;
 }
-
-// ---------------------------------------------------------------------------
-// XLSX / XLS / CSV — convert sheets to readable text with markdown tables
-// ---------------------------------------------------------------------------
 
 function csvToMarkdownTable(csv: string): string {
   const lines = csv
@@ -153,10 +133,6 @@ export async function extractTextFromSpreadsheet(
   }
   return text.trim();
 }
-
-// ---------------------------------------------------------------------------
-// File type detection
-// ---------------------------------------------------------------------------
 
 const PLAIN_TEXT_EXTENSIONS = [".txt", ".md", ".csv", ".json", ".html", ".xml"];
 const PLAIN_TEXT_MIMES = [
@@ -236,6 +212,5 @@ export async function extractText(file: File): Promise<string> {
     );
   }
 
-  // Sanitize: remove null bytes that PostgreSQL UTF-8 encoding rejects
   return sanitizeForPostgres(text);
 }

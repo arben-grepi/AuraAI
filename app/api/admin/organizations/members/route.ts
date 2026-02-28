@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { APIError } from "better-auth";
+import { isSystemAdmin, isSuperAdmin } from "@/lib/auth-utils";
+import prisma from "@/lib/prisma";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -19,8 +21,22 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (session.user.role !== "admin") {
+  if (!isSystemAdmin(session.user.role)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // Admin can only view members of orgs they own
+  if (!isSuperAdmin(session.user.role)) {
+    const ownership = await prisma.member.findFirst({
+      where: {
+        organizationId,
+        userId: session.user.id,
+        role: "owner",
+      },
+    });
+    if (!ownership) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
   }
 
   try {

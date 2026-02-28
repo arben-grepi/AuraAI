@@ -20,6 +20,7 @@ model User {
   banReason     String?
   banned        Boolean?       @default(false)
   role          String?
+  maxOrgs       Int?
   accounts      Account[]
   conversations Conversation[]
   invitations   Invitation[]
@@ -115,6 +116,7 @@ model Organization {
   tone            String?
   description     String?
   systemPrompt    String?
+  maxMembers      Int?
   conversations   Conversation[]
   invitations     Invitation[]
   members         Member[]

@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Plus,
   Trash2,
-  Loader2,
+  Loader,
   Globe,
   CircleCheck,
   CircleX,
@@ -95,7 +95,7 @@ export default function Sources({ orgSlug }: { orgSlug: string }) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <Loader className="size-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -354,7 +354,12 @@ function SourcesForm({ org }: { org: Organization }) {
 
     setIndexingStates((prev) => ({
       ...prev,
-      [sourceUrl]: { state: "crawling", url: sourceUrl, pagesFound: 0, pagesCrawled: 0 },
+      [sourceUrl]: {
+        state: "crawling",
+        url: sourceUrl,
+        pagesFound: 0,
+        pagesCrawled: 0,
+      },
     }));
 
     try {
@@ -500,7 +505,7 @@ function SourcesForm({ org }: { org: Organization }) {
               hasPendingVerification
             }
           >
-            {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {isSaving && <Loader className="size-4 mr-2 animate-spin" />}
             Save Changes
           </Button>
         </div>
@@ -569,8 +574,9 @@ function SourcesForm({ org }: { org: Organization }) {
                         aria-label={`Index source ${index + 1}`}
                       >
                         {isIndexing ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : isAlreadyIndexed || indexStatus?.state === "done" ? (
+                          <Loader className="size-4 animate-spin" />
+                        ) : isAlreadyIndexed ||
+                          indexStatus?.state === "done" ? (
                           <RefreshCw className="w-4 h-4" />
                         ) : (
                           <Play className="w-4 h-4" />
@@ -638,18 +644,14 @@ function LastIndexedInfo({ info }: { info: SourceIndexInfo }) {
   );
 }
 
-function IndexingProgress({
-  status,
-}: {
-  status: IndexingStatus | undefined;
-}) {
+function IndexingProgress({ status }: { status: IndexingStatus | undefined }) {
   if (!status || status.state === "idle") return null;
 
   if (status.state === "crawling") {
     return (
       <div className="flex flex-col gap-1.5 mt-1">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="w-3 h-3 animate-spin" />
+          <Loader className="size-3 animate-spin" />
           <span>Discovering pages... {status.pagesCrawled} found</span>
         </div>
         <div className="h-1.5 w-full bg-zinc-100 rounded-full overflow-hidden">
@@ -664,7 +666,7 @@ function IndexingProgress({
     return (
       <div className="flex flex-col gap-1.5 mt-1">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="w-3 h-3 animate-spin" />
+          <Loader className="size-3 animate-spin" />
           <span>
             Indexing page {status.page} of {status.total}
           </span>
@@ -703,7 +705,7 @@ function VerificationIndicator({
   if (status === "verifying") {
     return (
       <div className="absolute right-3 top-1/2 -translate-y-1/2">
-        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+        <Loader className="size-4 mr-2 animate-spin" />
       </div>
     );
   }

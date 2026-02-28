@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "../ui/badge";
-import { Loader2 } from "lucide-react";
+import { Loader } from "lucide-react";
 
 export default function IsOrgAdmin({ id }: { id: string }) {
   const { data, isLoading } = useQuery({
@@ -27,7 +27,7 @@ export default function IsOrgAdmin({ id }: { id: string }) {
     <div>
       {isLoading ? (
         <Badge className="bg-sidebar-accent text-gray-600">
-          <Loader2 className="w-4 h-4 animate-spin" />
+          <Loader className="size-4 animate-spin" />
         </Badge>
       ) : (
         <div>

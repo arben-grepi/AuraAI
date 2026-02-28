@@ -1,4 +1,4 @@
-import { Loader2, PenLine, Search } from "lucide-react";
+import { Loader, PenLine, Search } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -9,6 +9,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Conversations } from "./ai/(chat)/sidebar/conversations";
 import { Suspense } from "react";
@@ -17,8 +18,10 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import Image from "next/image";
 import prisma from "@/lib/prisma";
+import { isSystemAdmin } from "@/lib/auth-utils";
 import { AiSettingsDialog } from "./org/ai-settings-dialog";
 import { ScrollArea } from "./ui/scroll-area";
+import { NavUser } from "./sidebar/nav-user";
 
 export async function AppSidebar({ org }: { org: string }) {
   const session = await auth.api.getSession({
@@ -28,7 +31,7 @@ export async function AppSidebar({ org }: { org: string }) {
   const organization = await prisma.organization.findFirst({
     where: {
       slug: org,
-      ...(session?.user.role === "admin"
+      ...(isSystemAdmin(session?.user.role)
         ? {}
         : { members: { some: { userId: session?.user.id ?? "" } } }),
     },
@@ -39,7 +42,7 @@ export async function AppSidebar({ org }: { org: string }) {
   }
 
   let isOrgAdmin = false;
-  if (session?.user.role === "admin") {
+  if (isSystemAdmin(session?.user.role)) {
     isOrgAdmin = true;
   } else {
     const membership = await prisma.member.findFirst({
@@ -82,7 +85,7 @@ export async function AppSidebar({ org }: { org: string }) {
             <div className="flex gap-4">
               {!organization ? (
                 <div className="w-[60px] h-[60px] rounded-[6px] bg-zinc-200 flex items-center justify-center">
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader className="size-4 animate-spin" />
                 </div>
               ) : (
                 <div className="relative size-[60px] shrink-0 overflow-hidden rounded-[6px]">
@@ -135,6 +138,15 @@ export async function AppSidebar({ org }: { org: string }) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        <SidebarFooter>
+          <NavUser
+            userId={session?.user.id ?? ""}
+            name={session?.user.name ?? ""}
+            email={session?.user.email ?? ""}
+            avatar={session?.user.image ?? ""}
+            role={session?.user.role ?? ""}
+          />
+        </SidebarFooter>
       </SidebarContent>
     </Sidebar>
   );

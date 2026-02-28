@@ -8,6 +8,8 @@ import { toPgVectorLiteral } from "../vector";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { extractText, isSupportedRagFile } from "@/lib/file-extraction";
+import { isSystemAdmin } from "@/lib/auth-utils";
+import { MAX_ORG_RAG_FILES, ORG_RAG_FILE_LIMIT_ERROR } from "@/lib/rag/limits";
 
 export type ProcessRagFileResult =
   | { success: true; resourceId: string; chunksStored: number; fileName: string }
@@ -77,7 +79,7 @@ export async function processRagFile(
     };
   }
 
-  if (session.user.role !== "admin") {
+  if (!isSystemAdmin(session.user.role)) {
     const membership = await prisma.member.findFirst({
       where: {
         organizationId,
@@ -139,6 +141,13 @@ export async function processRagFile(
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      const organizationFileCount = await tx.resource.count({
+        where: { organizationId },
+      });
+      if (organizationFileCount >= MAX_ORG_RAG_FILES) {
+        throw new Error(ORG_RAG_FILE_LIMIT_ERROR);
+      }
+
       const resourceId = crypto.randomUUID();
 
       // Store resource with full text, mime type, and file size

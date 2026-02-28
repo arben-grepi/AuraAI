@@ -1,7 +1,3 @@
-/**
- * Server-only chat helpers that use Prisma.
- * Do not import from client components.
- */
 import { UIMessage } from "ai";
 import prisma from "./prisma";
 

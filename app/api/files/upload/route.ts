@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { isSuperAdmin } from "@/lib/auth-utils";
 
 const FileSchema = z.object({
   file: z
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (session.user.role !== "admin") {
+  if (!isSuperAdmin(session.user.role)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

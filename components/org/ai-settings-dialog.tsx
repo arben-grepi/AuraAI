@@ -11,7 +11,7 @@ import {
 import { useState } from "react";
 import { Organization } from "@/lib/types";
 import Ai from "./ai";
-import { Loader2 } from "lucide-react";
+import { Loader } from "lucide-react";
 import { ScrollArea } from "../ui/scroll-area";
 
 interface AiSettingsDialogProps {
@@ -57,7 +57,7 @@ export function AiSettingsDialog({ orgSlug }: AiSettingsDialogProps) {
           </DialogHeader>
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin" />
+              <Loader className="size-6 animate-spin" />
             </div>
           ) : orgData ? (
             <div className="px-0">

@@ -13,7 +13,7 @@ import { motion } from "motion/react";
 import {
   Folder,
   FolderPlus,
-  Loader2,
+  Loader,
   MoreHorizontal,
   Plus,
   Trash2,
@@ -537,7 +537,7 @@ const ChatFolderRow = ({
           disabled={isDeleting}
         >
           {isDeleting ? (
-            <Loader2 className="size-4 animate-spin" />
+            <Loader className="size-4 animate-spin" />
           ) : (
             <Trash2 className="size-4" />
           )}
@@ -576,7 +576,7 @@ const ChatFolderRow = ({
                 disabled={isCreating}
               >
                 {isCreating ? (
-                  <Loader2 className="size-4 animate-spin" />
+                  <Loader className="size-4 animate-spin" />
                 ) : (
                   <Plus className="size-4" />
                 )}

@@ -2,11 +2,13 @@ import crypto from "crypto";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
+import { isSystemAdmin } from "@/lib/auth-utils";
 import { crawlWebsite } from "@/lib/rag/crawl";
 import { chunkContentWithOffsets } from "@/lib/rag/chunking";
 import { generateEmbeddings } from "@/lib/rag/embeddings";
 import { toPgVectorLiteral } from "@/lib/rag/vector";
 import { NextRequest } from "next/server";
+import { MAX_ORG_RAG_FILES } from "@/lib/rag/limits";
 
 type ProgressEvent =
   | { type: "crawl_progress"; url: string; pagesFound: number; pagesCrawled: number }
@@ -39,8 +41,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Verify membership
-  if (session.user.role !== "admin") {
+  if (!isSystemAdmin(session.user.role)) {
     const membership = await prisma.member.findFirst({
       where: { organizationId, userId: session.user.id },
       select: { role: true },
@@ -85,7 +86,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // Verify URL is valid
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(sourceUrl);
@@ -93,8 +93,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid URL" }, { status: 400 });
   }
 
-  // Verify membership
-  if (session.user.role !== "admin") {
+  if (!isSystemAdmin(session.user.role)) {
     const membership = await prisma.member.findFirst({
       where: { organizationId, userId: session.user.id },
       select: { role: true },
@@ -104,7 +103,6 @@ export async function POST(request: Request) {
     }
   }
 
-  // Verify the source URL is in the org's sources list
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
     select: { sources: true },
@@ -125,13 +123,23 @@ export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        // Delete old resources for this source before re-crawling
         console.log(`[index] Deleting old resources for source:${hostname}`);
         await prisma.$executeRawUnsafe(
           `DELETE FROM "resources" WHERE "organization_id" = $1 AND "tags" @> ARRAY['web-scrape', $2]::text[]`,
           organizationId,
           `source:${hostname}`,
         );
+
+        const organizationFileCount = await prisma.resource.count({
+          where: { organizationId },
+        });
+        if (organizationFileCount >= MAX_ORG_RAG_FILES) {
+          sendEvent(controller, encoder, {
+            type: "error",
+            message: `Organization file limit reached (${MAX_ORG_RAG_FILES} max). Delete existing files to re-index this source.`,
+          });
+          return;
+        }
 
         // Phase 1: Crawl the website
         console.log(`[index] Starting source indexing: ${sourceUrl} for org ${organizationId}`);
@@ -188,6 +196,15 @@ export async function POST(request: Request) {
         const tags = ["web-scrape", `source:${hostname}`];
 
         for (let i = 0; i < pages.length; i++) {
+          const currentTotal = organizationFileCount + pagesIndexed;
+          if (currentTotal >= MAX_ORG_RAG_FILES) {
+            sendEvent(controller, encoder, {
+              type: "error",
+              message: `Organization file limit reached (${MAX_ORG_RAG_FILES} max). Indexed ${pagesIndexed} page${pagesIndexed === 1 ? "" : "s"} before stopping.`,
+            });
+            break;
+          }
+
           const page = pages[i];
 
           console.log(`[index] Processing page ${i + 1}/${pages.length}: ${page.url}`);

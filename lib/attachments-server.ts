@@ -1,7 +1,3 @@
-/**
- * Server-only attachment preview and context building.
- * Uses file-extraction (pdf2json, node:fs) — must not be imported by client code.
- */
 import { UIMessage } from "ai";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { extractText } from "./file-extraction";
@@ -120,7 +116,7 @@ async function readBody(body: unknown): Promise<Uint8Array> {
     body !== null &&
     "arrayBuffer" in body &&
     typeof (body as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer ===
-      "function"
+    "function"
   ) {
     const arrayBuffer = await (
       body as { arrayBuffer: () => Promise<ArrayBuffer> }
