@@ -25,6 +25,7 @@ import type {
 } from "@/lib/types";
 import { NextResponse } from "next/server";
 import { isSystemAdmin } from "@/lib/auth-utils";
+import { withMetrics } from "@/lib/with-metrics";
 import { hybridSearch, searchDocuments } from "@/lib/rag/search";
 import type { SearchRow } from "@/lib/rag/search";
 import { openai } from "@ai-sdk/openai";
@@ -58,7 +59,7 @@ function getLastUserText(messages: UIMessage[]): string {
   return "";
 }
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   const body = await req.json();
   const {
     conversationId,
@@ -319,3 +320,5 @@ export async function POST(req: Request) {
       : undefined,
   });
 }
+
+export const POST = withMetrics(handlePost);

@@ -8,6 +8,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { isSuperAdmin } from "@/lib/auth-utils";
+import { withMetrics } from "@/lib/with-metrics";
 
 export const runtime = "nodejs";
 
@@ -19,7 +20,7 @@ const s3 = new S3Client({
   },
 });
 
-export async function GET(req: Request) {
+async function handleGet(req: Request) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -86,3 +87,5 @@ export async function GET(req: Request) {
     );
   }
 }
+
+export const GET = withMetrics(handleGet);
