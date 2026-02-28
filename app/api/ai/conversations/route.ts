@@ -4,8 +4,9 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { revalidateTag } from "next/cache";
 import { isSystemAdmin } from "@/lib/auth-utils";
+import { withMetrics } from "@/lib/with-metrics";
 
-export async function GET() {
+async function handleGet(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
 
   if (!session) {
@@ -77,7 +78,7 @@ export async function GET() {
   });
 }
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   const session = await auth.api.getSession({
     headers: req.headers,
   });
@@ -141,3 +142,6 @@ export async function POST(req: Request) {
     { status: 201 },
   );
 }
+
+export const GET = withMetrics(handleGet);
+export const POST = withMetrics(handlePost);

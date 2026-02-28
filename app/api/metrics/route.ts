@@ -1,4 +1,5 @@
 import { register, collectDefaultMetrics } from 'prom-client';
+import '@/lib/metrics'; // Register custom HTTP metrics
 
 collectDefaultMetrics();
 

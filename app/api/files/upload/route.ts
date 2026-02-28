@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { isSuperAdmin } from "@/lib/auth-utils";
+import { withMetrics } from "@/lib/with-metrics";
 
 const FileSchema = z.object({
   file: z
@@ -24,7 +25,7 @@ const s3 = new S3Client({
   },
 });
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -85,3 +86,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }
 }
+
+export const POST = withMetrics(handlePost);
