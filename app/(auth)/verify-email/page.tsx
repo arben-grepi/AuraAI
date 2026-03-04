@@ -22,8 +22,8 @@ export default async function Page() {
   return (
     <div className="flex flex-col gap-6 justify-center items-center h-screen">
       <form action={handleVerifyEmail}>
-        <h1>Verify Email</h1>
-        <Button type="submit">Verify Email</Button>
+        <h1>Verifiera e-post</h1>
+        <Button type="submit">Verifiera e-post</Button>
       </form>
     </div>
   );

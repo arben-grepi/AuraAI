@@ -18,7 +18,10 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
-import { handleUpdateOrganizationSources } from "@/lib/actions";
+import {
+  handleUpdateOrganizationSources,
+  handleDeleteOrganizationSource,
+} from "@/lib/actions";
 import type { Organization, SourceIndexInfo } from "@/lib/types";
 
 const urlSchema = z.url({ error: "Please enter a valid URL" });
@@ -119,6 +122,7 @@ function SourcesForm({ org }: { org: Organization }) {
 
   const [sources, setSources] = useState<SourceEntry[]>(initialSources);
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingSource, setDeletingSource] = useState<string | null>(null);
   const [indexingStates, setIndexingStates] = useState<
     Record<string, IndexingStatus>
   >({});
@@ -129,7 +133,6 @@ function SourcesForm({ org }: { org: Organization }) {
     new Map(),
   );
 
-  // Fetch existing index status on mount
   useEffect(() => {
     async function fetchIndexStatus() {
       try {
@@ -143,9 +146,7 @@ function SourcesForm({ org }: { org: Organization }) {
           map[entry.sourceUrl] = entry;
         }
         setIndexInfo(map);
-      } catch {
-        // silently fail
-      }
+      } catch {}
     }
     fetchIndexStatus();
   }, [org.id]);
@@ -247,7 +248,6 @@ function SourcesForm({ org }: { org: Organization }) {
       const normalized = normalizeUrl(value);
       const parsed = urlSchema.safeParse(normalized);
       if (parsed.success) {
-        // Update the input with the normalized URL
         setSources((prev) =>
           prev.map((e, i) => (i === index ? { ...e, value: normalized } : e)),
         );
@@ -273,7 +273,6 @@ function SourcesForm({ org }: { org: Organization }) {
         ),
       );
     } else if (normalized !== entry.value) {
-      // Auto-fix the value with https://
       setSources((prev) =>
         prev.map((e, i) => (i === index ? { ...e, value: normalized } : e)),
       );
@@ -393,20 +392,15 @@ function SourcesForm({ org }: { org: Organization }) {
           try {
             const event = JSON.parse(line.slice(6));
             handleSSEEvent(sourceUrl, event);
-          } catch {
-            // skip malformed events
-          }
+          } catch {}
         }
       }
 
-      // Process any remaining buffer
       if (buffer.startsWith("data: ")) {
         try {
           const event = JSON.parse(buffer.slice(6));
           handleSSEEvent(sourceUrl, event);
-        } catch {
-          // skip
-        }
+        } catch {}
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Indexing failed";
@@ -435,7 +429,6 @@ function SourcesForm({ org }: { org: Organization }) {
         }));
         break;
       case "crawl_done":
-        // Transition to indexing phase
         break;
       case "indexing_page":
         setIndexingStates((prev) => ({
@@ -457,7 +450,6 @@ function SourcesForm({ org }: { org: Organization }) {
             totalChunks: event.totalChunks as number,
           },
         }));
-        // Update the index info to show "Just now"
         setIndexInfo((prev) => ({
           ...prev,
           [sourceUrl]: {
@@ -482,15 +474,52 @@ function SourcesForm({ org }: { org: Organization }) {
     }
   };
 
+  const handleDeleteSource = async (sourceUrl: string, index: number) => {
+    if (deletingSource) return;
+    setDeletingSource(sourceUrl);
+
+    try {
+      const result = await handleDeleteOrganizationSource({
+        organizationId: org.id,
+        sourceUrl,
+      });
+
+      if (result.success) {
+        // Remove from local state
+        setSources((prev) => {
+          const updated = prev.filter((_, i) => i !== index);
+          return updated.length === 0 ? [createEntry("")] : updated;
+        });
+        setIndexInfo((prev) => {
+          const updated = { ...prev };
+          delete updated[sourceUrl];
+          return updated;
+        });
+        setIndexingStates((prev) => {
+          const updated = { ...prev };
+          delete updated[sourceUrl];
+          return updated;
+        });
+        // Update org.sources reference so hasChanges recalculates correctly
+        org.sources = org.sources.filter((s) => s !== sourceUrl);
+        toast.success("Source and all its data deleted");
+      } else {
+        toast.error(result.error ?? "Failed to delete source");
+      }
+    } finally {
+      setDeletingSource(null);
+    }
+  };
+
   const isSavedSource = (url: string) => org.sources.includes(url.trim());
 
   return (
     <div>
       <div className="w-full flex justify-between px-8 py-10 border-b border-zinc-200">
         <div className="flex flex-col gap-1">
-          <h1 className="font-medium text-xl">Organization Trusted Sources</h1>
+          <h1 className="font-medium text-xl">Fiduserade källor</h1>
           <p className="text-sm text-muted-foreground">
-            Add URLs the AI can reference as trusted sources
+            Lägg till URL:er som AI kan referera till som fiduserade källor
           </p>
         </div>
         <div className="flex gap-3">
@@ -506,7 +535,7 @@ function SourcesForm({ org }: { org: Organization }) {
             }
           >
             {isSaving && <Loader className="size-4 mr-2 animate-spin" />}
-            Save Changes
+            Spara ändringar
           </Button>
         </div>
       </div>
@@ -532,7 +561,7 @@ function SourcesForm({ org }: { org: Organization }) {
                   htmlFor={`source-${index}`}
                   className="text-sm font-medium"
                 >
-                  Source {index + 1}
+                  Källa {index + 1}
                 </Label>
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">
@@ -553,7 +582,7 @@ function SourcesForm({ org }: { org: Organization }) {
                             ? "border-emerald-500 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
                             : ""
                       }`}
-                      aria-label={`Source ${index + 1} URL`}
+                      aria-label={`Källa ${index + 1} URL`}
                       aria-invalid={
                         !!entry.error || entry.verification === "unsafe"
                       }
@@ -585,25 +614,45 @@ function SourcesForm({ org }: { org: Organization }) {
                     </TooltipTrigger>
                     <TooltipContent side="top">
                       {!isSavedSource(entry.value)
-                        ? "Save source first to index"
+                        ? "Spara källan först för att indexera"
                         : isIndexing
-                          ? "Indexing in progress..."
+                          ? "Indexering pågår..."
                           : isAlreadyIndexed || indexStatus?.state === "done"
-                            ? "Re-index source"
-                            : "Index source"}
+                            ? "Re-indexera källan"
+                            : "Indexera källa"}
                     </TooltipContent>
                   </Tooltip>
-                  {sources.length > 1 && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleRemoveSource(index)}
-                      className="shrink-0 text-muted-foreground hover:text-destructive"
-                      aria-label={`Remove source ${index + 1}`}
-                      tabIndex={0}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                  {(sources.length > 1 || isSavedSource(entry.value)) && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            if (isSavedSource(entry.value) && (isAlreadyIndexed || indexStatus?.state === "done")) {
+                              handleDeleteSource(trimmedUrl, index);
+                            } else {
+                              handleRemoveSource(index);
+                            }
+                          }}
+                          disabled={isIndexing || deletingSource === trimmedUrl}
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
+                          aria-label={`Remove source ${index + 1}`}
+                          tabIndex={0}
+                        >
+                          {deletingSource === trimmedUrl ? (
+                            <Loader className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        {isSavedSource(entry.value) && (isAlreadyIndexed || indexStatus?.state === "done")
+                          ? "Ta bort källa och all indexerad data"
+                          : "Ta bort"}
+                      </TooltipContent>
+                    </Tooltip>
                   )}
                 </div>
                 {entry.error && (
@@ -626,7 +675,7 @@ function SourcesForm({ org }: { org: Organization }) {
             className="w-fit mt-2"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Add Source
+            Lägg till källa
           </Button>
         </div>
       </div>
@@ -637,7 +686,7 @@ function SourcesForm({ org }: { org: Organization }) {
 function LastIndexedInfo({ info }: { info: SourceIndexInfo }) {
   return (
     <p className="text-xs text-muted-foreground mt-1">
-      Last indexed {formatRelativeTime(info.lastIndexedAt)} &middot;{" "}
+      Senast indexerad {formatRelativeTime(info.lastIndexedAt)} &middot;{" "}
       {info.pagesIndexed} page{info.pagesIndexed !== 1 ? "s" : ""},{" "}
       {info.totalChunks} chunk{info.totalChunks !== 1 ? "s" : ""}
     </p>

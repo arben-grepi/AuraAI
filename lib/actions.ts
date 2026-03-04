@@ -88,12 +88,12 @@ export async function signUp(
       "[BETTER_AUTH] Sign up with email and password has not worked",
       error,
     );
-    return { error: "Could not sign up", success: false, data: null };
+    return { error: "Kunde inte skapa konto", success: false, data: null };
   }
 
   return {
     success: true,
-    data: { data: "We sent you an email to verify your account" },
+    data: { data: "Vi skickade ett mejl för att verifiera ditt konto" },
     error: null,
   };
 }
@@ -133,7 +133,7 @@ export async function signIn(
 
   return {
     success: true,
-    data: { data: "You signed in successfully" },
+    data: { data: "Du loggade in" },
     error: null,
   };
 }
@@ -178,7 +178,7 @@ export async function createConversation(
 
   const created = await prisma.conversation.create({
     data: {
-      title: "New chat",
+      title: "Ny chatt",
       userId: session.user.id,
       organizationId,
       chatFolderId: chatFolderId || undefined,
@@ -277,7 +277,7 @@ export async function requestPasswordReset(
     });
     return {
       success: true,
-      data: { data: "Password reset email sent" },
+      data: { data: "E-post för lösenordsåterställning skickad" },
       error: null,
     };
   } catch (error) {
@@ -286,7 +286,7 @@ export async function requestPasswordReset(
     }
     console.error("[BETTER_AUTH] Request password reset has not worked", error);
     return {
-      error: "Could not request password reset",
+      error: "Kunde inte begära lösenordsåterställning",
       success: false,
       data: null,
     };
@@ -317,7 +317,7 @@ export async function resetPassword(
     });
     return {
       success: true,
-      data: { data: "Password reset successfully" },
+      data: { data: "Lösenordet har återställts" },
       error: null,
     };
   } catch (error) {
@@ -326,7 +326,7 @@ export async function resetPassword(
     }
     console.error("[BETTER_AUTH] Reset password has not worked", error);
     return {
-      error: "Could not reset password",
+      error: "Kunde inte återställa lösenord",
       success: false,
       data: null,
     };
@@ -1195,6 +1195,79 @@ export async function handleUpdateOrganizationSources({
     );
     return {
       error: "Could not update organization sources",
+      success: false,
+      data: null,
+    };
+  }
+}
+
+export async function handleDeleteOrganizationSource({
+  organizationId,
+  sourceUrl,
+}: {
+  organizationId: string;
+  sourceUrl: string;
+}): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const canManageOrg = await userHasOrgAdminAccess({
+    organizationId,
+    userId: session.user.id,
+    sessionRole: session.user.role,
+  });
+
+  if (!canManageOrg) {
+    return { success: false, data: null, error: "Insufficient permissions" };
+  }
+
+  try {
+    const parsedUrl = new URL(sourceUrl);
+    const hostname = parsedUrl.hostname;
+
+    // Delete resources (embeddings cascade-delete), source index, and remove from org sources array
+    await prisma.$transaction(async (tx) => {
+      // Delete resources and their embeddings for this source
+      await tx.$executeRawUnsafe(
+        `DELETE FROM "resources" WHERE "organization_id" = $1 AND "tags" @> ARRAY['web-scrape', $2]::text[]`,
+        organizationId,
+        `source:${hostname}`,
+      );
+
+      // Delete source index record
+      await tx.sourceIndex.deleteMany({
+        where: { organizationId, sourceUrl },
+      });
+
+      // Remove URL from the organization's sources array
+      const org = await tx.organization.findUnique({
+        where: { id: organizationId },
+        select: { sources: true },
+      });
+      if (org) {
+        await tx.organization.update({
+          where: { id: organizationId },
+          data: {
+            sources: org.sources.filter((s) => s !== sourceUrl),
+          },
+        });
+      }
+    });
+
+    return {
+      success: true,
+      data: { data: "Source and all its data deleted" },
+      error: null,
+    };
+  } catch (error) {
+    console.error("[PRISMA] Delete organization source failed", error);
+    return {
+      error: "Could not delete source",
       success: false,
       data: null,
     };
