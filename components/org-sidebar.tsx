@@ -31,22 +31,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
 const items = [
-  { title: "General", url: "", icon: Settings2 },
-  { title: "Ai Customization", url: "ai", icon: Sparkles },
-  { title: "Users", url: "users", icon: Users },
-  { title: "Sources", url: "sources", icon: FileText },
+  { title: "Allmänt", url: "", icon: Settings2 },
+  { title: "Ai anpassning", url: "ai", icon: Sparkles },
+  { title: "Användare", url: "users", icon: Users },
+  { title: "Källor", url: "sources", icon: FileText },
 ];
 
 export function OrgSidebar({ name }: { name: string }) {
@@ -115,18 +106,18 @@ export function OrgSidebar({ name }: { name: string }) {
                 className="hover:bg-zinc-100 transition-all duration-200 w-full justify-start border border-zinc-200 py-2 px-4 cursor-pointer"
               >
                 <LogOut className="size-4" />
-                <span className="text-sm font-medium">Log Out</span>
+                <span className="text-sm font-medium">Logga ut</span>
               </SidebarMenuButton>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Log Out</AlertDialogTitle>
+                <AlertDialogTitle>Logga ut</AlertDialogTitle>
               </AlertDialogHeader>
               <AlertDialogDescription>
-                Are you sure you want to log out?
+                Är du säker på att du vill logga ut?
               </AlertDialogDescription>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel>Avbryt</AlertDialogCancel>
                 <Button
                   variant="destructive"
                   onClick={() =>
@@ -139,7 +130,7 @@ export function OrgSidebar({ name }: { name: string }) {
                     })
                   }
                 >
-                  Log Out
+                  Logga ut
                 </Button>
               </AlertDialogFooter>
             </AlertDialogContent>

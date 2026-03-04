@@ -36,12 +36,12 @@ export default function Page() {
     const { success, data, error } = result;
 
     if (success) {
-      toast.success(data?.data || "You signed in successfully");
+      toast.success(data?.data || "Du loggade in");
       setTimeout(() => {
         redirect("/");
       }, 1000);
     } else {
-      toast.error(error || "Failed to sign in");
+      toast.error(error || "Kunde inte logga in");
     }
   }
 
@@ -49,9 +49,9 @@ export default function Page() {
     <div className="flex flex-col gap-6 justify-center items-center h-screen bg-neutral-50">
       <Card className="max-w-[350px] w-full border-none shadow-none bg-neutral-50 p-0">
         <CardHeader>
-          <h1 className="form-title">Sign in to Diguro</h1>
+          <h1 className="form-title">Logga in på Diguro</h1>
           <p className="form-description">
-            Sign in to your organization account
+            Logga in på ditt organisationskonto
           </p>
         </CardHeader>
         <CardContent className="p-0">
@@ -65,12 +65,12 @@ export default function Page() {
                 name="email"
                 render={({ field }) => (
                   <FormItem className="relative">
-                    <FormLabel>Email address</FormLabel>
+                    <FormLabel>E-postadress</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
                         className="form-input"
-                        placeholder="Enter your email address"
+                        placeholder="Ange din e-postadress"
                         onBlur={field.onBlur}
                         type="email"
                       />
@@ -85,18 +85,18 @@ export default function Page() {
                 render={({ field }) => (
                   <FormItem className="relative">
                     <FormLabel className="flex items-center justify-between">
-                      <p>Password</p>
+                      <p>Lösenord</p>
                       <Link
                         className="text-sm text-zinc-500 underline block text-center"
                         href={"/forgot-password"}
                       >
-                        Forgot password?
+                        Glömt lösenord?
                       </Link>
                     </FormLabel>
                     <FormControl>
                       <Input
                         className="form-input"
-                        placeholder="Enter your password"
+                        placeholder="Ange ditt lösenord"
                         type="password"
                         {...field}
                       />
@@ -110,12 +110,12 @@ export default function Page() {
                 disabled={form.formState.isSubmitting}
                 type="submit"
               >
-                {form.formState.isSubmitting ? "Signing in..." : "Sign in"}
+                {form.formState.isSubmitting ? "Loggar in..." : "Logga in"}
               </Button>
               <p className="text-center font-normal text-base text-zinc-500">
-                Don&apos;t have an account?{" "}
+                Har du inget konto?{" "}
                 <Link className="text-black" href="/sign-up">
-                  Sign up
+                  Skapa konto
                 </Link>
               </p>
             </form>

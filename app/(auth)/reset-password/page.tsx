@@ -29,10 +29,10 @@ function ResetPasswordForm() {
   const [isValidToken, setIsValidToken] = useState<boolean | null>(null);
   const formSchema = resetPasswordSchema
     .extend({
-      confirmPassword: z.string().min(8, { error: "Password is required" }),
+      confirmPassword: z.string().min(8, { error: "Lösenord krävs" }),
     })
     .refine((data) => data.newPassword === data.confirmPassword, {
-      message: "Passwords do not match",
+      message: "Lösenorden matchar inte",
       path: ["confirmPassword"],
     });
 
@@ -49,7 +49,7 @@ function ResetPasswordForm() {
 
     if (errorParam === "INVALID_TOKEN") {
       toast.error(
-        "Invalid or expired reset token. Please request a new password reset.",
+        "Ogiltig eller utgången återställningstoken. Begär en ny återställning.",
       );
       setIsValidToken(false);
     } else if (tokenParam) {
@@ -57,7 +57,7 @@ function ResetPasswordForm() {
       setIsValidToken(true);
     } else {
       toast.error(
-        "No reset token provided. Please use the link from your email.",
+        "Ingen återställningstoken angavs. Använd länken i ditt mejl.",
       );
       setIsValidToken(false);
     }
@@ -65,7 +65,7 @@ function ResetPasswordForm() {
 
   async function handleSubmit(values: z.infer<typeof formSchema>) {
     if (!token) {
-      toast.error("No token provided");
+      toast.error("Ingen token angiven");
       return;
     }
 
@@ -77,12 +77,12 @@ function ResetPasswordForm() {
     const { success, data, error } = result;
 
     if (success) {
-      toast.success(data?.data || "Password reset successfully");
+      toast.success(data?.data || "Lösenordet har återställts");
       setTimeout(() => {
         router.push("/sign-in");
       }, 2000);
     } else {
-      toast.error(error || "Failed to reset password");
+      toast.error(error || "Kunde inte återställa lösenord");
     }
   }
 
@@ -91,7 +91,7 @@ function ResetPasswordForm() {
       <div className="flex flex-col gap-6 justify-center items-center h-screen bg-neutral-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Validating token...</p>
+          <p className="mt-2 text-muted-foreground">Validerar token...</p>
         </div>
       </div>
     );
@@ -102,15 +102,15 @@ function ResetPasswordForm() {
       <div className="flex flex-col gap-6 justify-center items-center h-screen bg-neutral-50">
         <Card className="max-w-[350px] w-full border-none shadow-none bg-neutral-50 p-0">
           <CardHeader className="space-y-1">
-            <p className="form-title">Invalid Token</p>
+            <p className="form-title">Ogiltig token</p>
             <p className="form-description">
-              The password reset link is invalid or has expired.
+              Länken för lösenordsåterställning är ogiltig eller har gått ut.
             </p>
           </CardHeader>
           <CardContent>
             <Button asChild className="form-submit-button user-select-none mt-4">
               <Link href="/forgot-password">
-                Request New Reset Link
+                Begär ny återställningslänk
               </Link>
             </Button>
           </CardContent>
@@ -123,8 +123,8 @@ function ResetPasswordForm() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-neutral-50">
       <Card className="max-w-[350px] w-full border-none shadow-none bg-neutral-50 p-0">
         <CardHeader className="space-y-1">
-          <p className="form-title">Reset Password</p>
-          <p className="form-description">Enter your new password below.</p>
+          <p className="form-title">Återställ lösenord</p>
+          <p className="form-description">Ange ditt nya lösenord nedan.</p>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -136,13 +136,13 @@ function ResetPasswordForm() {
                 name="newPassword"
                 render={({ field }) => (
                   <FormItem className="relative">
-                    <FormLabel>New Password</FormLabel>
+                    <FormLabel>Nytt lösenord</FormLabel>
                     <div className="relative">
                       <FormControl>
                         <Input
                           id="password"
                           type={showPassword ? "text" : "password"}
-                          placeholder="Enter new password"
+                          placeholder="Ange nytt lösenord"
                           className="form-input"
                           disabled={form.formState.isSubmitting}
                           {...field}
@@ -172,13 +172,13 @@ function ResetPasswordForm() {
                 name="confirmPassword"
                 render={({ field }) => (
                   <FormItem className="relative">
-                    <FormLabel>Confirm Password</FormLabel>
+                    <FormLabel>Bekräfta lösenord</FormLabel>
                     <div className="relative">
                       <FormControl>
                         <Input
                           id="confirmPassword"
                           type={showConfirmPassword ? "text" : "password"}
-                          placeholder="Confirm new password"
+                          placeholder="Bekräfta nytt lösenord"
                           className="form-input"
                           disabled={form.formState.isSubmitting}
                           {...field}
@@ -212,8 +212,8 @@ function ResetPasswordForm() {
                 disabled={form.formState.isSubmitting}
               >
                 {form.formState.isSubmitting
-                  ? "Resetting..."
-                  : "Reset Password"}
+                  ? "Återställer..."
+                  : "Återställ lösenord"}
               </Button>
             </form>
           </Form>
@@ -230,7 +230,7 @@ export default function ResetPasswordPage() {
         <div className="min-h-screen flex items-center justify-center bg-background">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-2 text-muted-foreground">Loading...</p>
+            <p className="mt-2 text-muted-foreground">Laddar...</p>
           </div>
         </div>
       }

@@ -41,12 +41,12 @@ export default function Page() {
     const { success, data, error } = result;
 
     if (success) {
-      toast.success(data?.data || "You signed up successfully");
+      toast.success(data?.data || "Ditt konto har skapats");
       setTimeout(() => {
         redirect("/sign-in");
       }, 2000);
     } else {
-      toast.error(error || "Failed to sign up");
+      toast.error(error || "Kunde inte skapa konto");
     }
   }
 
@@ -55,10 +55,10 @@ export default function Page() {
       <Card className="max-w-[350px] w-full bg-transparent border-none shadow-none">
         <CardHeader>
           <h1 className="text-center font-bold text-2xl leading-8 text-zinc-800">
-            Sign up to Diguro
+            Skapa konto på Diguro
           </h1>
           <p className="text-center text-gray-500 text-sm">
-            Sign up to your organization account
+            Skapa ett konto för din organisation
           </p>
         </CardHeader>
         <CardContent className="p-0">
@@ -69,10 +69,10 @@ export default function Page() {
                 name="firstName"
                 render={({ field }) => (
                   <FormItem className="relative">
-                    <FormLabel>First Name</FormLabel>
+                    <FormLabel>Förnamn</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="Enter your first name"
+                        placeholder="Ange ditt förnamn"
                         className="form-input"
                         {...field}
                       />
@@ -86,10 +86,10 @@ export default function Page() {
                 name="lastName"
                 render={({ field }) => (
                   <FormItem className="relative">
-                    <FormLabel>Last Name</FormLabel>
+                    <FormLabel>Efternamn</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="Enter your last name"
+                        placeholder="Ange ditt efternamn"
                         className="form-input"
                         {...field}
                       />
@@ -103,10 +103,10 @@ export default function Page() {
                 name="email"
                 render={({ field }) => (
                   <FormItem className="relative">
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>E-post</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="Enter your email"
+                        placeholder="Ange din e-post"
                         className="form-input"
                         {...field}
                       />
@@ -120,10 +120,10 @@ export default function Page() {
                 name="password"
                 render={({ field }) => (
                   <FormItem className="relative">
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel>Lösenord</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="Enter your password"
+                        placeholder="Ange ditt lösenord"
                         className="form-input"
                         type={showPassword ? "text" : "password"}
                         {...field}
@@ -169,12 +169,12 @@ export default function Page() {
                 disabled={form.formState.isSubmitting}
                 type="submit"
               >
-                {form.formState.isSubmitting ? "Signing up..." : "Sign up"}
+                {form.formState.isSubmitting ? "Skapar konto..." : "Skapa konto"}
               </Button>
               <p className="text-center font-normal text-base text-zinc-500">
-                Already have an account?{" "}
+                Har du redan ett konto?{" "}
                 <Link className="text-black" href="/sign-in">
-                  Sign in
+                  Logga in
                 </Link>
               </p>
             </form>

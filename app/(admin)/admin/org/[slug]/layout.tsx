@@ -24,7 +24,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           >
             <Button size="lg" className="gap-2 shadow-lg">
               <MessageSquare className="size-4" />
-              Open Chat
+              Öppna chatt
             </Button>
           </Link>
         </main>

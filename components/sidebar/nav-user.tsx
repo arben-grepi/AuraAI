@@ -101,15 +101,15 @@ export function NavUser({
             <DropdownMenuGroup>
               <DropdownMenuItem disabled>
                 <BadgeCheck />
-                Account
+                Konto
               </DropdownMenuItem>
               <DropdownMenuItem disabled>
                 <CreditCard />
-                Billing
+                Fakturering
               </DropdownMenuItem>
               <DropdownMenuItem disabled>
                 <Bell />
-                Notifications
+                Notiser
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
@@ -119,7 +119,7 @@ export function NavUser({
                 className="cursor-pointer"
               >
                 <Settings />
-                Superadmin Dashboard
+                Superadmin-panel
               </DropdownMenuItem>
             )}
             <SignOutButton />

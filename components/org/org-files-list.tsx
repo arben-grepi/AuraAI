@@ -35,32 +35,8 @@ import {
   deleteResource,
 } from "@/lib/actions";
 
-const filters = [
-  {
-    label: "Analytics",
-    value: "analytics",
-  },
-  {
-    label: "Marketing",
-    value: "marketing",
-  },
-  {
-    label: "Sales",
-    value: "sales",
-  },
-  {
-    label: "Customer Support",
-    value: "customer-support",
-  },
-  {
-    label: "Product",
-    value: "product",
-  },
-];
-
 export default function OrgFilesList({ orgId }: { orgId: string }) {
   const itemsPerPage = 10;
-  const [activeFilter, setActiveFilter] = useState<string>("");
   const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
   const [isFolderDialogOpen, setIsFolderDialogOpen] = useState<boolean>(false);
   const [folderName, setFolderName] = useState("");
@@ -290,32 +266,32 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
     <div className="border border-zinc-200 rounded-[12px] mt-10">
       <div className="border-b border-zinc-200 p-7 flex justify-between items-center">
         <div className="flex flex-col gap-2">
-          <p className="font-medium text-sm">Uploaded Files</p>
+          <p className="font-medium text-sm">Uppladdade filer</p>
           <p className="text-zinc-600 text-sm font-medium">
-            Some placeholder text here
+            Hantera filer som används i organisationens AI-kunskapsbas.
           </p>
         </div>
         <div className="flex gap-2">
           <Input
             className="relative py-5"
-            placeholder="Search files"
+            placeholder="Sök filer"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
           />
           <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
             <DialogTrigger asChild>
               <Button className="w-fit py-5 rounded-[10px] cursor-pointer">
-                <p>Upload file</p>
+                <p>Ladda upp fil</p>
                 <Upload className="size-4" />
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-[526px]">
               <DialogHeader className="gap-1">
                 <DialogTitle className="text-sm font-medium">
-                  Upload file
+                  Ladda upp fil
                 </DialogTitle>
                 <DialogDescription className="text-zinc-600 text-sm font-medium">
-                  Upload a file to the organization
+                  Ladda upp en fil till organisationen
                 </DialogDescription>
               </DialogHeader>
               <div className="h-px bg-zinc-200 w-full"></div>
@@ -493,23 +469,6 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
         </div>
       </div>
       <div className="py-3.5 px-7">
-        <p className="text-sm font-medium block">Filter</p>
-        <div className="flex gap-2 mt-1">
-          {filters.map((filter) => (
-            <div
-              key={filter.value}
-              onClick={() => setActiveFilter(filter.value)}
-              className={cn(
-                "rounded-full border border-zinc-200 py-[6px] px-[10px] shadow-xs cursor-pointer transition-all duration-200",
-                activeFilter === filter.value
-                  ? "bg-primary text-white!"
-                  : "bg-transparent text-zinc-800!",
-              )}
-            >
-              <p className="font-medium text-sm">{filter.label}</p>
-            </div>
-          ))}
-        </div>
         <div className="flex flex-col gap-2 w-full mt-5">
           <div className="flex justify-between items-center">
             <p className="text-xs text-zinc-500 font-medium">NAME</p>

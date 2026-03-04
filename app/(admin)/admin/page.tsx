@@ -40,10 +40,7 @@ export default function Page() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center">
       <div className="flex flex-col gap-2 text-center mb-14">
-        <h1 className="text-2xl font-bold">Choose your organization</h1>
-        <p className="text-sm text-muted-foreground">
-          Choose an organization to manage
-        </p>
+        <h1 className="text-2xl font-bold">Vänligen välj din organisation</h1>
       </div>
       <div className="flex flex-col gap-2 w-full max-w-[600px]">
         {organizations.map((organization: Organization) => {
@@ -55,7 +52,7 @@ export default function Page() {
           className="bg-white w-full max-w-[600px] mt-4 py-6 cursor-pointer"
           variant="outline"
         >
-          Create new organization <Plus className="w-4 h-4" />
+          Skapa ny organisation <Plus className="w-4 h-4" />
         </Button>
       </Link>
     </div>

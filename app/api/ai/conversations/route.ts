@@ -128,7 +128,7 @@ async function handlePost(req: Request) {
 
   const created = await prisma.conversation.create({
     data: {
-      title: title && title.trim().length > 0 ? title.trim() : "New chat",
+      title: title && title.trim().length > 0 ? title.trim() : "Ny chatt",
       userId: session.user.id,
       organizationId,
       chatFolderId: chatFolderId || undefined,
