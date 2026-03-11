@@ -37,7 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createChatFolder,
@@ -182,9 +182,7 @@ export function Conversations({ slug }: { slug: string }) {
       >
         <DialogContent className="max-w-[400px]">
           <DialogHeader>
-            <DialogTitle className="text-sm font-medium">
-              Ny mapp
-            </DialogTitle>
+            <DialogTitle className="text-sm font-medium">Ny mapp</DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
               Skapa en mapp för att organisera dina chattar.
             </DialogDescription>
@@ -285,6 +283,17 @@ const ConversationItem = ({
   const pathname = usePathname();
   const isActive = pathname === `/org/${slug}/chat/${conversation.id}`;
   const [isDragOver, setIsDragOver] = useState(false);
+  const [triggerVisible, setTriggerVisible] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const handleDropdownOpenChange = useCallback((open: boolean) => {
+    clearTimeout(closeTimerRef.current);
+    if (open) {
+      setTriggerVisible(true);
+    } else {
+      closeTimerRef.current = setTimeout(() => setTriggerVisible(false), 150);
+    }
+  }, []);
 
   const handleMoveTo = async (chatFolderId: string | null) => {
     const result = await updateConversationFolder(
@@ -363,8 +372,13 @@ const ConversationItem = ({
           {conversation.title || "Ny chatt"}
         </span>
       </Link>
-      <div className="shrink-0 group-hover/conversation-row:flex hidden">
-        <DropdownMenu>
+      <div
+        className={cn(
+          "shrink-0",
+          triggerVisible ? "flex" : "group-hover/conversation-row:flex hidden",
+        )}
+      >
+        <DropdownMenu onOpenChange={handleDropdownOpenChange}>
           <DropdownMenuTrigger className="items-center flex" asChild>
             <Button
               className="size-4 cursor-pointer hover:bg-sidebar-accent/50"
@@ -374,7 +388,7 @@ const ConversationItem = ({
               <MoreHorizontal />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent>
+          <DropdownMenuContent align="end" side="bottom">
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>Flytta till mapp</DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
@@ -474,7 +488,9 @@ const ChatFolderRow = ({
         toast.error(error || "Kunde inte skapa chatt");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Kunde inte skapa chatt");
+      toast.error(
+        err instanceof Error ? err.message : "Kunde inte skapa chatt",
+      );
     } finally {
       setIsCreating(false);
     }
