@@ -13,26 +13,31 @@ import {
   Tailwind,
 } from "@react-email/components";
 
-const ResetPasswordEmail = ({
-  url,
-  userEmail,
-}: {
-  url: string;
-  userEmail: string;
+const OrganizationInvitationEmail = (props: {
+  email: string;
+  invitedByUsername: string;
+  invitedByEmail: string;
+  teamName: string;
+  inviteLink: string;
 }) => {
+  const { email, invitedByUsername, invitedByEmail, teamName, inviteLink } =
+    props;
+
   return (
     <Html lang="en" dir="ltr">
       <Tailwind>
         <Head />
-        <Preview>Reset your password - Action required</Preview>
+        <Preview>
+          {invitedByUsername} invited you to join {teamName}
+        </Preview>
         <Body className="bg-gray-100 font-sans py-[40px]">
           <Container className="bg-white rounded-[8px] shadow-sm max-w-[600px] mx-auto p-[40px]">
             <Section className="text-center mb-[32px]">
               <Heading className="text-[28px] font-bold text-gray-900 m-0 mb-[16px]">
-                Reset Your Password
+                You&apos;ve Been Invited
               </Heading>
               <Text className="text-[16px] text-gray-600 m-0">
-                We received a request to reset your password
+                Join <strong>{teamName}</strong> on Diguro
               </Text>
             </Section>
 
@@ -41,19 +46,19 @@ const ResetPasswordEmail = ({
                 Hi there,
               </Text>
               <Text className="text-[16px] text-gray-700 m-0 mb-[16px]">
-                Someone requested a password reset for your account associated
-                with <strong>{userEmail}</strong>. If this was you, click the
-                button below to reset your password.
+                <strong>{invitedByUsername}</strong> ({invitedByEmail}) has
+                invited you to join the <strong>{teamName}</strong>{" "}
+                organization.
               </Text>
               <Text className="text-[16px] text-gray-700 m-0 mb-[24px]">
-                Click the button below to reset your password:
+                Click the button below to accept the invitation and get started:
               </Text>
               <Section className="text-center mb-[24px]">
                 <Button
-                  href={url}
+                  href={inviteLink}
                   className="bg-blue-600 text-white px-[32px] py-[12px] rounded-[6px] text-[16px] font-semibold no-underline box-border"
                 >
-                  Reset Password
+                  Accept Invitation
                 </Button>
               </Section>
               <Text className="text-[14px] text-gray-600 m-0 mb-[16px]">
@@ -61,18 +66,21 @@ const ResetPasswordEmail = ({
                 link into your browser:
               </Text>
               <Text className="text-[14px] text-blue-600 m-0 mb-[24px] break-all">
-                <Link href={url} className="text-blue-600 underline">
-                  {url}
+                <Link
+                  href={inviteLink}
+                  className="text-blue-600 underline"
+                >
+                  {inviteLink}
                 </Link>
               </Text>
 
               <Text className="text-[14px] text-gray-600 m-0 mb-[16px]">
-                This reset link will expire in 24 hours for security reasons.
+                This invitation will expire in 48 hours for security reasons.
               </Text>
 
               <Text className="text-[14px] text-gray-600 m-0">
-                If you didn&apos;t request this reset, you can safely ignore
-                this email. Your password will remain unchanged.
+                If you weren&apos;t expecting this invitation, you can safely
+                ignore this email.
               </Text>
             </Section>
 
@@ -96,8 +104,12 @@ const ResetPasswordEmail = ({
   );
 };
 
-ResetPasswordEmail.PreviewProps = {
-  url: "https://example.com/reset-password?token=abc123xyz789",
+OrganizationInvitationEmail.PreviewProps = {
+  email: "user@example.com",
+  invitedByUsername: "John Doe",
+  invitedByEmail: "john@example.com",
+  teamName: "Acme Corp",
+  inviteLink: "https://example.com/accept-invitation/abc123",
 };
 
-export default ResetPasswordEmail;
+export default OrganizationInvitationEmail;

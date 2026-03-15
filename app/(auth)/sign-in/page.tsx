@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { signIn } from "@/lib/actions";
 import { toast } from "sonner";
-import { redirect } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   Form,
   FormControl,
@@ -22,6 +22,8 @@ import Link from "next/link";
 import Image from "next/image";
 
 export default function Page() {
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl");
   const form = useForm<z.infer<typeof signInSchema>>({
     defaultValues: {
       email: "",
@@ -38,7 +40,7 @@ export default function Page() {
     if (success) {
       toast.success(data?.data || "Du loggade in");
       setTimeout(() => {
-        redirect("/");
+        window.location.href = callbackUrl || "/";
       }, 1000);
     } else {
       toast.error(error || "Kunde inte logga in");
@@ -114,7 +116,14 @@ export default function Page() {
               </Button>
               <p className="text-center font-normal text-base text-zinc-500">
                 Har du inget konto?{" "}
-                <Link className="text-black" href="/sign-up">
+                <Link
+                  className="text-black"
+                  href={
+                    callbackUrl
+                      ? `/sign-up?callbackUrl=${encodeURIComponent(callbackUrl)}`
+                      : "/sign-up"
+                  }
+                >
                   Skapa konto
                 </Link>
               </p>

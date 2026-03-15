@@ -38,6 +38,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { signUpSchema } from "@/lib/schema";
 import { z } from "zod";
 import { useState } from "react";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import { Organization } from "@/lib/types";
 
 type Admin = {
   id: string;
@@ -142,6 +151,14 @@ export default function Page() {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<
+    "admin" | "member" | "owner" | null
+  >(null);
+  const [selectedOrganization, setSelectedOrganization] = useState<
+    string | null
+  >(null);
 
   const createForm = useForm<z.infer<typeof signUpSchema>>({
     defaultValues: {
@@ -151,6 +168,16 @@ export default function Page() {
       lastName: "",
     },
     resolver: zodResolver(signUpSchema),
+  });
+
+  const { data: organizations } = useQuery<Organization[]>({
+    queryKey: ["organizations"],
+    enabled: inviteDialogOpen,
+    queryFn: async () => {
+      const res = await fetch("/api/admin/organizations");
+      if (!res.ok) throw new Error("Failed to fetch organizations");
+      return res.json();
+    },
   });
 
   const { data: admins, isLoading } = useQuery<Admin[]>({
@@ -206,6 +233,41 @@ export default function Page() {
     }
   };
 
+  const handleOrganizationSelect = (organizationId: string | undefined) => {
+    setSelectedOrganization(organizationId ?? null);
+  };
+
+  const handleSendInvite = async () => {
+    if (!selectedEmail || !selectedOrganization || !selectedRole) {
+      toast.error("Please select an email, organization, and role");
+      return;
+    }
+    try {
+      const res = await fetch("/api/superadmin/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: selectedEmail,
+          role: selectedRole,
+          organizationId: selectedOrganization,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to send invite");
+      }
+      toast.success("Invitation sent");
+      setSelectedEmail(null);
+      setSelectedOrganization(null);
+      setSelectedRole(null);
+      setInviteDialogOpen(false);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to send invite",
+      );
+    }
+  };
+
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-8">
@@ -216,10 +278,72 @@ export default function Page() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="gap-2" disabled>
-            <Mail className="size-4" />
-            Invite Admin
-          </Button>
+          <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2 cursor-pointer">
+                <Mail className="size-4" />
+                Invite Admin
+              </Button>
+            </DialogTrigger>
+            <DialogContent
+              className="max-w-[470px]"
+              showCloseButton={inviteDialogOpen}
+            >
+              <DialogHeader>
+                <DialogTitle>Invite Admin</DialogTitle>
+                <DialogDescription>
+                  Invite a new admin account with full platform management
+                  access.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  type="email"
+                  placeholder="Email"
+                  id="email"
+                  value={selectedEmail ?? ""}
+                  onChange={(event) => setSelectedEmail(event.target.value)}
+                />
+                <Select
+                  value={selectedOrganization ?? undefined}
+                  onValueChange={(value) => {
+                    handleOrganizationSelect(value);
+                    console.log("selected organization", value);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select Organization" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {organizations?.map((organization) => (
+                      <SelectItem key={organization.id} value={organization.id}>
+                        {organization.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={selectedRole ?? undefined}
+                  onValueChange={(value) =>
+                    setSelectedRole(value as "admin" | "member" | "owner")
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select Role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="member">Member</SelectItem>
+                    <SelectItem value="owner">Owner</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button type="button" onClick={handleSendInvite}>
+                  Send Invite
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2">

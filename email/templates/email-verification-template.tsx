@@ -17,10 +17,7 @@ const EmailVerificationTemplate = (props: {
   userEmail: string;
   verificationLink: string;
 }) => {
-  const {
-    userEmail = "ledionrestelica7@gmail.com",
-    verificationLink = "https://example.com/verify-email",
-  } = props;
+  const { userEmail, verificationLink } = props;
 
   return (
     <Html lang="en" dir="ltr">
@@ -29,70 +26,72 @@ const EmailVerificationTemplate = (props: {
         <Preview>
           Please verify your email address to complete your registration
         </Preview>
-        <Body className="bg-white font-sans py-[40px]">
-          <Container className="mx-auto py-[40px] px-[20px] max-w-[600px]">
-            <Section className="bg-white border border-solid border-black p-[40px]">
-              <Heading className="text-[32px] font-bold text-black text-center mb-[32px] mt-0">
+        <Body className="bg-gray-100 font-sans py-[40px]">
+          <Container className="bg-white rounded-[8px] shadow-sm max-w-[600px] mx-auto p-[40px]">
+            <Section className="text-center mb-[32px]">
+              <Heading className="text-[28px] font-bold text-gray-900 m-0 mb-[16px]">
                 Verify Your Email
               </Heading>
-
-              <Text className="text-[16px] text-black mb-[24px] leading-[24px]">
-                Hello,
+              <Text className="text-[16px] text-gray-600 m-0">
+                Complete your registration by verifying your email address
               </Text>
+            </Section>
 
-              <Text className="text-[16px] text-black mb-[24px] leading-[24px]">
+            <Section className="mb-[32px]">
+              <Text className="text-[16px] text-gray-700 m-0 mb-[16px]">
+                Hi there,
+              </Text>
+              <Text className="text-[16px] text-gray-700 m-0 mb-[16px]">
                 Welcome! Thank you for signing up. To complete your registration
-                and secure your account, please verify your email address.
+                and secure your account, please verify your email address{" "}
+                <strong>{userEmail}</strong>.
               </Text>
-
-              <Text className="text-[16px] text-black mb-[32px] leading-[24px]">
-                Click the button below to verify your email address:{" "}
-                <strong>{userEmail}</strong>
+              <Text className="text-[16px] text-gray-700 m-0 mb-[24px]">
+                Click the button below to verify your email address:
               </Text>
-
-              <Section className="text-center mb-[32px]">
+              <Section className="text-center mb-[24px]">
                 <Button
                   href={verificationLink}
-                  className="bg-black text-white px-[32px] py-[16px] text-[16px] font-semibold border-none cursor-pointer box-border"
+                  className="bg-blue-600 text-white px-[32px] py-[12px] rounded-[6px] text-[16px] font-semibold no-underline box-border"
                 >
                   Verify Email Address
                 </Button>
               </Section>
-
-              <Text className="text-[14px] text-black mb-[24px] leading-[20px]">
-                If the button doesn&apos;t work, copy and paste this link into
-                your browser:
+              <Text className="text-[14px] text-gray-600 m-0 mb-[16px]">
+                If the button doesn&apos;t work, you can copy and paste this
+                link into your browser:
               </Text>
-
-              <Text className="text-[14px] text-black mb-[32px] leading-[20px] break-all">
-                <Link href={verificationLink} className="text-black underline">
+              <Text className="text-[14px] text-blue-600 m-0 mb-[24px] break-all">
+                <Link
+                  href={verificationLink}
+                  className="text-blue-600 underline"
+                >
                   {verificationLink}
                 </Link>
               </Text>
 
-              <Text className="text-[14px] text-black mb-[16px] leading-[20px]">
-                This verification link will expire in 48 hours. If you
-                didn&apos;t create an account with us, please ignore this email.
+              <Text className="text-[14px] text-gray-600 m-0 mb-[16px]">
+                This verification link will expire in 48 hours for security
+                reasons.
               </Text>
 
-              <Text className="text-[14px] text-black leading-[20px]">
-                Welcome aboard!
-                <br />
-                The AI Chat Team
+              <Text className="text-[14px] text-gray-600 m-0">
+                If you didn&apos;t create an account with us, you can safely
+                ignore this email.
               </Text>
             </Section>
 
-            <Section className="mt-[32px] text-center">
-              <Text className="text-[12px] text-gray-600 mb-[8px] m-0">
-                © 2025 Cafler Covers. All rights reserved.
+            <Section className="border-t border-gray-200 pt-[24px] mt-[40px]">
+              <Text className="text-[12px] text-gray-500 text-center m-0 mb-[8px]">
+                Welcome aboard!
+                <br />
+                The Diguro Team
               </Text>
-              <Text className="text-[12px] text-gray-600 m-0">
-                Skenderbegova 10, 10000, Prishtina, Kosovo
-              </Text>
-              <Text className="text-[12px] text-gray-600 mt-[8px]">
-                <Link href="#" className="text-gray-600 underline">
+              <Text className="text-[12px] text-gray-400 text-center m-0">
+                <Link href="#" className="text-gray-400 underline">
                   Unsubscribe
-                </Link>
+                </Link>{" "}
+                | &copy; {new Date().getFullYear()} Diguro. All rights reserved.
               </Text>
             </Section>
           </Container>

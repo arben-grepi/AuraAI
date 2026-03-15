@@ -4,6 +4,7 @@ import PasswordResetEmail from "./templates/password-reset-email";
 import { render } from "@react-email/components";
 import EmailVerificationTemplate from "./templates/email-verification-template";
 import ChangeEmailVerificationTemplate from "./templates/change-email-verification";
+import OrganizationInvitationEmail from "./templates/invitation-email";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -16,7 +17,7 @@ export async function sendPasswordResetEmail(userEmail: string, url: string) {
   );
 
   const { data, error } = await resend.emails.send({
-    from: "info@caflercovers.com",
+    from: "info@diguro.se",
     to: [userEmail],
     subject: "Password Reset",
     html,
@@ -42,7 +43,7 @@ export async function sendEmailVerificationEmail(
   );
 
   const { data, error } = await resend.emails.send({
-    from: "info@caflercovers.com",
+    from: "info@diguro.se",
     to: [userEmail],
     subject: "Email Verification",
     html,
@@ -68,7 +69,7 @@ export async function sendChangeEmailVerificationEmail(
   );
 
   const { data, error } = await resend.emails.send({
-    from: "info@caflercovers.com",
+    from: "info@diguro.se",
     to: [userEmail],
     subject: "Change Email Verification",
     html,
@@ -79,6 +80,44 @@ export async function sendChangeEmailVerificationEmail(
     throw new Error(
       `Failed to send change email verification: ${error.message}`,
     );
+  }
+
+  return { data };
+}
+
+export async function sendOrganizationInvitation({
+  email,
+  invitedByUsername,
+  invitedByEmail,
+  teamName,
+  inviteLink,
+}: {
+  email: string;
+  invitedByUsername: string;
+  invitedByEmail: string;
+  teamName: string;
+  inviteLink: string;
+}) {
+  const html = await render(
+    OrganizationInvitationEmail({
+      email,
+      invitedByUsername,
+      invitedByEmail,
+      teamName,
+      inviteLink,
+    }),
+  );
+
+  const { data, error } = await resend.emails.send({
+    from: "info@diguro.se",
+    to: [email],
+    subject: `You've been invited to join ${teamName}`,
+    html,
+  });
+
+  if (error) {
+    console.error({ error });
+    throw new Error(`Failed to send organization invitation: ${error.message}`);
   }
 
   return { data };
@@ -96,7 +135,7 @@ export async function sendPasswordResetEmailEmail(
   );
 
   const { data, error } = await resend.emails.send({
-    from: "info@caflercovers.com",
+    from: "info@diguro.se",
     to: [userEmail],
     subject: "Password Reset",
     html,

@@ -13,6 +13,7 @@ const loginRoutes = [
   "/reset-password",
   "/verify-email",
   "/change-email",
+  "/accept-invite",
 ];
 
 export async function middleware(request: NextRequest) {
