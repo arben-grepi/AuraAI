@@ -1,6 +1,6 @@
 "use client";
 
-import { redirect } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,6 +24,8 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 
 export default function Page() {
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl");
   const [showPassword, setShowPassword] = useState(false);
   const form = useForm<z.infer<typeof signUpSchema>>({
     defaultValues: {
@@ -43,7 +45,10 @@ export default function Page() {
     if (success) {
       toast.success(data?.data || "Ditt konto har skapats");
       setTimeout(() => {
-        redirect("/sign-in");
+        const signInUrl = callbackUrl
+          ? `/sign-in?callbackUrl=${encodeURIComponent(callbackUrl)}`
+          : "/sign-in";
+        window.location.href = signInUrl;
       }, 2000);
     } else {
       toast.error(error || "Kunde inte skapa konto");
@@ -173,7 +178,14 @@ export default function Page() {
               </Button>
               <p className="text-center font-normal text-base text-zinc-500">
                 Har du redan ett konto?{" "}
-                <Link className="text-black" href="/sign-in">
+                <Link
+                  className="text-black"
+                  href={
+                    callbackUrl
+                      ? `/sign-in?callbackUrl=${encodeURIComponent(callbackUrl)}`
+                      : "/sign-in"
+                  }
+                >
                   Logga in
                 </Link>
               </p>

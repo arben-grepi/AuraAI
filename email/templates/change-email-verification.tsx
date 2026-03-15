@@ -28,7 +28,6 @@ export default function ChangeEmailVerificationTemplate(props: {
         </Preview>
         <Body className="bg-gray-100 font-sans py-[40px]">
           <Container className="bg-white rounded-[8px] shadow-sm max-w-[600px] mx-auto p-[40px]">
-            {/* Header */}
             <Section className="text-center mb-[32px]">
               <Heading className="text-[28px] font-bold text-gray-900 m-0 mb-[16px]">
                 Verify Your Email Address
@@ -38,8 +37,6 @@ export default function ChangeEmailVerificationTemplate(props: {
                 setup
               </Text>
             </Section>
-
-            {/* Main Content */}
             <Section className="mb-[32px]">
               <Text className="text-[16px] text-gray-700 m-0 mb-[16px]">
                 Hi there,
@@ -52,8 +49,6 @@ export default function ChangeEmailVerificationTemplate(props: {
                 Please click the button below to verify your email address and
                 activate your account:
               </Text>
-
-              {/* CTA Button */}
               <Section className="text-center mb-[24px]">
                 <Button
                   href={verificationLink}
@@ -62,7 +57,6 @@ export default function ChangeEmailVerificationTemplate(props: {
                   Verify Email Address
                 </Button>
               </Section>
-
               <Text className="text-[14px] text-gray-600 m-0 mb-[16px]">
                 If the button doesn&apos;t work, you can copy and paste this
                 link into your browser:
@@ -83,27 +77,20 @@ export default function ChangeEmailVerificationTemplate(props: {
 
               <Text className="text-[14px] text-gray-600 m-0">
                 If you didn&apos;t create an account with us, you can safely
-                ignore this email. this email.
+                ignore this email.
               </Text>
             </Section>
-
-            {/* Footer */}
             <Section className="border-t border-gray-200 pt-[24px] mt-[40px]">
               <Text className="text-[12px] text-gray-500 text-center m-0 mb-[8px]">
                 Best regards,
                 <br />
-                The Team
-              </Text>
-              <Text className="text-[12px] text-gray-400 text-center m-0 mb-[8px]">
-                123 Business Street, Suite 100
-                <br />
-                City, State 12345
+                The Diguro Team
               </Text>
               <Text className="text-[12px] text-gray-400 text-center m-0">
                 <Link href="#" className="text-gray-400 underline">
                   Unsubscribe
                 </Link>{" "}
-                | © {new Date().getFullYear()} All rights reserved
+                | &copy; {new Date().getFullYear()} Diguro. All rights reserved.
               </Text>
             </Section>
           </Container>

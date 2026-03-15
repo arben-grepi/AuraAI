@@ -6,6 +6,7 @@ import { openAPI, organization, admin } from "better-auth/plugins";
 import {
   sendChangeEmailVerificationEmail,
   sendEmailVerificationEmail,
+  sendOrganizationInvitation,
   sendPasswordResetEmailEmail,
 } from "@/email/email";
 import { ac, admin as adminRole, superadmin } from "./permissions";
@@ -16,7 +17,6 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    // disableSignUp: true,
     requireEmailVerification: false,
     minPasswordLength: 8,
     maxPasswordLength: 128,
@@ -58,6 +58,16 @@ export const auth = betterAuth({
     nextCookies(),
     openAPI(),
     organization({
+      async sendInvitationEmail(data) {
+        const inviteLink = `${process.env.NODE_ENV === "production" ? process.env.BETTER_AUTH_URL : "http://localhost:3000"}/accept-invite/${data.id}`;
+        await sendOrganizationInvitation({
+          email: data.email,
+          invitedByUsername: data.inviter.user.name,
+          invitedByEmail: data.inviter.user.email,
+          teamName: data.organization.name,
+          inviteLink,
+        });
+      },
       schema: {
         organization: {
           additionalFields: {
