@@ -680,6 +680,54 @@ export async function updateMemberRole({
   }
 }
 
+export async function deleteOrgUser({
+  userId,
+  organizationId,
+}: {
+  userId: string;
+  organizationId: string;
+}): Promise<ActionResult<{ data: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const canManageMembers = await userHasOrgAdminAccess({
+    organizationId,
+    userId: session.user.id,
+    sessionRole: session.user.role,
+  });
+
+  if (!canManageMembers) {
+    return { success: false, data: null, error: "Insufficient permissions" };
+  }
+
+  try {
+    await auth.api.removeUser({
+      headers: await headers(),
+      body: { userId },
+    });
+
+    return {
+      success: true,
+      data: { data: "User deleted successfully" },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { error: error.message, success: false, data: null };
+    }
+    console.error("[DELETE_USER] Failed to delete user", error);
+    return {
+      error: "Could not delete user",
+      success: false,
+      data: null,
+    };
+  }
+}
+
 export async function generateTitleFromUserMessage({
   message,
 }: {
