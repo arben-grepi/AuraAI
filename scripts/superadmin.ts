@@ -1,7 +1,7 @@
 import prisma from "@/lib/prisma";
 
 async function makeSuperAdmin() {
-  const emails = ["ledionrestelica7@gmail.com"];
+  const emails = ["ledionrestelica7@gmail.com", "timi.krasniqi@oskarshamn.se"];
 
   const users = await prisma.user.findMany({
     where: {
