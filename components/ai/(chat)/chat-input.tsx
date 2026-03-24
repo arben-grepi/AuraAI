@@ -378,7 +378,7 @@ export const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(
 
               <Textarea
                 ref={textareaRef}
-                placeholder="Fråga mig vad som helst..."
+                placeholder="Ask me anything..."
                 value={message}
                 onKeyDown={handleTextareaKeyDown}
                 onFocus={() => setIsFocused(true)}
@@ -394,7 +394,7 @@ export const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(
               onClick={handlePickFiles}
               data-no-open
               className="absolute bottom-2.5 right-2.5 cursor-pointer h-8 w-8 rounded-full border bg-white border-border flex items-center justify-center hover:bg-muted transition"
-              title="Ladda upp fil"
+              title="Upload file"
             >
               <Plus className={`w-4 h-4 text-black`} />
             </button>

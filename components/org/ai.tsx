@@ -21,19 +21,19 @@ export default function Ai({ org }: { org: Organization }) {
 
   const tones = [
     {
-      label: "Professionell",
+      label: "Professional",
       value: "professional",
     },
     {
-      label: "Vänlig",
+      label: "Friendly",
       value: "friendly",
     },
     {
-      label: "Analytisk",
+      label: "Analytical",
       value: "analytical",
     },
     {
-      label: "Kreativ",
+      label: "Creative",
       value: "creative",
     },
   ];
@@ -67,7 +67,7 @@ export default function Ai({ org }: { org: Organization }) {
     <div>
       <div className="w-full flex justify-between px-8 py-10 border-b border-zinc-200">
         <div className="flex flex-col gap-1">
-          <h1 className="font-medium text-xl">Organisationens information</h1>
+          <h1 className="font-medium text-xl">Organization information</h1>
         </div>
         <div className="flex gap-3">
           <Button
@@ -76,15 +76,15 @@ export default function Ai({ org }: { org: Organization }) {
             onClick={handleSaveChanges}
             disabled={!hasChanges}
           >
-            Spara ändringar
+            Save changes
           </Button>
         </div>
       </div>
       <div className="px-8 py-10">
         <div className="flex flex-col gap-1 mb-4">
-          <p className="text-sm font-medium">AI ton</p>
+          <p className="text-sm font-medium">AI tone</p>
           <p className="text-zinc-600 text-sm font-medium">
-            Välj vilken ton AI:n ska använda i sina svar för din organisation.
+            Choose the tone the AI should use in its responses for your organization.
           </p>
         </div>
         <div className="flex gap-2">
@@ -111,14 +111,14 @@ export default function Ai({ org }: { org: Organization }) {
           ))}
         </div>
         <div className="flex flex-col gap-1 mb-4 mt-10">
-          <Label htmlFor="systemPrompt">Hur ska denna AI bete sig?</Label>
+          <Label htmlFor="systemPrompt">How should this AI behave?</Label>
           <Textarea
             name="systemPrompt"
             rows={8}
             value={systemPrompt}
             onChange={(e) => setSystemPrompt(e.target.value)}
             className="form-input bg-white mt-3! min-w-[300px] max-w-[500px]"
-            placeholder="Skriv in din systemprompt"
+            placeholder="Enter your system prompt"
           />
         </div>
         <OrgFilesList orgId={org.id} />

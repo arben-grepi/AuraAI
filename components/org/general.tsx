@@ -110,7 +110,7 @@ export default function General({ org }: { org: Organization }) {
     <div>
       <div className="w-full flex justify-between px-8 py-10 border-b border-zinc-200">
         <div className="flex flex-col gap-1">
-          <h1 className="font-medium text-xl">Organisationens information</h1>
+          <h1 className="font-medium text-xl">Organization information</h1>
           <p className="text-base text-zinc-600">
             {hasChanges ? (
               <span className="text-amber-600">Unsaved changes</span>
@@ -127,7 +127,7 @@ export default function General({ org }: { org: Organization }) {
               onClick={handleCancel}
               disabled={isUploading}
             >
-              Avbryt
+              Cancel
             </Button>
           )}
           <Button
@@ -139,7 +139,7 @@ export default function General({ org }: { org: Organization }) {
             {isUploading ? (
               <Loader className="size-4 animate-spin" />
             ) : (
-              "Spara ändringar"
+              "Save changes"
             )}
           </Button>
         </div>
@@ -147,28 +147,28 @@ export default function General({ org }: { org: Organization }) {
 
       <div className="flex flex-col gap-10 px-8 py-10">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="name">Organisationsnamn</Label>
+          <Label htmlFor="name">Organization name</Label>
           <Input
             name="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="form-input min-w-[300px] max-w-[300px]"
-            placeholder="Organisationsnamn"
+            placeholder="Organization name"
           />
         </div>
         <div>
-          <Label htmlFor="description">Organisationslogo</Label>
+          <Label htmlFor="description">Organization description</Label>
           <Textarea
             name="description"
             rows={8}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="form-input bg-white mt-3! min-w-[300px] max-w-[500px]"
-            placeholder="Skriv in din organisationsbeskrivning"
+            placeholder="Enter your organization description"
           />
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="logo">Ladda upp logotyp</Label>
+          <Label htmlFor="logo">Upload logo</Label>
           <div className="border border-zinc-200 rounded-[12px] bg-white w-[238px] h-[178px] flex flex-col">
             <div className="flex-1 relative flex items-center justify-center">
               {isUploading ? (
@@ -204,9 +204,9 @@ export default function General({ org }: { org: Organization }) {
           </div>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="backgroundColor">Bakgrundsfärg (UI)</Label>
+          <Label htmlFor="backgroundColor">Background color (UI)</Label>
           <p className="text-sm text-gray-700 font-medium">
-            Välj en bakgrundsfärg för din organisation
+            Choose a background color for your organization
           </p>
           <div className="flex gap-3">
             {bgColors.map((color) => (
@@ -222,9 +222,9 @@ export default function General({ org }: { org: Organization }) {
           </div>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="backgroundColor">Knappfärg</Label>
+          <Label htmlFor="backgroundColor">Button color</Label>
           <p className="text-sm text-gray-700 font-medium">
-            Välj en färgknapp för din organisation
+            Choose a button color for your organization
           </p>
           <div className="grid grid-cols-4 gap-2 max-w-fit grid-rows-2">
             {buttonColors.map((color) => (

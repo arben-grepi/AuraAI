@@ -60,12 +60,12 @@ export async function AppSidebar({ org }: { org: string }) {
 
   const items = [
     {
-      title: "Ny chatt",
+      title: "New chat",
       url: `/org/${org}/chat`,
       icon: PenLine,
     },
     {
-      title: "Sök chatt",
+      title: "Search chat",
       url: "/search",
       icon: Search,
       variant: "white" as const,
@@ -102,7 +102,7 @@ export async function AppSidebar({ org }: { org: string }) {
                   {organization?.name}
                 </p>
                 <p className="text-xs font-medium text-zinc-500">
-                  Organisation
+                  Organization
                 </p>
               </div>
             </div>
@@ -125,7 +125,7 @@ export async function AppSidebar({ org }: { org: string }) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-              <SidebarGroupLabel className="shrink-0">Chattar</SidebarGroupLabel>
+              <SidebarGroupLabel className="shrink-0">Chats</SidebarGroupLabel>
               <ScrollArea className="min-h-0 min-w-0 flex-1 overflow-x-hidden">
                 <div className="flex min-h-full min-w-0 w-full flex-col">
                   <div className="min-w-0 flex-1 flex flex-col">

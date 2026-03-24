@@ -19,10 +19,10 @@ export function NewChatButton() {
       const { success, data, error } = await createConversation();
       if (success) {
         invalidateConversations();
-        toast.success(data?.data || "Konversation skapad");
+        toast.success(data?.data || "Conversation created");
         router.push(`/chat/${data?.id}`);
       } else {
-        toast.error(error || "Kunde inte skapa konversation");
+        toast.error(error || "Could not create conversation");
       }
     });
   };
@@ -35,7 +35,7 @@ export function NewChatButton() {
           onClick={handleCreateConversation}
           disabled={isPending}
         >
-          {isPending ? "Skapar..." : "Ny chatt"}
+          {isPending ? "Creating..." : "New chat"}
         </Button>
       </SidebarMenuButton>
     </SidebarMenuItem>

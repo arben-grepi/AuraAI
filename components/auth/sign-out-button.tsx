@@ -26,7 +26,7 @@ export function SignOutButton() {
       onClick={handleClick}
     >
       <LogOut className="size-4" />
-      Logga ut
+      Sign out
       {isLoading && (
         <div className="bg-neutral-300 absolute top-0 right-0 bottom-0 opacity-25 left-0 flex items-center justify-center pointer-events-none">
           <Loader className="size-4 animate-spin" />

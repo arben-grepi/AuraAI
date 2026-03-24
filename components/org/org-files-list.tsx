@@ -266,32 +266,32 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
     <div className="border border-zinc-200 rounded-[12px] mt-10">
       <div className="border-b border-zinc-200 p-7 flex justify-between items-center">
         <div className="flex flex-col gap-2">
-          <p className="font-medium text-sm">Uppladdade filer</p>
+          <p className="font-medium text-sm">Uploaded files</p>
           <p className="text-zinc-600 text-sm font-medium">
-            Hantera filer som används i organisationens AI-kunskapsbas.
+            Manage files used in the organization's AI knowledge base.
           </p>
         </div>
         <div className="flex gap-2">
           <Input
             className="relative py-5"
-            placeholder="Sök filer"
+            placeholder="Search files"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
           />
           <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
             <DialogTrigger asChild>
               <Button className="w-fit py-5 rounded-[10px] cursor-pointer">
-                <p>Ladda upp fil</p>
+                <p>Upload file</p>
                 <Upload className="size-4" />
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-[526px]">
               <DialogHeader className="gap-1">
                 <DialogTitle className="text-sm font-medium">
-                  Ladda upp fil
+                  Upload file
                 </DialogTitle>
                 <DialogDescription className="text-zinc-600 text-sm font-medium">
-                  Ladda upp en fil till organisationen
+                  Upload a file to the organization
                 </DialogDescription>
               </DialogHeader>
               <div className="h-px bg-zinc-200 w-full"></div>

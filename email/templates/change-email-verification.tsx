@@ -84,13 +84,13 @@ export default function ChangeEmailVerificationTemplate(props: {
               <Text className="text-[12px] text-gray-500 text-center m-0 mb-[8px]">
                 Best regards,
                 <br />
-                The Diguro Team
+                The AuraAI Team
               </Text>
               <Text className="text-[12px] text-gray-400 text-center m-0">
                 <Link href="#" className="text-gray-400 underline">
                   Unsubscribe
                 </Link>{" "}
-                | &copy; {new Date().getFullYear()} Diguro. All rights reserved.
+                | &copy; {new Date().getFullYear()} AuraAI. All rights reserved.
               </Text>
             </Section>
           </Container>

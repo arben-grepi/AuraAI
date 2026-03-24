@@ -65,14 +65,14 @@ export default function OrgItem({
           </p>
         </div>
         <p className="text-base font-medium text-zinc-500">
-          {data?.members.length} aktiva användare
+          {data?.members.length} active users
         </p>
       </div>
       <Link
         className="flex items-center gap-2 text-cyan-600"
         href={`/admin/org/${organization.slug}`}
       >
-        Gå till organisation <ArrowRight className="w-4 h-4" />
+        Go to organization <ArrowRight className="w-4 h-4" />
       </Link>
     </div>
   );

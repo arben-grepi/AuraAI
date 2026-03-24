@@ -20,9 +20,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Diguro AI Assistant",
+  title: "AuraAI AI Assistant",
   description:
-    "This is Diguro's AI Assistant - Upload your documents and get instant answers",
+    "This is AuraAI's AI Assistant - Upload your documents and get instant answers",
 };
 
 export default function RootLayout({

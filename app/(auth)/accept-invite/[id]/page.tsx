@@ -38,7 +38,7 @@ export default function AcceptInvitePage() {
         const data = await res.json();
 
         if (!res.ok) {
-          setErrorMessage(data.error || "Inbjudan hittades inte");
+          setErrorMessage(data.error || "Invitation not found");
           setStatus("error");
           return;
         }
@@ -46,7 +46,7 @@ export default function AcceptInvitePage() {
         setInvitation(data);
         setStatus("ready");
       } catch {
-        setErrorMessage("Kunde inte ladda inbjudan");
+        setErrorMessage("Could not load invitation");
         setStatus("error");
       }
     }
@@ -61,13 +61,13 @@ export default function AcceptInvitePage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setErrorMessage(data.error || "Kunde inte acceptera inbjudan");
+        setErrorMessage(data.error || "Could not accept invitation");
         setStatus("error");
         return;
       }
 
       setStatus("success");
-      toast.success("Inbjudan accepterad!");
+      toast.success("Invitation accepted!");
 
       if (data.organizationSlug) {
         router.push(`/org/${data.organizationSlug}/chat`);
@@ -75,7 +75,7 @@ export default function AcceptInvitePage() {
         router.push("/");
       }
     } catch {
-      setErrorMessage("Kunde inte acceptera inbjudan");
+      setErrorMessage("Could not accept invitation");
       setStatus("error");
     }
   };
@@ -94,10 +94,10 @@ export default function AcceptInvitePage() {
         <CardHeader className="text-center">
           <h1 className="form-title">
             {status === "success"
-              ? "Inbjudan accepterad"
+              ? "Invitation accepted"
               : status === "error"
-                ? "Något gick fel"
-                : "Organisationsinbjudan"}
+                ? "Something went wrong"
+                : "Organization invitation"}
           </h1>
         </CardHeader>
         <CardContent className="p-0">
@@ -105,7 +105,7 @@ export default function AcceptInvitePage() {
             <div className="flex flex-col gap-4 text-center">
               <p className="text-sm text-zinc-500">{errorMessage}</p>
               <Button onClick={() => router.push("/")} className="w-full">
-                Gå till startsidan
+                Go to home page
               </Button>
             </div>
           )}
@@ -113,25 +113,25 @@ export default function AcceptInvitePage() {
           {status === "ready" && invitation && (
             <div className="flex flex-col gap-4 text-center">
               <p className="text-sm text-zinc-500">
-                Du har blivit inbjuden att gå med i{" "}
+                You have been invited to join{" "}
                 <strong>{invitation.organizationName}</strong> som{" "}
                 <strong>{invitation.role}</strong>.
               </p>
               <p className="text-sm text-zinc-400">
-                Inbjuden av {invitation.inviterName || invitation.inviterEmail}
+                Invited by {invitation.inviterName || invitation.inviterEmail}
               </p>
               <Button
                 onClick={handleAccept}
                 className="w-full form-submit-button"
               >
-                Acceptera inbjudan
+                Accept invitation
               </Button>
               <Button
                 variant="outline"
                 onClick={() => router.push("/")}
                 className="w-full"
               >
-                Avböj
+                Decline
               </Button>
             </div>
           )}
@@ -139,14 +139,14 @@ export default function AcceptInvitePage() {
           {status === "accepting" && (
             <div className="flex flex-col items-center justify-center gap-2 py-4">
               <Loader className="size-4 animate-spin" />
-              <p className="text-sm text-zinc-500">Accepterar inbjudan...</p>
+              <p className="text-sm text-zinc-500">Accepting invitation...</p>
             </div>
           )}
 
           {status === "success" && (
             <div className="flex flex-col items-center gap-4 text-center">
               <p className="text-sm text-zinc-500">
-                Du är nu medlem i {invitation?.organizationName}.
+                You are now a member of {invitation?.organizationName}.
               </p>
               <Loader className="size-4 animate-spin" />
             </div>

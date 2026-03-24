@@ -34,10 +34,10 @@ import {
 import { Button } from "@/components/ui/button";
 
 const items = [
-  { title: "Allmänt", url: "", icon: Settings2 },
-  { title: "Ai anpassning", url: "ai", icon: Sparkles },
-  { title: "Användare", url: "users", icon: Users },
-  { title: "Källor", url: "sources", icon: FileText },
+  { title: "General", url: "", icon: Settings2 },
+  { title: "AI customization", url: "ai", icon: Sparkles },
+  { title: "Users", url: "users", icon: Users },
+  { title: "Sources", url: "sources", icon: FileText },
 ];
 
 export function OrgSidebar({ name }: { name: string }) {
@@ -106,18 +106,18 @@ export function OrgSidebar({ name }: { name: string }) {
                 className="hover:bg-zinc-100 transition-all duration-200 w-full justify-start border border-zinc-200 py-2 px-4 cursor-pointer"
               >
                 <LogOut className="size-4" />
-                <span className="text-sm font-medium">Logga ut</span>
+                <span className="text-sm font-medium">Sign out</span>
               </SidebarMenuButton>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Logga ut</AlertDialogTitle>
+                <AlertDialogTitle>Sign out</AlertDialogTitle>
               </AlertDialogHeader>
               <AlertDialogDescription>
-                Är du säker på att du vill logga ut?
+                Are you sure you want to sign out?
               </AlertDialogDescription>
               <AlertDialogFooter>
-                <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <Button
                   variant="destructive"
                   onClick={() =>
@@ -130,7 +130,7 @@ export function OrgSidebar({ name }: { name: string }) {
                     })
                   }
                 >
-                  Logga ut
+                  Sign out
                 </Button>
               </AlertDialogFooter>
             </AlertDialogContent>

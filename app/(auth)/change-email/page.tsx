@@ -25,18 +25,18 @@ export default function Page() {
     <div className="cc">
       <div className="space-y-10">
         <div className="space-y-2">
-          <h1 className="">Ändra e-post</h1>
+          <h1 className="">Change email</h1>
           <p className="paragraph-small text-gray-500">
-            Hantera ditt konto och uppdatera dina uppgifter nedan.
+            Manage your account and update your details below.
           </p>
         </div>
         <form className="max-w-[429px]" action={formAction}>
           <Label className="mb-2" htmlFor="email">
-            Ny e-postadress
+            New email address
           </Label>
-          <Input type="email" name="email" placeholder="E-post" />
+          <Input type="email" name="email" placeholder="Email" />
           <Button type="submit" className="w-full mt-5" disabled={pending}>
-            Ändra e-postadress
+            Change email address
           </Button>
         </form>
       </div>
@@ -55,7 +55,7 @@ async function changeUserEmail(
   const { email } = rawFormData;
 
   if (!email) {
-    return { error: "Ange en e-postadress" };
+    return { error: "Enter an email address" };
   }
 
   const { error } = await changeEmail({
@@ -67,10 +67,10 @@ async function changeUserEmail(
     console.log("Change email error:", error);
     return {
       error:
-        error.message || "Vi kunde inte ändra din e-post. Försök igen.",
+        error.message || "We could not change your email. Please try again.",
     };
   }
 
-  toast.success("Vi skickade ett mejl för att godkänna ändringen");
+  toast.success("We sent an email to confirm the change");
   return { error: "" };
 }

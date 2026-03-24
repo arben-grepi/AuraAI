@@ -47,12 +47,12 @@ function SignInForm() {
     const { success, data, error } = result;
 
     if (success) {
-      toast.success(data?.data || "Du loggade in");
+      toast.success(data?.data || "You are signed in");
       setTimeout(() => {
         window.location.href = callbackUrl || "/";
       }, 1000);
     } else {
-      toast.error(error || "Kunde inte logga in");
+      toast.error(error || "Could not sign in");
     }
   }
 
@@ -60,9 +60,9 @@ function SignInForm() {
     <div className="flex flex-col gap-6 justify-center items-center h-screen bg-neutral-50">
       <Card className="max-w-[350px] w-full border-none shadow-none bg-neutral-50 p-0">
         <CardHeader>
-          <h1 className="form-title">Logga in på Diguro</h1>
+          <h1 className="form-title">Sign in to AuraAI</h1>
           <p className="form-description">
-            Logga in på ditt organisationskonto
+            Sign in to your organization account
           </p>
         </CardHeader>
         <CardContent className="p-0">
@@ -76,12 +76,12 @@ function SignInForm() {
                 name="email"
                 render={({ field }) => (
                   <FormItem className="relative">
-                    <FormLabel>E-postadress</FormLabel>
+                    <FormLabel>Email address</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
                         className="form-input"
-                        placeholder="Ange din e-postadress"
+                        placeholder="Enter your email address"
                         onBlur={field.onBlur}
                         type="email"
                       />
@@ -96,18 +96,18 @@ function SignInForm() {
                 render={({ field }) => (
                   <FormItem className="relative">
                     <FormLabel className="flex items-center justify-between">
-                      <p>Lösenord</p>
+                      <p>Password</p>
                       <Link
                         className="text-sm text-zinc-500 underline block text-center"
                         href={"/forgot-password"}
                       >
-                        Glömt lösenord?
+                        Forgot password?
                       </Link>
                     </FormLabel>
                     <FormControl>
                       <Input
                         className="form-input"
-                        placeholder="Ange ditt lösenord"
+                        placeholder="Enter your password"
                         type="password"
                         {...field}
                       />
@@ -121,10 +121,10 @@ function SignInForm() {
                 disabled={form.formState.isSubmitting}
                 type="submit"
               >
-                {form.formState.isSubmitting ? "Loggar in..." : "Logga in"}
+                {form.formState.isSubmitting ? "Signing in..." : "Sign in"}
               </Button>
               <p className="text-center font-normal text-base text-zinc-500">
-                Har du inget konto?{" "}
+                Don't have an account?{" "}
                 <Link
                   className="text-black"
                   href={
@@ -133,7 +133,7 @@ function SignInForm() {
                       : "/sign-up"
                   }
                 >
-                  Skapa konto
+                  Create account
                 </Link>
               </p>
             </form>

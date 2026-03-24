@@ -35,19 +35,19 @@ export default function Page() {
     const { success, data, error } = result;
 
     if (success) {
-      toast.success(data?.data || "E-post för lösenordsåterställning skickad");
+      toast.success(data?.data || "Password reset email sent");
     } else {
-      toast.error(error || "Kunde inte skicka återställningsmejl");
+      toast.error(error || "Could not send reset email");
     }
   }
   return (
     <div className="flex flex-col gap-6 justify-center items-center h-screen bg-neutral-50">
       <Card className="max-w-[350px] w-full border-none shadow-none bg-neutral-50 p-0">
         <CardHeader className="space-y-1">
-          <p className="form-title">Glömt lösenord</p>
+          <p className="form-title">Forgot password</p>
           <p className="form-description">
-            Ange din e-postadress så skickar vi en länk för att återställa ditt
-            lösenord.
+            Enter your email address and we'll send you a link to reset your
+            password.
           </p>
         </CardHeader>
         <CardContent>
@@ -58,13 +58,13 @@ export default function Page() {
                 name="email"
                 render={({ field }) => (
                   <FormItem className="relative">
-                    <FormLabel htmlFor="email">E-post</FormLabel>
+                    <FormLabel htmlFor="email">Email</FormLabel>
                     <FormControl>
                       <Input
                         id="email"
                         type="email"
                         className="form-input"
-                        placeholder="Ange din e-postadress"
+                        placeholder="Enter your email address"
                         required
                         disabled={form.formState.isSubmitting}
                         {...field}
@@ -80,8 +80,8 @@ export default function Page() {
                 disabled={form.formState.isSubmitting}
               >
                 {form.formState.isSubmitting
-                  ? "Skickar..."
-                  : "Skicka återställningsmejl"}
+                  ? "Sending..."
+                  : "Send reset email"}
               </Button>
             </form>
           </Form>

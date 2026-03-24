@@ -51,7 +51,7 @@ function SignUpForm() {
     const { success, data, error } = result;
 
     if (success) {
-      toast.success(data?.data || "Ditt konto har skapats");
+      toast.success(data?.data || "Your account has been created");
       setTimeout(() => {
         const signInUrl = callbackUrl
           ? `/sign-in?callbackUrl=${encodeURIComponent(callbackUrl)}`
@@ -59,7 +59,7 @@ function SignUpForm() {
         window.location.href = signInUrl;
       }, 2000);
     } else {
-      toast.error(error || "Kunde inte skapa konto");
+      toast.error(error || "Could not create account");
     }
   }
 
@@ -68,10 +68,10 @@ function SignUpForm() {
       <Card className="max-w-[350px] w-full bg-transparent border-none shadow-none">
         <CardHeader>
           <h1 className="text-center font-bold text-2xl leading-8 text-zinc-800">
-            Skapa konto på Diguro
+            Create account on AuraAI
           </h1>
           <p className="text-center text-gray-500 text-sm">
-            Skapa ett konto för din organisation
+            Create an account for your organization
           </p>
         </CardHeader>
         <CardContent className="p-0">
@@ -82,10 +82,10 @@ function SignUpForm() {
                 name="firstName"
                 render={({ field }) => (
                   <FormItem className="relative">
-                    <FormLabel>Förnamn</FormLabel>
+                    <FormLabel>First name</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="Ange ditt förnamn"
+                        placeholder="Enter your first name"
                         className="form-input"
                         {...field}
                       />
@@ -99,10 +99,10 @@ function SignUpForm() {
                 name="lastName"
                 render={({ field }) => (
                   <FormItem className="relative">
-                    <FormLabel>Efternamn</FormLabel>
+                    <FormLabel>Last name</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="Ange ditt efternamn"
+                        placeholder="Enter your last name"
                         className="form-input"
                         {...field}
                       />
@@ -116,10 +116,10 @@ function SignUpForm() {
                 name="email"
                 render={({ field }) => (
                   <FormItem className="relative">
-                    <FormLabel>E-post</FormLabel>
+                    <FormLabel>Email</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="Ange din e-post"
+                        placeholder="Enter your email"
                         className="form-input"
                         {...field}
                       />
@@ -133,10 +133,10 @@ function SignUpForm() {
                 name="password"
                 render={({ field }) => (
                   <FormItem className="relative">
-                    <FormLabel>Lösenord</FormLabel>
+                    <FormLabel>Password</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="Ange ditt lösenord"
+                        placeholder="Enter your password"
                         className="form-input"
                         type={showPassword ? "text" : "password"}
                         {...field}
@@ -182,10 +182,10 @@ function SignUpForm() {
                 disabled={form.formState.isSubmitting}
                 type="submit"
               >
-                {form.formState.isSubmitting ? "Skapar konto..." : "Skapa konto"}
+                {form.formState.isSubmitting ? "Creating account..." : "Create account"}
               </Button>
               <p className="text-center font-normal text-base text-zinc-500">
-                Har du redan ett konto?{" "}
+                Already have an account?{" "}
                 <Link
                   className="text-black"
                   href={
@@ -194,7 +194,7 @@ function SignUpForm() {
                       : "/sign-in"
                   }
                 >
-                  Logga in
+                  Sign in
                 </Link>
               </p>
             </form>

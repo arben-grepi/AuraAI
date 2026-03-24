@@ -87,16 +87,16 @@ export function Conversations({ slug }: { slug: string }) {
     try {
       const result = await createChatFolder(name);
       if (result.success) {
-        toast.success("Mapp skapad");
+        toast.success("Folder created");
         queryClient.invalidateQueries({ queryKey: ["conversations"] });
         setIsFolderDialogOpen(false);
         setFolderName("");
       } else {
-        toast.error(result.error || "Kunde inte skapa mapp");
+        toast.error(result.error || "Could not create folder");
       }
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Kunde inte skapa mapp",
+        error instanceof Error ? error.message : "Could not create folder",
       );
     }
   };
@@ -133,13 +133,13 @@ export function Conversations({ slug }: { slug: string }) {
     try {
       const result = await updateConversationFolder(conversationId, null);
       if (result.success) {
-        toast.success("Chatt borttagen från mapp");
+        toast.success("Chat removed from folder");
         queryClient.invalidateQueries({ queryKey: ["conversations"] });
       } else {
-        toast.error(result.error || "Kunde inte flytta");
+        toast.error(result.error || "Could not move");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Kunde inte flytta");
+      toast.error(err instanceof Error ? err.message : "Could not move");
     }
   };
 
@@ -169,7 +169,7 @@ export function Conversations({ slug }: { slug: string }) {
           onDrop={folders.length > 0 ? handleNewFolderDrop : undefined}
         >
           <FolderPlus className="size-4" />
-          <span>Ny mapp</span>
+          <span>New folder</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
 
@@ -182,17 +182,17 @@ export function Conversations({ slug }: { slug: string }) {
       >
         <DialogContent className="max-w-[400px]">
           <DialogHeader>
-            <DialogTitle className="text-sm font-medium">Ny mapp</DialogTitle>
+            <DialogTitle className="text-sm font-medium">New folder</DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
-              Skapa en mapp för att organisera dina chattar.
+              Create a folder to organize your chats.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2 py-2">
-            <label className="text-sm font-medium">Mappnamn</label>
+            <label className="text-sm font-medium">Folder name</label>
             <Input
               value={folderName}
               onChange={(e) => setFolderName(e.target.value)}
-              placeholder="t.ex. Arbete, Idéer"
+              placeholder="e.g. Work, Ideas"
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
@@ -209,10 +209,10 @@ export function Conversations({ slug }: { slug: string }) {
                 setFolderName("");
               }}
             >
-              Avbryt
+              Cancel
             </Button>
             <Button onClick={handleCreateFolder} disabled={!folderName.trim()}>
-              Skapa
+              Create
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -257,7 +257,7 @@ export function Conversations({ slug }: { slug: string }) {
       {isEmpty && (
         <SidebarMenuItem className="min-w-0">
           <SidebarMenuButton disabled>
-            <p>Inga chattar hittades</p>
+            <p>No chats found</p>
           </SidebarMenuButton>
         </SidebarMenuItem>
       )}
@@ -301,10 +301,10 @@ const ConversationItem = ({
       chatFolderId,
     );
     if (result.success) {
-      toast.success("Konversation flyttad");
+      toast.success("Conversation moved");
       onMoved();
     } else {
-      toast.error(result.error || "Kunde inte flytta");
+      toast.error(result.error || "Could not move");
     }
   };
 
@@ -336,13 +336,13 @@ const ConversationItem = ({
     try {
       const result = await updateConversationFolder(conversationId, null);
       if (result.success) {
-        toast.success("Chatt borttagen från mapp");
+        toast.success("Chat removed from folder");
         onMoved();
       } else {
-        toast.error(result.error || "Kunde inte flytta");
+        toast.error(result.error || "Could not move");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Kunde inte flytta");
+      toast.error(err instanceof Error ? err.message : "Could not move");
     }
   };
 
@@ -369,7 +369,7 @@ const ConversationItem = ({
         )}
       >
         <span className="truncate max-w-[200px] leading-5">
-          {conversation.title || "Ny chatt"}
+          {conversation.title || "New chat"}
         </span>
       </Link>
       <div
@@ -390,10 +390,10 @@ const ConversationItem = ({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" side="bottom">
             <DropdownMenuSub>
-              <DropdownMenuSubTrigger>Flytta till mapp</DropdownMenuSubTrigger>
+              <DropdownMenuSubTrigger>Move to folder</DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
                 <DropdownMenuItem onClick={() => handleMoveTo(null)}>
-                  Ingen mapp
+                  No folder
                 </DropdownMenuItem>
                 {folders.map((f) => (
                   <DropdownMenuItem
@@ -482,14 +482,14 @@ const ChatFolderRow = ({
       const { success, data, error } = await createConversation(id);
       if (success && data?.id) {
         onCreated();
-        toast.success("Chatt skapad");
+        toast.success("Chat created");
         router.push(`/org/${slug}/chat/${data.id}`);
       } else {
-        toast.error(error || "Kunde inte skapa chatt");
+        toast.error(error || "Could not create chat");
       }
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Kunde inte skapa chatt",
+        err instanceof Error ? err.message : "Could not create chat",
       );
     } finally {
       setIsCreating(false);
@@ -502,14 +502,14 @@ const ChatFolderRow = ({
       setIsDeleting(true);
       const result = await deleteChatFolder(id);
       if (result.success) {
-        toast.success("Mapp borttagen");
+        toast.success("Folder removed");
         onDeleted();
       } else {
-        toast.error(result.error || "Kunde inte ta bort mapp");
+        toast.error(result.error || "Could not remove folder");
       }
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Kunde inte ta bort mapp",
+        error instanceof Error ? error.message : "Could not remove folder",
       );
     } finally {
       setIsDeleting(false);
@@ -571,7 +571,7 @@ const ChatFolderRow = ({
             <div className="min-h-0 min-w-0 bg-neutral-200 rounded-md ml-4 mr-4 py-2 px-2 overflow-hidden">
               {conversations.length === 0 ? (
                 <p className="text-xs text-muted-foreground py-2">
-                  Inga chattar i den här mappen
+                  No chats in this folder
                 </p>
               ) : (
                 conversations.map((convo) => (
@@ -596,7 +596,7 @@ const ChatFolderRow = ({
                 ) : (
                   <Plus className="size-4" />
                 )}
-                Ny chatt i den här mappen
+                New chat in this folder
               </Button>
             </div>
           </motion.div>

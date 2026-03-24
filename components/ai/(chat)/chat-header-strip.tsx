@@ -48,7 +48,7 @@ export function ChatHeaderStrip({
             transition={{ duration: 0.3, ease: "easeInOut" }}
             layout
           >
-            Tillfällig chatt
+            Temporary chat
           </motion.p>
         ) : (
           <motion.div
@@ -95,7 +95,7 @@ export function ChatHeaderStrip({
                 }}
               >
                 <LogOut className="size-4" />
-                Logga ut
+                Sign out
               </button>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -111,11 +111,11 @@ export function ChatHeaderStrip({
           disabled={!!conversationId}
           title={
             isAnonymous
-              ? "Anonymt läge är aktiverat - klicka för att inaktivera"
-              : "Anonymt läge är avstängt - klicka för att aktivera"
+              ? "Anonymous mode is enabled - click to disable"
+              : "Anonymous mode is disabled - click to enable"
           }
           aria-label={
-            isAnonymous ? "Inaktivera anonymt läge" : "Aktivera anonymt läge"
+            isAnonymous ? "Disable anonymous mode" : "Enable anonymous mode"
           }
         >
           <MessageCircleDashed className="size-4" />

@@ -517,9 +517,9 @@ function SourcesForm({ org }: { org: Organization }) {
     <div>
       <div className="w-full flex justify-between px-8 py-10 border-b border-zinc-200">
         <div className="flex flex-col gap-1">
-          <h1 className="font-medium text-xl">Fiduserade källor</h1>
+          <h1 className="font-medium text-xl">Trusted sources</h1>
           <p className="text-sm text-muted-foreground">
-            Lägg till URL:er som AI kan referera till som fiduserade källor
+            Add URLs that the AI can reference as trusted sources
           </p>
         </div>
         <div className="flex gap-3">
@@ -535,7 +535,7 @@ function SourcesForm({ org }: { org: Organization }) {
             }
           >
             {isSaving && <Loader className="size-4 mr-2 animate-spin" />}
-            Spara ändringar
+            Save changes
           </Button>
         </div>
       </div>
@@ -561,7 +561,7 @@ function SourcesForm({ org }: { org: Organization }) {
                   htmlFor={`source-${index}`}
                   className="text-sm font-medium"
                 >
-                  Källa {index + 1}
+                  Source {index + 1}
                 </Label>
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">
@@ -582,7 +582,7 @@ function SourcesForm({ org }: { org: Organization }) {
                             ? "border-emerald-500 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
                             : ""
                       }`}
-                      aria-label={`Källa ${index + 1} URL`}
+                      aria-label={`Source ${index + 1} URL`}
                       aria-invalid={
                         !!entry.error || entry.verification === "unsafe"
                       }
@@ -614,12 +614,12 @@ function SourcesForm({ org }: { org: Organization }) {
                     </TooltipTrigger>
                     <TooltipContent side="top">
                       {!isSavedSource(entry.value)
-                        ? "Spara källan först för att indexera"
+                        ? "Save the source first to index"
                         : isIndexing
-                          ? "Indexering pågår..."
+                          ? "Indexing in progress..."
                           : isAlreadyIndexed || indexStatus?.state === "done"
-                            ? "Re-indexera källan"
-                            : "Indexera källa"}
+                            ? "Re-index source"
+                            : "Index source"}
                     </TooltipContent>
                   </Tooltip>
                   {(sources.length > 1 || isSavedSource(entry.value)) && (
@@ -649,8 +649,8 @@ function SourcesForm({ org }: { org: Organization }) {
                       </TooltipTrigger>
                       <TooltipContent side="top">
                         {isSavedSource(entry.value) && (isAlreadyIndexed || indexStatus?.state === "done")
-                          ? "Ta bort källa och all indexerad data"
-                          : "Ta bort"}
+                          ? "Remove source and all indexed data"
+                          : "Remove"}
                       </TooltipContent>
                     </Tooltip>
                   )}
@@ -675,7 +675,7 @@ function SourcesForm({ org }: { org: Organization }) {
             className="w-fit mt-2"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Lägg till källa
+            Add source
           </Button>
         </div>
       </div>
@@ -686,7 +686,7 @@ function SourcesForm({ org }: { org: Organization }) {
 function LastIndexedInfo({ info }: { info: SourceIndexInfo }) {
   return (
     <p className="text-xs text-muted-foreground mt-1">
-      Senast indexerad {formatRelativeTime(info.lastIndexedAt)} &middot;{" "}
+      Last indexed {formatRelativeTime(info.lastIndexedAt)} &middot;{" "}
       {info.pagesIndexed} page{info.pagesIndexed !== 1 ? "s" : ""},{" "}
       {info.totalChunks} chunk{info.totalChunks !== 1 ? "s" : ""}
     </p>
