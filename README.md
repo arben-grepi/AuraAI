@@ -1,195 +1,190 @@
-# AI Chat Application
+# AuraAI — RAG-Powered AI Chat for Organizations
 
-A modern, full-stack AI chat application built with Next.js 15, featuring real-time conversations, user authentication, and organization management.
+A full-stack AI chat application built with Next.js 15, featuring a **Retrieval-Augmented Generation (RAG)** pipeline, multi-tenant organization management, hybrid search over document embeddings, and support for both cloud (OpenAI) and on-prem (Ollama) models.
+
+---
+
+## Why This Project?
+
+This repo demonstrates production-grade AI/ML engineering: RAG pipelines, vector search, hybrid retrieval, document ingestion (files + web crawls), streaming chat, and flexible model routing. It’s built as a modern SaaS-style app with auth, org scoping, and observability in mind.
+
+---
+
+## Technical Overview
+
+### Architecture: RAG Pipeline
+
+The system implements a **Retrieval-Augmented Generation** flow:
+
+1. **Ingest** — Files and websites → text extraction → chunking → embeddings → stored in PostgreSQL (pgvector)
+2. **Retrieve** — Hybrid search (vector + keyword) with RRF and reranking to surface relevant chunks
+3. **Generate** — LLM receives context, chat history, and optional attachments, then streams responses with citations
+
+### Content Ingestion
+
+| Source       | Flow                                                                 |
+|-------------|----------------------------------------------------------------------|
+| **Files**   | PDF, DOCX, XLSX, TXT, MD, CSV, etc. → `extractText` → `chunkContentWithOffsets` → `generateEmbeddings` → `resources` + `embeddings` |
+| **Websites**| BFS crawl (up to 50 pages) → per-page extraction → same chunking/embedding pipeline → tagged `["web-scrape", "source:<hostname>"]` |
+
+- **Chunking**: ~2000 chars, 2-sentence overlap, sentence-aware splits; `startOffset`/`endOffset` kept for source highlighting
+- **Embeddings**: OpenAI `text-embedding-3-small` (1536-dim); batches of 50 for rate limits
+
+### Hybrid Search
+
+- **Vector search**: pgvector cosine similarity (`<=>`) with configurable thresholds
+- **Keyword search**: PostgreSQL full-text (`to_tsvector` + `plainto_tsquery`, `ts_rank`)
+- **Fusion**: Reciprocal Rank Fusion (RRF) combines both result sets
+- **Reranking**: Jaccard-based word overlap boost (70% RRF + 30% keyword overlap)
+
+### Chat Flow
+
+1. Validate session and org membership
+2. **Pre-retrieval**: Top 8 chunks from hybrid search over last user message
+3. Build system prompt + knowledge base context + user context + optional attachment context
+4. Tools: `retrieve_context` (follow-up KB search) and `web_search` (OpenAI)
+5. Stream response via AI SDK; persist messages; send citation metadata for source highlighting
+
+### Stack
+
+| Layer      | Technology                                              |
+|-----------|---------------------------------------------------------|
+| Frontend  | Next.js 15, React 19, TypeScript, Tailwind, Radix/Shadcn |
+| Auth      | Better Auth (sessions, org membership, email verification) |
+| Database  | PostgreSQL, Prisma ORM, pgvector                        |
+| AI        | Vercel AI SDK, OpenAI GPT-4o-mini, text-embedding-3-small |
+| Email     | Resend                                                  |
+| Monitoring| Sentry                                                  |
+| Testing   | Jest, React Testing Library, Playwright                 |
+
+---
+
+## Development Roadmap: Ollama + OpenAI Flexibility
+
+The system is being extended to support **on-prem (Ollama)** alongside **cloud (OpenAI)** with intelligent routing.
+
+### Planned Capabilities
+
+| Batch | Goal |
+|-------|------|
+| **1** | Ollama provider (embeddings + chat); provider factory in `lib/ai-provider.ts`; migrate embeddings to 768-dim (Ollama nomic-embed-text) |
+| **2** | Document `sensitive` flag — mark docs at upload; surface in search for routing |
+| **3** | **Chat routing** — route to Ollama when any retrieved doc is sensitive, org disables OpenAI, or token budget is exhausted; otherwise use OpenAI |
+| **4** | Token tracking — count OpenAI tokens per org, enforce monthly cap, reset logic |
+| **5** | Admin UI — toggle OpenAI per org, set monthly token budget, view usage |
+| **6** | User-facing token visibility — show remaining credits in sidebar/AI settings |
+
+### Routing Logic (Batch 3+)
+
+```
+any sensitive chunks in context → Ollama
+openAiEnabled = false           → Ollama
+tokensUsed >= budget            → Ollama
+otherwise                       → OpenAI
+```
+
+---
 
 ## Features
 
--  **AI Chat Interface** - Real-time conversations with OpenAI GPT models
--  **Authentication** - Secure user authentication with Better Auth
--  **Organization Management** - Multi-tenant organization support
--  **Responsive Design** - Mobile-first, accessible UI with Tailwind CSS
--  **Modern UI** - Beautiful components built with Radix UI and Shadcn
--  **Email Integration** - Email verification and password reset
--  **Performance** - Optimized with Next.js App Router and Turbopack
--  **Monitoring** - Error tracking with Sentry
--  **Comprehensive Testing** - Unit, integration, and E2E tests
+- **RAG Chat** — Streamed AI responses grounded in org-specific knowledge
+- **Multi-tenant Orgs** — Scoped resources, embeddings, and conversations per organization
+- **File & Web Ingestion** — PDF, DOCX, XLSX, TXT, MD, CSV; web crawl with BFS
+- **Hybrid Search** — Vector + keyword with RRF and reranking
+- **Citations** — Source highlighting and retrieval from KB via tools
+- **Chat Attachments** — PDF, TXT, images (non-RAG) passed as context
+- **Auth** — Better Auth (sign-in, sign-up, email verification, password reset)
+- **Admin Panel** — Org management, sources, token controls (planned)
+- **Testing** — Unit, integration, E2E with Jest and Playwright
 
-## Tech Stack
-
-- **Frontend**: Next.js 15, React 19, TypeScript
-- **Styling**: Tailwind CSS, Radix UI, Shadcn UI
-- **Authentication**: Better Auth
-- **Database**: PostgreSQL with Prisma ORM
-- **AI Integration**: OpenAI GPT models via AI SDK
-- **Email**: Resend
-- **Monitoring**: Sentry
-- **Testing**: Jest, React Testing Library, Playwright
+---
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js 18+
-- PostgreSQL database
-- OpenAI API key
+- PostgreSQL with pgvector
+- OpenAI API key (for embeddings and chat)
 
 ### Installation
 
-1. Clone the repository:
-
 ```bash
 git clone <repository-url>
-cd ai-chat
-```
-
-2. Install dependencies:
-
-```bash
+cd aura-ai
 npm install
-```
-
-3. Set up environment variables:
-
-```bash
 cp .env.example .env.local
 ```
 
-Fill in the required environment variables:
+Configure `.env.local`:
 
 ```env
-DATABASE_URL="postgresql://username:password@localhost:5432/ai_chat"
-DIRECT_URL="postgresql://username:password@localhost:5432/ai_chat"
-BETTER_AUTH_SECRET="your-secret-key"
+DATABASE_URL="postgresql://..."
+DIRECT_URL="postgresql://..."
+BETTER_AUTH_SECRET="..."
 BETTER_AUTH_URL="http://localhost:3000"
-OPENAI_API_KEY="your-openai-api-key"
-RESEND_API_KEY="your-resend-api-key"
-NEXT_PUBLIC_SENTRY_DSN="your-sentry-dsn"
-SENTRY_DSN="your-sentry-dsn"
+OPENAI_API_KEY="..."
+RESEND_API_KEY="..."       # optional, for email
+NEXT_PUBLIC_SENTRY_DSN=""  # optional
+SENTRY_DSN=""
 ```
-
-4. Set up the database:
 
 ```bash
 npx prisma migrate dev
 npx prisma generate
-```
-
-5. Run the development server:
-
-```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see the application.
+Open [http://localhost:3000](http://localhost:3000).
 
-## Testing
-
-This project includes comprehensive testing with Jest, React Testing Library, and Playwright.
-
-### Running Tests
+### Testing
 
 ```bash
-# Run unit tests
-npm test
-
-# Run tests in watch mode
-npm run test:watch
-
-# Run tests with coverage
-npm run test:coverage
-
-# Run end-to-end tests
-npm run test:e2e
-
-# Run E2E tests with UI
-npm run test:e2e:ui
+npm test                 # Unit tests
+npm run test:watch       # Watch mode
+npm run test:coverage    # Coverage
+npm run test:e2e         # Playwright E2E
 ```
 
-### Test Coverage
-
-- **Unit Tests**: Components, hooks, utilities, server actions
-- **Integration Tests**: API routes, database operations
-- **E2E Tests**: User workflows, authentication flows
-
-See [`__tests__/README.md`](__tests__/README.md) for detailed testing documentation.
+---
 
 ## Project Structure
 
 ```
-├── app/                    # Next.js App Router pages
-│   ├── (auth)/            # Authentication pages
-│   ├── (admin)/           # Admin pages
-│   ├── api/               # API routes
-│   └── chat/              # Chat interface
-├── components/            # React components
-│   ├── ui/                # Reusable UI components
-│   ├── ai/                # AI-specific components
-│   └── auth/              # Authentication components
-├── lib/                   # Utility functions and configurations
-├── hooks/                 # Custom React hooks
-├── __tests__/             # Test files
-├── e2e/                   # End-to-end tests
-└── prisma/                # Database schema and migrations
+├── app/
+│   ├── (auth)/           # Sign-in, sign-up, verify, reset
+│   ├── (admin)/          # Admin org management
+│   ├── api/
+│   │   ├── ai/chat/      # Chat streaming, RAG context, tools
+│   │   ├── files/rag/    # RAG file upload
+│   │   └── org/sources/  # Web source indexing
+│   └── ...
+├── components/
+│   ├── ai/               # Chat UI, sidebar, input
+│   ├── org/              # Org settings, files, sources
+│   └── ui/               # Shadcn components
+├── lib/
+│   ├── rag/
+│   │   ├── chunking.ts   # Sentence-aware chunking
+│   │   ├── embeddings.ts # Embedding generation
+│   │   ├── search.ts     # Hybrid search, RRF, rerank
+│   │   ├── crawl.ts      # Web crawling
+│   │   └── upload/       # File ingestion actions
+│   ├── ai-provider.ts    # Provider factory (OpenAI/Ollama)
+│   └── attachments-server.ts
+├── prisma/
+└── docs/                 # Technical and implementation docs
 ```
 
-## Development
+---
 
-### Code Style
+## Docs
 
-- TypeScript for type safety
-- ESLint for code linting
-- Prettier for code formatting
-- Functional components with hooks
-- Server-side rendering where possible
+- [AI Technical Documentation](docs/ai-technical-documentation.md) — RAG pipeline, ingestion, search, chat flow
+- [Ollama + OpenAI Implementation Plan](docs/ollama-openai-implementation-plan.md) — Roadmap for dual-provider support
 
-### Key Commands
-
-```bash
-# Development
-npm run dev              # Start development server
-npm run build            # Build for production
-npm run start            # Start production server
-npm run lint             # Run ESLint
-
-# Database
-npx prisma studio        # Open Prisma Studio
-npx prisma migrate dev   # Run database migrations
-npx prisma generate      # Generate Prisma client
-
-# Testing
-npm test                 # Run unit tests
-npm run test:watch       # Run tests in watch mode
-npm run test:coverage    # Run tests with coverage
-npm run test:e2e         # Run E2E tests
-```
-
-## Deployment
-
-### Vercel (Recommended)
-
-1. Push your code to GitHub
-2. Connect your repository to Vercel
-3. Set environment variables in Vercel dashboard
-4. Deploy automatically on push
-
-### Other Platforms
-
-The application can be deployed to any platform that supports Next.js:
-
-- Railway
-- Render
-- DigitalOcean App Platform
-- AWS Amplify
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass
-6. Submit a pull request
+---
 
 ## License
 
-This project is licensed under the MIT License.
+MIT
