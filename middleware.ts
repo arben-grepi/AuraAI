@@ -63,6 +63,15 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith("/admin")) {
       console.log(`[Middleware] Admin route detected: ${pathname}`);
 
+      // Dev-only: allow self-serve org creation without platform admin role.
+      // This lets new contributors run the app locally without first setting up a superadmin.
+      const devSelfOrgCreation =
+        process.env.NODE_ENV !== "production" &&
+        process.env.DEV_ALLOW_SELF_ORG_CREATION === "1";
+      if (devSelfOrgCreation && pathname === "/admin/create-org") {
+        return NextResponse.next();
+      }
+
       // Redirect superadmin from /admin root to /superadmin
       if (pathname === "/admin" && isSuperAdmin(session.user.role)) {
         return NextResponse.redirect(new URL("/superadmin", request.url));
