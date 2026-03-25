@@ -348,7 +348,11 @@ export async function createOrganization(
     return { success: false, data: null, error: "Unauthorized" };
   }
 
-  if (!isSystemAdmin(session.user.role)) {
+  const devSelfOrgCreation =
+    process.env.NODE_ENV !== "production" &&
+    process.env.DEV_ALLOW_SELF_ORG_CREATION === "1";
+
+  if (!isSystemAdmin(session.user.role) && !devSelfOrgCreation) {
     return { success: false, data: null, error: "Insufficient permissions" };
   }
 

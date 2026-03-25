@@ -108,7 +108,7 @@ export async function sendOrganizationInvitation({
   invitedByEmail: string;
   teamName: string;
   inviteLink: string;
-}) {
+}): Promise<{ data: unknown; devInviteLink?: string }> {
   const html = await render(
     OrganizationInvitationEmail({
       email,
@@ -127,6 +127,16 @@ export async function sendOrganizationInvitation({
   });
 
   if (error) {
+    // In development, Resend may reject sends to unverified recipients or
+    // unverified "from" domains. Instead of throwing, log the invite link so
+    // the developer can copy/paste it and still test the full invite flow.
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        `[DEV] Resend could not deliver invite to ${email}: ${error.message}`,
+      );
+      console.warn(`[DEV] Use this invite link manually: ${inviteLink}`);
+      return { data: null, devInviteLink: inviteLink };
+    }
     console.error({ error });
     throw new Error(`Failed to send organization invitation: ${error.message}`);
   }
