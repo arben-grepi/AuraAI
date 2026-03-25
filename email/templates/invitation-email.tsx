@@ -37,7 +37,7 @@ const OrganizationInvitationEmail = (props: {
                 You&apos;ve Been Invited
               </Heading>
               <Text className="text-[16px] text-gray-600 m-0">
-                Join <strong>{teamName}</strong> on Diguro
+                Join <strong>{teamName}</strong> on AuraAI
               </Text>
             </Section>
 
@@ -88,13 +88,13 @@ const OrganizationInvitationEmail = (props: {
               <Text className="text-[12px] text-gray-500 text-center m-0 mb-[8px]">
                 Best regards,
                 <br />
-                The Diguro Team
+                The AuraAI Team
               </Text>
               <Text className="text-[12px] text-gray-400 text-center m-0">
                 <Link href="#" className="text-gray-400 underline">
                   Unsubscribe
                 </Link>{" "}
-                | &copy; {new Date().getFullYear()} Diguro. All rights reserved.
+                | &copy; {new Date().getFullYear()} AuraAI. All rights reserved.
               </Text>
             </Section>
           </Container>
