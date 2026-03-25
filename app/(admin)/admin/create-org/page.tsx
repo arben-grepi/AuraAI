@@ -19,7 +19,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
-import { Loader, SquareDashed, Mail, UserPlus } from "lucide-react";
+import { Loader, SquareDashed, Mail, UserPlus, Copy, Check } from "lucide-react";
+import { EmailsInput } from "@/components/org/emails-input";
 import { Label } from "@/components/ui/label";
 import { Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -34,17 +35,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const bgColors = ["#F4F4F5", "#D9E9F9", "#FE1B8F", "#9182FF"];
-const buttonColors = [
-  "#06b6d4",
-  "#10B981",
-  "#F59E0B",
-  "#EF4444",
-  "#F4F4F5",
-  "#D9E9F9",
-  "#FE1B8F",
-  "#9182FF",
-];
 
 export default function Page() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -56,11 +46,12 @@ export default function Page() {
   >([]);
   const [isLoading, setIsLoading] = useState(false);
   const [addMode, setAddMode] = useState<"create" | "invite">("create");
-  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteEmails, setInviteEmails] = useState<string[]>([]);
   const [inviteRole, setInviteRole] = useState("member");
   const [invitedUsers, setInvitedUsers] = useState<
     { email: string; role: string }[]
   >([]);
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof createOrganizationSchema>>({
     defaultValues: {
@@ -80,7 +71,13 @@ export default function Page() {
 
   const onSubmit = async (values: z.infer<typeof createOrganizationSchema>) => {
     setIsLoading(true);
-    const { data, error, success } = await createOrganization(values);
+    // Apply defaults for colors in case the native picker was never touched
+    const payload = {
+      ...values,
+      backgroundColor: values.backgroundColor || "#F4F4F5",
+      buttonColor: values.buttonColor || "#06b6d4",
+    };
+    const { data, error, success } = await createOrganization(payload);
     if (success) {
       toast.success(data?.data || "Organization created");
       setIsLoading(false);
@@ -164,30 +161,88 @@ export default function Page() {
     }, 800);
   };
 
+  const copyToClipboard = (link: string) => {
+    navigator.clipboard.writeText(link).then(() => {
+      setCopiedLink(link);
+      setTimeout(() => setCopiedLink(null), 2000);
+    });
+  };
+
   const handleInviteUser = async () => {
-    if (!inviteEmail) return;
+    const validEmails = inviteEmails.filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+    if (!validEmails.length) return;
+
     setIsLoading(true);
     try {
       const res = await fetch("/api/admin/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: inviteEmail,
+          emails: validEmails,
           role: inviteRole,
           organizationSlug: generateSlug(name),
         }),
       });
       const data = await res.json();
+
       if (!res.ok) {
-        toast.error(data.error || "Failed to send invitation");
-      } else {
-        toast.success(`Invitation sent to ${inviteEmail}`);
-        setInvitedUsers([...invitedUsers, { email: inviteEmail, role: inviteRole }]);
-        setInviteEmail("");
+        toast.error(data.error || "Failed to send invitations");
+        return;
+      }
+
+      const results: { email: string; success: boolean; error?: string; devInviteLink?: string }[] =
+        data.results ?? [];
+
+      const succeeded = results.filter((r) => r.success);
+      const failed = results.filter((r) => !r.success);
+      const devLinks = results.filter((r) => r.success && r.devInviteLink);
+
+      if (succeeded.length) {
+        toast.success(
+          `${succeeded.length} invitation${succeeded.length > 1 ? "s" : ""} sent.`,
+        );
+        setInvitedUsers([
+          ...invitedUsers,
+          ...succeeded.map((r) => ({ email: r.email, role: inviteRole })),
+        ]);
+        setInviteEmails([]);
         setInviteRole("member");
       }
+
+      for (const r of failed) {
+        toast.error(`${r.email}: ${r.error ?? "Failed to send"}`);
+      }
+
+      for (const r of devLinks) {
+        toast.warning(
+          <div className="flex flex-col gap-2 text-sm">
+            <p className="font-medium">Test mode — email not delivered</p>
+            <p className="text-zinc-500 text-xs">
+              Share this link manually with <span className="font-medium">{r.email}</span>:
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="text-xs bg-zinc-100 rounded px-2 py-1 flex-1 truncate">
+                {r.devInviteLink}
+              </code>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(r.devInviteLink!)}
+                className="shrink-0 p-1 rounded hover:bg-zinc-200 transition-colors cursor-pointer"
+                title="Copy link"
+              >
+                {copiedLink === r.devInviteLink ? (
+                  <Check className="size-3.5 text-green-600" />
+                ) : (
+                  <Copy className="size-3.5 text-zinc-500" />
+                )}
+              </button>
+            </div>
+          </div>,
+          { duration: 15000 },
+        );
+      }
     } catch {
-      toast.error("Failed to send invitation");
+      toast.error("Failed to send invitations");
     } finally {
       setIsLoading(false);
     }
@@ -201,7 +256,7 @@ export default function Page() {
     }
 
     if (step === 2) {
-      return !orgLogo || !backgroundColor || !buttonColor;
+      return !orgLogo;
     }
 
     if (step === 3) {
@@ -344,41 +399,51 @@ export default function Page() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="backgroundColor">
-                        Background color (UI)
-                      </Label>
-                      <p className="text-sm text-gray-700 font-medium">
-                        Choose a background color for your organization
+                      <Label htmlFor="backgroundColor">Background color</Label>
+                      <p className="text-sm text-gray-500">
+                        Pick any color for your organization&apos;s background.
                       </p>
-                      <div className="flex gap-3">
-                        {bgColors.map((color) => (
-                          <div
-                            key={color}
-                            className={`w-[106px] h-[64px] rounded-[4px] cursor-pointer ${backgroundColor === color ? "outline-2 outline-gray-300" : ""}`}
-                            style={{ backgroundColor: color }}
-                            onClick={() => {
-                              form.setValue("backgroundColor", color);
-                            }}
-                          />
-                        ))}
+                      <div className="flex items-center gap-3">
+                        <input
+                          id="backgroundColor"
+                          type="color"
+                          value={backgroundColor || "#F4F4F5"}
+                          onChange={(e) =>
+                            form.setValue("backgroundColor", e.target.value)
+                          }
+                          className="w-12 h-12 rounded-lg border border-zinc-200 cursor-pointer p-1 bg-white"
+                        />
+                        <span className="text-sm font-mono text-zinc-600">
+                          {backgroundColor || "#F4F4F5"}
+                        </span>
+                        <div
+                          className="w-[106px] h-[44px] rounded-[4px] border border-zinc-200"
+                          style={{ backgroundColor: backgroundColor || "#F4F4F5" }}
+                        />
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="backgroundColor">Button color</Label>
-                      <p className="text-sm text-gray-700 font-medium">
-                        Choose a button color for your organization
+                      <Label htmlFor="buttonColor">Button color</Label>
+                      <p className="text-sm text-gray-500">
+                        Pick any color for your organization&apos;s buttons.
                       </p>
-                      <div className="grid grid-cols-4 gap-2 max-w-fit grid-rows-2">
-                        {buttonColors.map((color) => (
-                          <div
-                            key={color}
-                            className={`w-[106px] h-[64px] rounded-[4px] cursor-pointer ${buttonColor === color ? "outline-2 outline-gray-300" : ""}`}
-                            style={{ backgroundColor: color }}
-                            onClick={() => {
-                              form.setValue("buttonColor", color);
-                            }}
-                          />
-                        ))}
+                      <div className="flex items-center gap-3">
+                        <input
+                          id="buttonColor"
+                          type="color"
+                          value={buttonColor || "#06b6d4"}
+                          onChange={(e) =>
+                            form.setValue("buttonColor", e.target.value)
+                          }
+                          className="w-12 h-12 rounded-lg border border-zinc-200 cursor-pointer p-1 bg-white"
+                        />
+                        <span className="text-sm font-mono text-zinc-600">
+                          {buttonColor || "#06b6d4"}
+                        </span>
+                        <div
+                          className="w-[106px] h-[44px] rounded-[4px] border border-zinc-200"
+                          style={{ backgroundColor: buttonColor || "#06b6d4" }}
+                        />
                       </div>
                     </div>
                   </motion.div>
@@ -496,15 +561,16 @@ export default function Page() {
                 )}
 
                 {addMode === "invite" && (
-                  <div className="space-y-4">
+                  <div className="space-y-4 max-w-[400px]">
                     <div>
-                      <Label>Email</Label>
-                      <Input
-                        className="form-input max-w-[350px] mt-1"
-                        placeholder="Enter email address"
-                        type="email"
-                        value={inviteEmail}
-                        onChange={(e) => setInviteEmail(e.target.value)}
+                      <Label>Email addresses</Label>
+                      <p className="text-xs text-zinc-500 mt-0.5 mb-1">
+                        Type and press Enter, or paste comma-separated emails.
+                      </p>
+                      <EmailsInput
+                        value={inviteEmails}
+                        onChange={setInviteEmails}
+                        disabled={isLoading}
                       />
                     </div>
                     <div>
@@ -590,7 +656,9 @@ export default function Page() {
                     isLoading ||
                     (addMode === "create"
                       ? !userForm.formState.isValid
-                      : !inviteEmail)
+                      : !inviteEmails.some((e) =>
+                          /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e),
+                        ))
                   }
                   onClick={async () => {
                     if (addMode === "create") {
@@ -605,6 +673,8 @@ export default function Page() {
                     <Loader className="size-4 animate-spin" />
                   ) : addMode === "create" ? (
                     "Create user"
+                  ) : inviteEmails.length > 1 ? (
+                    `Send ${inviteEmails.length} invitations`
                   ) : (
                     "Send invitation"
                   )}
