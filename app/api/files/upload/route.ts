@@ -3,7 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { isSuperAdmin } from "@/lib/auth-utils";
+import { isSystemAdmin, isSuperAdmin } from "@/lib/auth-utils";
 import { withMetrics } from "@/lib/with-metrics";
 
 const FileSchema = z.object({
@@ -34,7 +34,23 @@ async function handlePost(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!isSuperAdmin(session.user.role)) {
+  const devSelfOrgCreation =
+    process.env.NODE_ENV !== "production" &&
+    process.env.DEV_ALLOW_SELF_ORG_CREATION === "1";
+
+  const canUpload =
+    isSuperAdmin(session.user.role) ||
+    isSystemAdmin(session.user.role) ||
+    devSelfOrgCreation;
+
+  console.log("[upload] Auth check:", {
+    role: session.user.role,
+    devSelfOrgCreation,
+    canUpload,
+  });
+
+  if (!canUpload) {
+    console.warn("[upload] Rejected: user lacks upload permission");
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -68,22 +84,35 @@ async function handlePost(request: Request) {
 
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     const key = `uploads/${sanitizedFilename}`;
+    const bucket = process.env.AWS_S3_BUCKET_NAME;
+    const region = process.env.AWS_REGION;
+
+    console.log("[upload] Uploading to S3:", { bucket, region, key, size: fileBuffer.length, type: file.type });
+
+    if (!bucket || !region) {
+      console.error("[upload] Missing AWS_S3_BUCKET_NAME or AWS_REGION in env");
+      return NextResponse.json({ error: "Server misconfiguration: S3 bucket/region not set" }, { status: 500 });
+    }
 
     await s3.send(
       new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET_NAME!,
+        Bucket: bucket,
         Key: key,
         Body: fileBuffer,
         ContentType: file.type,
       }),
     );
 
-    const fileUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+    const fileUrl = `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+    console.log("[upload] Success:", fileUrl);
 
     return NextResponse.json({ success: true, url: fileUrl });
   } catch (error) {
-    console.error("S3 Upload Error:", error);
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+    console.error("[upload] S3 error:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Upload failed" },
+      { status: 500 },
+    );
   }
 }
 

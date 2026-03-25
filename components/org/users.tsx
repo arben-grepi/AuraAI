@@ -26,7 +26,8 @@ import {
 } from "../ui/form";
 import { createOrgUser, deleteOrgUser, updateMemberRole } from "@/lib/actions";
 import { toast } from "sonner";
-import { Loader, Trash2, Mail, UserPlus } from "lucide-react";
+import { Loader, Trash2, Mail, UserPlus, Copy, Check } from "lucide-react";
+import { EmailsInput } from "./emails-input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Role, RoleCombobox } from "./combobox";
 import {
@@ -58,8 +59,9 @@ export default function Users({
   const [open, setOpen] = useState(false);
   const [isLoadingForm, setIsLoadingForm] = useState(false);
   const [addMode, setAddMode] = useState<"create" | "invite">("create");
-  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteEmails, setInviteEmails] = useState<string[]>([]);
   const [inviteRole, setInviteRole] = useState("member");
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const addMemberForm = useForm<z.infer<typeof signUpSchema>>({
@@ -89,30 +91,90 @@ export default function Users({
     setIsLoadingForm(false);
   };
 
+  const copyToClipboard = (link: string) => {
+    navigator.clipboard.writeText(link).then(() => {
+      setCopiedLink(link);
+      setTimeout(() => setCopiedLink(null), 2000);
+    });
+  };
+
   const handleInviteUser = async () => {
-    if (!inviteEmail) return;
+    const validEmails = inviteEmails.filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+    if (!validEmails.length) return;
+
     setIsLoadingForm(true);
     try {
       const res = await fetch("/api/admin/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: inviteEmail,
+          emails: validEmails,
           role: inviteRole,
           organizationSlug: org.slug,
         }),
       });
       const data = await res.json();
+
       if (!res.ok) {
-        toast.error(data.error || "Failed to send invitation");
-      } else {
-        toast.success(`Invitation sent to ${inviteEmail}`);
-        setInviteEmail("");
+        toast.error(data.error || "Failed to send invitations");
+        return;
+      }
+
+      const results: { email: string; success: boolean; error?: string; devInviteLink?: string }[] =
+        data.results ?? [];
+
+      const succeeded = results.filter((r) => r.success);
+      const failed = results.filter((r) => !r.success);
+      const devLinks = results.filter((r) => r.success && r.devInviteLink);
+
+      if (succeeded.length) {
+        toast.success(
+          `${succeeded.length} invitation${succeeded.length > 1 ? "s" : ""} sent.`,
+        );
+      }
+
+      for (const r of failed) {
+        toast.error(`${r.email}: ${r.error ?? "Failed to send"}`);
+      }
+
+      // Dev mode: email delivery is unavailable — show each invite link with a copy button.
+      for (const r of devLinks) {
+        toast.warning(
+          <div className="flex flex-col gap-2 text-sm">
+            <p className="font-medium">Test mode — email not delivered</p>
+            <p className="text-zinc-500 text-xs">
+              Share this link manually with <span className="font-medium">{r.email}</span>:
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="text-xs bg-zinc-100 rounded px-2 py-1 flex-1 truncate">
+                {r.devInviteLink}
+              </code>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(r.devInviteLink!)}
+                className="shrink-0 p-1 rounded hover:bg-zinc-200 transition-colors cursor-pointer"
+                title="Copy link"
+              >
+                {copiedLink === r.devInviteLink ? (
+                  <Check className="size-3.5 text-green-600" />
+                ) : (
+                  <Copy className="size-3.5 text-zinc-500" />
+                )}
+              </button>
+            </div>
+          </div>,
+          { duration: 15000 },
+        );
+      }
+
+      if (succeeded.length > 0) {
+        setInviteEmails([]);
         setInviteRole("member");
-        setOpen(false);
+        queryClient.invalidateQueries({ queryKey: ["org-users", org.slug] });
+        if (!devLinks.length) setOpen(false);
       }
     } catch {
-      toast.error("Failed to send invitation");
+      toast.error("Failed to send invitations");
     } finally {
       setIsLoadingForm(false);
     }
@@ -278,13 +340,14 @@ export default function Users({
               {addMode === "invite" && (
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Email</label>
-                    <Input
-                      className="form-input"
-                      placeholder="Enter email address"
-                      type="email"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
+                    <label className="text-sm font-medium">Email addresses</label>
+                    <p className="text-xs text-zinc-500">
+                      Type and press Enter, or paste comma-separated emails.
+                    </p>
+                    <EmailsInput
+                      value={inviteEmails}
+                      onChange={setInviteEmails}
+                      disabled={isLoadingForm}
                     />
                   </div>
                   <div className="space-y-2">
@@ -301,11 +364,17 @@ export default function Users({
                   </div>
                   <Button
                     onClick={handleInviteUser}
-                    disabled={!inviteEmail || isLoadingForm}
+                    disabled={
+                      !inviteEmails.some((e) =>
+                        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e),
+                      ) || isLoadingForm
+                    }
                     className="py-5 cursor-pointer w-full"
                   >
                     {isLoadingForm ? (
                       <Loader className="size-4 animate-spin" />
+                    ) : inviteEmails.length > 1 ? (
+                      `Send ${inviteEmails.length} Invitations`
                     ) : (
                       "Send Invitation"
                     )}
