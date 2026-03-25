@@ -10,6 +10,7 @@ function statusFromError(error: string): number {
   if (error.includes("not found")) return 404;
   if (error.includes("Unsupported file type")) return 415;
   if (error.includes(ORG_RAG_FILE_LIMIT_ERROR)) return 409;
+  if (error.toLowerCase().includes("quota exceeded")) return 429;
   return 400;
 }
 

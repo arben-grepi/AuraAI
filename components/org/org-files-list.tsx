@@ -178,6 +178,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
     try {
       let uploadedCount = 0;
       const failedFiles: File[] = [];
+      const failedErrors: string[] = [];
 
       for (const file of files) {
         try {
@@ -194,7 +195,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
           });
 
           if (!response.ok) {
-            const errorData = await response.json();
+            const errorData = await response.json().catch(() => ({}));
             throw new Error(errorData.error || "Failed to upload file");
           }
 
@@ -203,6 +204,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
         } catch (error) {
           console.error(`Error uploading file "${file.name}"`, error);
           failedFiles.push(file);
+          failedErrors.push(error instanceof Error ? error.message : "Failed to upload file");
         }
       }
 
@@ -214,9 +216,17 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
       }
 
       if (failedFiles.length > 0) {
-        toast.error(
-          `${failedFiles.length} file${failedFiles.length === 1 ? "" : "s"} failed to upload`,
-        );
+        // Deduplicate error messages so a shared root cause (e.g. quota exceeded)
+        // shows once rather than once per file.
+        const uniqueErrors = [...new Set(failedErrors)];
+        for (const msg of uniqueErrors) {
+          toast.error(msg);
+        }
+        if (uniqueErrors.length === 0) {
+          toast.error(
+            `${failedFiles.length} file${failedFiles.length === 1 ? "" : "s"} failed to upload`,
+          );
+        }
         setFiles(failedFiles);
         return;
       }
