@@ -1,12 +1,27 @@
-# AuraAI — RAG-Powered AI Chat for Organizations
+# AuraAI — Your Company's AI That Actually Knows Your Business
 
-A full-stack AI chat application built with Next.js 15, featuring a **Retrieval-Augmented Generation (RAG)** pipeline, multi-tenant organization management, hybrid search over document embeddings, and support for both cloud (OpenAI) and on-prem (Ollama) models.
+Most AI tools are generic. AuraAI is not.
+
+AuraAI is an AI chat platform built for organizations that want their AI to answer questions using **their own documents, websites, and internal knowledge** — not just whatever was in a public training dataset. Ask it about your internal policies, product specs, client contracts, or anything else you've uploaded, and it gives you accurate, cited answers in seconds.
 
 ---
 
-## Why This Project?
+## Why AuraAI?
 
-This repo demonstrates production-grade AI/ML engineering: RAG pipelines, vector search, hybrid retrieval, document ingestion (files + web crawls), streaming chat, and flexible model routing. It's built as a modern SaaS-style app with auth, org scoping, and observability in mind.
+Every business has knowledge locked in files, wikis, PDFs, and websites that employees can't quickly search through. AuraAI solves this by letting your AI **read and reason over your own content** — so staff get instant, trustworthy answers instead of digging through folders or waiting for a colleague to respond.
+
+### The sensitive data problem — solved
+
+Most AI tools send everything to the cloud. That's fine for general questions, but **not for confidential contracts, HR files, financial reports, or legally sensitive documents**.
+
+AuraAI lets you mark any document as **sensitive**. Sensitive files are handled exclusively by an on-premise AI model running inside your own infrastructure (using [Ollama](https://ollama.com)) — your data never leaves your network. For everything else, AuraAI uses OpenAI's advanced reasoning models to give you the best possible answers from your company's knowledge base.
+
+| Document type | Where it's processed |
+|---|---|
+| Sensitive (contracts, HR, finance) | **On-premise** — stays inside your network |
+| General (product docs, websites, FAQs) | **OpenAI** — advanced cloud reasoning |
+
+You get the best of both worlds: **data privacy where it matters, and best-in-class AI where it doesn't**.
 
 ---
 
