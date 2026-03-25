@@ -73,8 +73,24 @@ export async function POST(request: NextRequest) {
   const reqHeaders = await headers();
   const session = await auth.api.getSession({ headers: reqHeaders });
 
-  if (!session || !isSystemAdmin(session.user.role)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) {
+    return NextResponse.json({ error: "You must be signed in to send invitations." }, { status: 401 });
+  }
+
+  const isAdmin = isSystemAdmin(session.user.role);
+
+  // Dev-only: a non-admin who created an org via DEV_ALLOW_SELF_ORG_CREATION is an
+  // org owner (member.role = "owner") but has no system-admin user.role. Allow them
+  // to invite into their own org, but verify ownership below after we parse the body.
+  const devSelfOrgCreation =
+    process.env.NODE_ENV !== "production" &&
+    process.env.DEV_ALLOW_SELF_ORG_CREATION === "1";
+
+  if (!isAdmin && !devSelfOrgCreation) {
+    return NextResponse.json(
+      { error: "Only admins can send invitations." },
+      { status: 403 },
+    );
   }
 
   try {
@@ -100,6 +116,19 @@ export async function POST(request: NextRequest) {
     });
     if (!organization) {
       return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+
+    // Dev bypass: non-admin must be an owner of this specific org.
+    if (!isAdmin && devSelfOrgCreation) {
+      const membership = await prisma.member.findFirst({
+        where: { organizationId: organization.id, userId: session.user.id, role: "owner" },
+      });
+      if (!membership) {
+        return NextResponse.json(
+          { error: "Only admins can send invitations." },
+          { status: 403 },
+        );
+      }
     }
 
     const baseURL =
