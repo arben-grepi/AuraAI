@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
+import { InlineSignOutButton } from "@/components/auth/inline-sign-out-button";
 
 export default async function Home() {
   console.log(`[Home Page] Home page accessed`);
@@ -45,11 +46,12 @@ export default async function Home() {
   );
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <p className="text-sm text-muted-foreground">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-4">
+      <p className="text-sm text-muted-foreground text-center">
         You are not a member of any organization yet. Please contact your
         administrator.
       </p>
+      <InlineSignOutButton />
     </div>
   );
 }
