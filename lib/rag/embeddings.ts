@@ -1,24 +1,26 @@
 import { embed, embedMany } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { getEmbeddingModel } from "@/lib/ai-provider";
 
-export async function generateEmbedding(text: string) {
-  const input = text.replace("/n", " ");
+const EMBED_BATCH_SIZE = 50;
 
-  const { embedding } = await embed({
-    model: openai.embedding("text-embedding-3-small"),
-    value: input,
-  });
+export async function generateEmbedding(text: string): Promise<number[]> {
+  const input = text.replace(/\n/g, " ");
+  const model = getEmbeddingModel();
 
+  const { embedding } = await embed({ model, value: input });
   return embedding;
 }
 
-export async function generateEmbeddings(texts: string[]) {
-  const inputs = texts.map((text) => text.replace("/n", " "));
+export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+  const inputs = texts.map((text) => text.replace(/\n/g, " "));
+  const model = getEmbeddingModel();
+  const allEmbeddings: number[][] = [];
 
-  const { embeddings } = await embedMany({
-    model: openai.embedding("text-embedding-3-small"),
-    values: inputs,
-  });
+  for (let i = 0; i < inputs.length; i += EMBED_BATCH_SIZE) {
+    const batch = inputs.slice(i, i + EMBED_BATCH_SIZE);
+    const { embeddings } = await embedMany({ model, values: batch });
+    allEmbeddings.push(...embeddings);
+  }
 
-  return embeddings;
+  return allEmbeddings;
 }

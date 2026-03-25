@@ -1,7 +1,7 @@
 "use server";
 
 import { APIError } from "better-auth";
-import { auth } from "./auth";
+import { auth, AUTH_SEND_VERIFICATION_EMAIL_ON_SIGN_UP } from "./auth";
 import prisma from "./prisma";
 import { headers } from "next/headers";
 import { revalidateTag } from "next/cache";
@@ -88,12 +88,16 @@ export async function signUp(
       "[BETTER_AUTH] Sign up with email and password has not worked",
       error,
     );
-    return { error: "Kunde inte skapa konto", success: false, data: null };
+    return { error: "Could not create account", success: false, data: null };
   }
 
   return {
     success: true,
-    data: { data: "Vi skickade ett mejl för att verifiera ditt konto" },
+    data: {
+      data: AUTH_SEND_VERIFICATION_EMAIL_ON_SIGN_UP
+        ? "We sent an email to verify your account."
+        : "Account created. You can sign in.",
+    },
     error: null,
   };
 }
@@ -133,7 +137,7 @@ export async function signIn(
 
   return {
     success: true,
-    data: { data: "Du loggade in" },
+    data: { data: "You are signed in" },
     error: null,
   };
 }
@@ -178,7 +182,7 @@ export async function createConversation(
 
   const created = await prisma.conversation.create({
     data: {
-      title: "Ny chatt",
+      title: "New chat",
       userId: session.user.id,
       organizationId,
       chatFolderId: chatFolderId || undefined,
@@ -277,7 +281,7 @@ export async function requestPasswordReset(
     });
     return {
       success: true,
-      data: { data: "E-post för lösenordsåterställning skickad" },
+      data: { data: "Password reset email sent" },
       error: null,
     };
   } catch (error) {
@@ -286,7 +290,7 @@ export async function requestPasswordReset(
     }
     console.error("[BETTER_AUTH] Request password reset has not worked", error);
     return {
-      error: "Kunde inte begära lösenordsåterställning",
+      error: "Could not request password reset",
       success: false,
       data: null,
     };
@@ -317,7 +321,7 @@ export async function resetPassword(
     });
     return {
       success: true,
-      data: { data: "Lösenordet har återställts" },
+      data: { data: "Password has been reset" },
       error: null,
     };
   } catch (error) {
@@ -326,7 +330,7 @@ export async function resetPassword(
     }
     console.error("[BETTER_AUTH] Reset password has not worked", error);
     return {
-      error: "Kunde inte återställa lösenord",
+      error: "Could not reset password",
       success: false,
       data: null,
     };

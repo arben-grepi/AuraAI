@@ -28,7 +28,7 @@ import { isSystemAdmin } from "@/lib/auth-utils";
 import { withMetrics } from "@/lib/with-metrics";
 import { hybridSearch, searchDocuments } from "@/lib/rag/search";
 import type { SearchRow } from "@/lib/rag/search";
-import { openai } from "@ai-sdk/openai";
+import { getChatModel, getActiveProvider } from "@/lib/ai-provider";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -92,7 +92,7 @@ async function handlePost(req: Request) {
     select: { name: true },
   });
 
-  const systemPrompt = getSystemPrompt(organizationName?.name ?? "Diguro");
+  const systemPrompt = getSystemPrompt(organizationName?.name ?? "AuraAI");
 
   if (!isSystemAdmin(session.user.role)) {
     const membership = await prisma.member.findFirst({
@@ -252,10 +252,12 @@ async function handlePost(req: Request) {
     ...requestMessages,
   ]);
 
-  const chatModel = "gpt-4o-mini";
+  const activeProvider = getActiveProvider();
+  const chatModel = getChatModel(activeProvider);
+  console.log(`[chat] Provider: ${activeProvider}`);
 
   const result = streamText({
-    model: openai(chatModel),
+    model: chatModel,
     messages: await finalMessages,
     tools: {
       retrieve_context: tool({
@@ -273,10 +275,31 @@ async function handlePost(req: Request) {
             0.5,
             organizationId,
           );
-          return results;
+          const baseIndex =
+            Math.max(0, ...Object.keys(citationMap).map(Number)) + 1;
+          results.forEach((row, i) => {
+            const idx = String(baseIndex + i);
+            citationMap[idx] = {
+              name: row.resource_name ?? "Document",
+              resourceId: row.resource_id,
+              score: row.score,
+              tags: row.tags ?? undefined,
+            };
+          });
+          if (results.length === 0) {
+            return "(No relevant documents found for this follow-up search.)";
+          }
+          return results
+            .map(
+              (r, i) =>
+                `[[${baseIndex + i} | source:${r.resource_name ?? r.resource_id}]]\n${r.content}`,
+            )
+            .join("\n\n---\n\n");
         },
       }),
-      web_search: openai.tools.webSearch()
+      ...(activeProvider === "openai"
+        ? { web_search: (await import("@ai-sdk/openai")).openai.tools.webSearch() }
+        : {}),
     },
     stopWhen: stepCountIs(5),
     experimental_transform: smoothStream({ chunking: "word" }),
@@ -306,18 +329,14 @@ async function handlePost(req: Request) {
     },
   });
 
-  const hasCitations = Object.keys(citationMap).length > 0;
-
   return result.toUIMessageStreamResponse({
-    messageMetadata: hasCitations
-      ? ({ part }) => {
-        // Send citations on the "finish" event so the client gets them
-        if (part.type === "finish") {
-          return { citations: citationMap } as Record<string, unknown>;
-        }
-        return undefined;
+    messageMetadata: ({ part }) => {
+      // Send citations on the "finish" event (includes pre-retrieval + tool-retrieved)
+      if (part.type === "finish") {
+        return { citations: citationMap } as Record<string, unknown>;
       }
-      : undefined,
+      return undefined;
+    },
   });
 }
 

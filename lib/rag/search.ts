@@ -177,13 +177,14 @@ export async function hybridSearch(
   query: string,
   limit: number,
   organizationId: string,
+  vectorThreshold = 0.3,
 ): Promise<SearchRow[]> {
   if (!organizationId || !query?.trim()) return [];
 
   const fetchLimit = limit * 2; // fetch more candidates for fusion
 
   const [vecResults, kwResults] = await Promise.all([
-    vectorSearch(query, fetchLimit, 0.3, organizationId),
+    vectorSearch(query, fetchLimit, vectorThreshold, organizationId),
     keywordSearch(query, fetchLimit, organizationId).catch(() => {
       // Keyword search may fail if content has unusual characters; degrade gracefully
       return [] as SearchRow[];
@@ -201,9 +202,9 @@ export async function hybridSearch(
 export async function searchDocuments(
   query: string,
   limit = 5,
-  _threshold = 0.5,
+  vectorThreshold = 0.5,
   organizationId?: string | null,
 ): Promise<SearchRow[]> {
   if (!organizationId) return [];
-  return hybridSearch(query, limit, organizationId);
+  return hybridSearch(query, limit, organizationId, vectorThreshold);
 }

@@ -11,6 +11,9 @@ import {
 } from "@/email/email";
 import { ac, admin as adminRole, superadmin } from "./permissions";
 
+/** Keep in sync with `emailVerification.sendOnSignUp` below (used for sign-up success copy). */
+export const AUTH_SEND_VERIFICATION_EMAIL_ON_SIGN_UP = false;
+
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
@@ -38,7 +41,7 @@ export const auth = betterAuth({
     }) => {
       await sendEmailVerificationEmail(user.email, url);
     },
-    sendOnSignUp: false,
+    sendOnSignUp: AUTH_SEND_VERIFICATION_EMAIL_ON_SIGN_UP,
     autoSignInAfterVerification: true,
     expiresIn: 3600,
   },

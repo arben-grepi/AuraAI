@@ -8,6 +8,17 @@ import OrganizationInvitationEmail from "./templates/invitation-email";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+/** Resend “from” — must be a verified domain in production (or Resend test sender in dev). */
+function resendFrom(): string {
+  const from = process.env.RESEND_FROM_EMAIL?.trim();
+  if (!from) {
+    throw new Error(
+      "RESEND_FROM_EMAIL is not set. Add it to .env (see .env.example).",
+    );
+  }
+  return from;
+}
+
 export async function sendPasswordResetEmail(userEmail: string, url: string) {
   const html = await render(
     PasswordResetEmail({
@@ -17,7 +28,7 @@ export async function sendPasswordResetEmail(userEmail: string, url: string) {
   );
 
   const { data, error } = await resend.emails.send({
-    from: "info@diguro.se",
+    from: resendFrom(),
     to: [userEmail],
     subject: "Password Reset",
     html,
@@ -43,7 +54,7 @@ export async function sendEmailVerificationEmail(
   );
 
   const { data, error } = await resend.emails.send({
-    from: "info@diguro.se",
+    from: resendFrom(),
     to: [userEmail],
     subject: "Email Verification",
     html,
@@ -69,7 +80,7 @@ export async function sendChangeEmailVerificationEmail(
   );
 
   const { data, error } = await resend.emails.send({
-    from: "info@diguro.se",
+    from: resendFrom(),
     to: [userEmail],
     subject: "Change Email Verification",
     html,
@@ -109,7 +120,7 @@ export async function sendOrganizationInvitation({
   );
 
   const { data, error } = await resend.emails.send({
-    from: "info@diguro.se",
+    from: resendFrom(),
     to: [email],
     subject: `You've been invited to join ${teamName}`,
     html,
@@ -135,7 +146,7 @@ export async function sendPasswordResetEmailEmail(
   );
 
   const { data, error } = await resend.emails.send({
-    from: "info@diguro.se",
+    from: resendFrom(),
     to: [userEmail],
     subject: "Password Reset",
     html,
