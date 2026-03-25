@@ -43,6 +43,9 @@ Check the box when a batch is fully done.
 - [ ] Upload UI — "Sensitive document" toggle in `components/org/org-files-list.tsx`
 - [ ] `lib/rag/upload/actions.ts` — accept and store `sensitive` in `processRagFile`
 - [ ] `lib/rag/search.ts` — add `r."sensitive"` to both `vectorSearch` and `keywordSearch`; update `SearchRow` type
+- [ ] UX copy — explain what “Sensitive” means:
+  - “Sensitive docs will be routed to on-prem (Ollama) when available.”
+  - “If Ollama is not configured, sensitive docs will be blocked by default (or require an explicit override).”
 
 ### Test plan
 
@@ -61,18 +64,28 @@ Check the box when a batch is fully done.
   - `openAiTokenBudget Int?`
   - `openAiTokensUsed Int @default(0)`
   - `openAiTokensResetAt DateTime?`
+- [ ] Add policy field(s) for sensitive routing (pick one approach):
+  - **Option A (recommended):** `allowSensitiveWithOpenAi Boolean @default(false)` (org-level)
+  - **Option B:** environment-level override only (simpler, less flexible)
 - [ ] `app/api/ai/chat/route.ts` — routing logic before `streamText`:
-  - any sensitive chunks → Ollama
+  - any sensitive chunks → Ollama **if Ollama is reachable**
+  - any sensitive chunks + Ollama not reachable:
+    - if `allowSensitiveWithOpenAi` (or env override) is `true` → OpenAI **with a warning banner**
+    - otherwise → **block** with a clear error telling the admin to configure Ollama or mark docs non-sensitive
   - `openAiEnabled = false` → Ollama
   - `tokensUsed >= budget` → Ollama
   - otherwise → OpenAI
 - [ ] Log routing decision: `[chat] Routing to: ollama (reason: sensitive document in context)`
+- [ ] Log blocked decision: `[chat] Blocked: sensitive context requires Ollama (no Ollama available)`
 
 ### Test plan
 
 - Upload one sensitive + one non-sensitive doc
 - Query each → logs confirm correct routing
 - Set `openAiEnabled = false` in DB → all chats route to Ollama
+- Sensitive + no Ollama:
+  - Default: request is blocked with a clear error
+  - With override enabled: request uses OpenAI and shows a warning in the UI
 
 ---
 
@@ -163,6 +176,29 @@ In development, `onboarding@resend.dev` can be used as the `RESEND_FROM_EMAIL` f
 | 5 | Admin UI for controls | ⬜ Not started |
 | 6 | User-facing token visibility | ⬜ Not started |
 | 7 | Email deliverability (verified domain) | ⬜ Not started |
+| 8 | UI styling and responsive design | ⬜ Not started |
+
+---
+
+## Batch 8: UI styling and responsive design
+
+**Goal:** Ensure every screen works cleanly across desktop, tablet, and mobile. Replace ad-hoc px values and one-off class clusters with a unified, scalable Tailwind system.
+
+- [ ] Audit all pages and components for fixed `px-*` / `w-[...]` values that break on smaller viewports
+- [ ] Establish a spacing and container scale (e.g. `max-w-screen-lg mx-auto px-4 sm:px-6 lg:px-8`) used consistently across layouts
+- [ ] Admin panel pages (`/admin`, `/admin/org/[slug]`) — verify sidebar + content area stack correctly on narrow screens
+- [ ] Org chat layout — ensure sidebar collapses and message area fills correctly on mobile
+- [ ] File upload / RAG section — card grid → single column on small screens
+- [ ] Forms (sign-in, sign-up, create-org steps) — max-width constraint + centered on wide screens, full-width on small
+- [ ] Typography scale — use `text-sm` / `text-base` / `text-lg` consistently; avoid mixing raw `text-[14px]` overrides
+- [ ] Dark/light mode token consistency — confirm Tailwind CSS variables propagate correctly on all components
+- [ ] Remove any unused inline `style={{}}` props that duplicate Tailwind utilities
+
+### Test plan
+
+- Open each major page at 375 px, 768 px, and 1280 px width in browser DevTools
+- Confirm no horizontal scrollbar, no clipped text, no overlapping elements
+- Verify forms remain usable (labels, inputs, buttons visible and reachable) on mobile
 
 ---
 
@@ -173,3 +209,5 @@ In development, `onboarding@resend.dev` can be used as the `RESEND_FROM_EMAIL` f
 - **`web_search` tool** is OpenAI-only — excluded from tool list when routing to Ollama.
 - **Dev org creation**: set `DEV_ALLOW_SELF_ORG_CREATION=1` in local `.env` so any signed-in user can create an org without needing an admin role. Never set this in production.
 - **Dev invite emails**: if Resend cannot deliver in dev (unverified domain/recipient), the invite link is logged in the server console and returned in the API response so you can test the full flow manually.
+- **Dev invite auth**: the `DEV_ALLOW_SELF_ORG_CREATION` bypass is also threaded through `/api/admin/invite` — non-admin org owners can invite into their own org only (verified by `member.role = "owner"` check).
+- **Quota errors**: OpenAI `insufficient_quota` (HTTP 429) surfaces as a clear user-facing message in the file upload UI rather than a generic "failed to upload".
