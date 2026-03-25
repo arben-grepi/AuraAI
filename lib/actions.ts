@@ -391,6 +391,9 @@ export async function createOrganization(
     description,
   } = validated.data;
   const slug = generateSlug(name);
+  const resolvedBackgroundColor = backgroundColor ?? "#F4F4F5";
+  const resolvedButtonColor = buttonColor ?? "#06b6d4";
+  const resolvedLogo = logo ?? "";
   try {
     const doesOrganizationExist = await auth.api.checkOrganizationSlug({
       body: {
@@ -428,12 +431,12 @@ export async function createOrganization(
       body: {
         name,
         slug,
-        logo,
+        logo: resolvedLogo,
         userId: session.user.id,
         keepCurrentActiveOrganization,
         metadata,
-        backgroundColor,
-        buttonColor,
+        backgroundColor: resolvedBackgroundColor,
+        buttonColor: resolvedButtonColor,
         tone,
         description,
       },
@@ -456,6 +459,49 @@ export async function createOrganization(
       success: false,
       data: null,
     };
+  }
+}
+
+export async function checkOrganizationNameAvailable(
+  name: string,
+): Promise<ActionResult<{ available: boolean; slug: string }>> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
+    return { success: false, data: null, error: "Unauthorized" };
+  }
+
+  const slug = generateSlug(name);
+
+  try {
+    const result = await auth.api.checkOrganizationSlug({
+      body: { slug },
+    });
+
+    if (!result.status) {
+      return {
+        success: true,
+        data: { available: false, slug },
+        error: null,
+      };
+    }
+
+    return {
+      success: true,
+      data: { available: true, slug },
+      error: null,
+    };
+  } catch (error) {
+    if (error instanceof APIError) {
+      const errorMessage = error.message.toLowerCase().includes("slug is taken")
+        ? "This name is taken"
+        : error.message;
+      return { error: errorMessage, success: false, data: null };
+    }
+    console.error("[BETTER_AUTH] Check organization slug has not worked", error);
+    return { error: "Could not check organization slug", success: false, data: null };
   }
 }
 

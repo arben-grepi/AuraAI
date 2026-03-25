@@ -24,7 +24,7 @@ import { EmailsInput } from "@/components/org/emails-input";
 import { Label } from "@/components/ui/label";
 import { Upload } from "lucide-react";
 import { toast } from "sonner";
-import { createOrganization, createOrgUser } from "@/lib/actions";
+import { checkOrganizationNameAvailable, createOrganization, createOrgUser } from "@/lib/actions";
 import { generateSlug } from "@/lib/utils";
 import Link from "next/link";
 import {
@@ -58,8 +58,9 @@ export default function Page() {
       name: "",
       description: "",
       keepCurrentActiveOrganization: false,
-      backgroundColor: "",
-      buttonColor: "",
+      backgroundColor: "#F4F4F5",
+      buttonColor: "#06b6d4",
+      logo: "",
     },
     resolver: zodResolver(createOrganizationSchema),
   });
@@ -70,13 +71,15 @@ export default function Page() {
   const buttonColor = form.watch("buttonColor");
 
   const onSubmit = async (values: z.infer<typeof createOrganizationSchema>) => {
+    console.log("[create-org] onSubmit called with values:", values);
     setIsLoading(true);
-    // Apply defaults for colors in case the native picker was never touched
     const payload = {
       ...values,
+      logo: values.logo || orgLogo || "",
       backgroundColor: values.backgroundColor || "#F4F4F5",
       buttonColor: values.buttonColor || "#06b6d4",
     };
+    console.log("[create-org] submitting payload:", payload);
     const { data, error, success } = await createOrganization(payload);
     if (success) {
       toast.success(data?.data || "Organization created");
@@ -635,19 +638,59 @@ export default function Page() {
 
           <div className="flex flex-col gap-2">
             {step !== 3 && (
-              <Button
-                disabled={isButtonDisabled()}
-                onClick={async () => {
-                  if (step === 1) {
-                    setStep(2);
-                  } else if (step === 2) {
-                    await form.handleSubmit(onSubmit)();
-                  }
-                }}
-                className="bg-cyan-600 text-white w-full max-w-[400px] mt-8 cursor-pointer"
-              >
-                {isLoading ? <Loader className="size-4 animate-spin" /> : "Next"}
-              </Button>
+              <div className="flex flex-col gap-1 max-w-[400px] mt-8">
+                <Button
+                  disabled={isButtonDisabled()}
+                  onClick={async () => {
+                    const disabled = isButtonDisabled();
+                    console.log(`[create-org] Next clicked — step=${step} disabled=${disabled} orgLogo=${orgLogo}`);
+                    if (disabled) return;
+                    if (step === 1) {
+                      const orgName = form.getValues("name")?.trim();
+                      if (!orgName) {
+                        form.setError("name", { type: "manual", message: "Name is required" });
+                        toast.error("Organization name is required");
+                        console.warn("[create-org] Step 1 blocked: missing name");
+                        return;
+                      }
+
+                      console.log("[create-org] checking name availability:", orgName);
+                      const check = await checkOrganizationNameAvailable(orgName);
+                      if (!check.success) {
+                        toast.error(check.error || "Could not check organization name");
+                        console.error("[create-org] name availability check failed:", check.error);
+                        return;
+                      }
+                      if (!check.data?.available) {
+                        form.setError("name", { type: "manual", message: "This name is taken" });
+                        toast.error("This organization name is taken. Please pick another.");
+                        console.warn("[create-org] Step 1 blocked: name taken", { slug: check.data?.slug });
+                        return;
+                      }
+
+                      setStep(2);
+                    } else if (step === 2) {
+                      console.log("[create-org] calling form.handleSubmit…");
+                      const errors = form.formState.errors;
+                      if (Object.keys(errors).length) {
+                        console.warn("[create-org] form has validation errors:", errors);
+                      }
+                      await form.handleSubmit(
+                        (v) => { console.log("[create-org] handleSubmit resolved, calling onSubmit"); return onSubmit(v); },
+                        (errs) => { console.error("[create-org] handleSubmit validation failed:", errs); },
+                      )();
+                    }
+                  }}
+                  className="bg-cyan-600 text-white w-full cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoading ? <Loader className="size-4 animate-spin" /> : "Next"}
+                </Button>
+                {step === 2 && !orgLogo && (
+                  <p className="text-xs text-amber-600 text-center">
+                    Please upload a logo to continue.
+                  </p>
+                )}
+              </div>
             )}
             {step === 3 && (
               <>

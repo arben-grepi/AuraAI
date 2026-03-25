@@ -31,9 +31,10 @@ export const organizationSourcesSchema = z.object({
 export const createOrganizationSchema = z.object({
   name: z.string().min(1, { error: "Name is required" }),
   description: z.string().optional(),
-  logo: z.string().min(1, { error: "Logo is required" }),
+  // Logo, backgroundColor, and buttonColor are validated/defaulted in the UI before submit.
+  logo: z.string().optional(),
   keepCurrentActiveOrganization: z.boolean().optional(),
-  backgroundColor: z.string().min(1, { error: "Background color is required" }),
-  buttonColor: z.string().min(1, { error: "Button color is required" }),
+  backgroundColor: z.string().optional(),
+  buttonColor: z.string().optional(),
   tone: z.string().optional(),
 });
