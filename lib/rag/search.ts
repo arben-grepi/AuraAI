@@ -1,6 +1,48 @@
 import { Prisma } from "@/app/generated/prisma";
 import prisma from "@/lib/prisma";
 import { generateEmbedding } from "./embeddings";
+import { getExpectedVectorDimension } from "./vector";
+
+// ---------------------------------------------------------------------------
+// Startup dimension integrity check
+// Runs once on the first search call. If AI_PROVIDER has been changed without
+// running the matching DB migration, vector search will silently return zero
+// results. This check catches it early with an unmissable log warning.
+// ---------------------------------------------------------------------------
+
+let dimensionCheckDone = false;
+
+async function checkDimensionIntegrity(): Promise<void> {
+  if (dimensionCheckDone) return;
+  dimensionCheckDone = true;
+
+  try {
+    const row = await prisma.$queryRaw<{ dims: number }[]>`
+      SELECT vector_dims(embedding) AS dims FROM embeddings LIMIT 1
+    `;
+    if (!row.length) return; // no embeddings yet — nothing to check
+
+    const actual = row[0].dims;
+    const expected = getExpectedVectorDimension();
+
+    if (actual !== expected) {
+      console.error(
+        `\n⛔  EMBEDDING DIMENSION MISMATCH DETECTED\n` +
+        `   DB column dimension : ${actual}\n` +
+        `   AI_PROVIDER expects : ${expected} (AI_PROVIDER=${process.env.AI_PROVIDER ?? "openai"})\n` +
+        `   Vector search will return ZERO results until this is fixed.\n` +
+        `   Fix: run the matching dimension migration and re-upload all documents.\n`,
+      );
+    } else {
+      console.log(
+        `[search] Dimension check OK — embeddings are ${actual}-dim ` +
+        `(AI_PROVIDER=${process.env.AI_PROVIDER ?? "openai"})`,
+      );
+    }
+  } catch {
+    // Non-fatal — if the table is empty or the query fails, skip the check
+  }
+}
 
 /** Row shape returned by search queries. */
 export type SearchRow = {
@@ -183,6 +225,9 @@ export async function hybridSearch(
   vectorThreshold = 0.3,
 ): Promise<SearchRow[]> {
   if (!organizationId || !query?.trim()) return [];
+
+  // Fire-and-forget on first call — does not block the search
+  checkDimensionIntegrity().catch(() => {});
 
   const fetchLimit = limit * 2; // fetch more candidates for fusion
 

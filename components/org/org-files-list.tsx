@@ -45,7 +45,6 @@ type RecoveryState = {
   errorCode: "QUOTA_EXCEEDED" | "OLLAMA_UNAVAILABLE";
   failedItems: FileItem[];
   errorMessage: string;
-  ollamaAvailable: boolean | null;
 };
 
 export default function OrgFilesList({ orgId }: { orgId: string }) {
@@ -105,19 +104,6 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
-  const checkOllamaAvailability = useCallback(async () => {
-    try {
-      const res = await fetch("/api/check-ollama");
-      const json = await res.json();
-      setRecoveryState((prev) =>
-        prev ? { ...prev, ollamaAvailable: json.available === true } : null,
-      );
-    } catch {
-      setRecoveryState((prev) =>
-        prev ? { ...prev, ollamaAvailable: false } : null,
-      );
-    }
-  }, []);
 
   const processSelectedFiles = (selectedFiles: File[]) => {
     if (!selectedFiles.length) return;
@@ -280,9 +266,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
             errorCode,
             failedItems: failures.map((f) => f.item),
             errorMessage,
-            ollamaAvailable: null,
           });
-          checkOllamaAvailability();
           return false;
         }
 
@@ -314,48 +298,6 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
       toast.error(
         error instanceof Error ? error.message : "Failed to upload file",
       );
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleRetryWithOllama = async () => {
-    if (!recoveryState) return;
-    const items = recoveryState.failedItems;
-    setRecoveryState(null);
-    setIsUploading(true);
-    try {
-      const { uploadedCount, failures } = await uploadItems(items, {
-        forceProvider: "ollama",
-      });
-      const allDone = applyUploadResult(
-        uploadedCount,
-        failures,
-        `${uploadedCount} file${uploadedCount === 1 ? "" : "s"} uploaded via Ollama`,
-      );
-      if (allDone) {
-        handleResetForm();
-        setIsDialogOpen(false);
-      }
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleRetryAsNonSensitive = async () => {
-    if (!recoveryState) return;
-    const items = recoveryState.failedItems;
-    setRecoveryState(null);
-    setIsUploading(true);
-    try {
-      const { uploadedCount, failures } = await uploadItems(items, {
-        overrideSensitive: false,
-      });
-      const allDone = applyUploadResult(uploadedCount, failures);
-      if (allDone) {
-        handleResetForm();
-        setIsDialogOpen(false);
-      }
     } finally {
       setIsUploading(false);
     }
@@ -423,47 +365,10 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="flex flex-col gap-2 mt-2">
+            <div className="flex flex-col gap-3 mt-2">
               {recoveryState.errorCode === "QUOTA_EXCEEDED" && (
                 <>
-                  {recoveryState.ollamaAvailable === null ? (
-                    <div className="flex items-center gap-2 text-sm text-zinc-500 p-3 border border-zinc-200 rounded-[10px]">
-                      <Loader className="size-4 animate-spin shrink-0" />
-                      Checking if Ollama is available…
-                    </div>
-                  ) : recoveryState.ollamaAvailable ? (
-                    <button
-                      type="button"
-                      onClick={handleRetryWithOllama}
-                      className="flex items-center gap-3 p-3 border border-zinc-200 rounded-[10px] hover:bg-zinc-50 transition-colors text-left"
-                    >
-                      <div className="w-8 h-8 rounded-[8px] bg-green-100 flex items-center justify-center shrink-0">
-                        <ShieldCheck className="size-4 text-green-700" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">Switch to Ollama</p>
-                        <p className="text-xs text-zinc-500">
-                          Re-upload using the on-premise AI model. No data
-                          leaves your infrastructure.
-                        </p>
-                      </div>
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-3 p-3 border border-zinc-200 rounded-[10px] opacity-60 select-none">
-                      <div className="w-8 h-8 rounded-[8px] bg-zinc-100 flex items-center justify-center shrink-0">
-                        <ShieldCheck className="size-4 text-zinc-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">
-                          Ollama is not available
-                        </p>
-                        <p className="text-xs text-zinc-500">
-                          The on-premise AI model could not be reached on this
-                          server.
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                  {/* Option 1: Add credits */}
                   <a
                     href="https://platform.openai.com/account/billing"
                     target="_blank"
@@ -476,32 +381,63 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">Add OpenAI credits</p>
                       <p className="text-xs text-zinc-500">
-                        Top up your quota at platform.openai.com
+                        Top up your quota at platform.openai.com, then retry.
                       </p>
                     </div>
                     <ExternalLink className="size-3.5 text-zinc-400 shrink-0" />
                   </a>
+
+                  {/* Option 2: Switch to Ollama — config-level instruction */}
+                  <div className="flex items-start gap-3 p-3 border border-zinc-200 rounded-[10px] bg-zinc-50">
+                    <div className="w-8 h-8 rounded-[8px] bg-green-100 flex items-center justify-center shrink-0 mt-0.5">
+                      <ShieldCheck className="size-4 text-green-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Switch to Ollama (server config)</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        To use the on-premise model permanently, ask your
+                        administrator to set <code className="bg-zinc-200 px-1 rounded">AI_PROVIDER=ollama</code> in
+                        the server environment, run the dimension migration, and
+                        restart the server.
+                      </p>
+                    </div>
+                  </div>
                 </>
               )}
 
               {recoveryState.errorCode === "OLLAMA_UNAVAILABLE" && (
                 <>
-                  <button
-                    type="button"
-                    onClick={handleRetryAsNonSensitive}
-                    className="flex items-center gap-3 p-3 border border-amber-200 rounded-[10px] hover:bg-amber-50 transition-colors text-left"
-                  >
-                    <div className="w-8 h-8 rounded-[8px] bg-amber-100 flex items-center justify-center shrink-0">
-                      <ShieldAlert className="size-4 text-amber-700" />
+                  {/* Option 1: Start Ollama */}
+                  <div className="flex items-start gap-3 p-3 border border-zinc-200 rounded-[10px] bg-zinc-50">
+                    <div className="w-8 h-8 rounded-[8px] bg-green-100 flex items-center justify-center shrink-0 mt-0.5">
+                      <ShieldCheck className="size-4 text-green-700" />
                     </div>
-                    <div>
-                      <p className="text-sm font-medium">Use OpenAI anyway</p>
-                      <p className="text-xs text-zinc-500">
-                        Remove the sensitive flag and process with OpenAI. Data
-                        will leave your infrastructure.
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Start Ollama</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        Run <code className="bg-zinc-200 px-1 rounded">ollama serve</code> on
+                        the server, then retry the upload.
                       </p>
                     </div>
-                  </button>
+                  </div>
+
+                  {/* Option 2: Switch to OpenAI — config-level instruction */}
+                  <div className="flex items-start gap-3 p-3 border border-amber-100 border rounded-[10px]">
+                    <div className="w-8 h-8 rounded-[8px] bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+                      <ShieldAlert className="size-4 text-amber-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Switch to OpenAI (server config)</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        To use OpenAI for embeddings, ask your administrator to
+                        set <code className="bg-zinc-200 px-1 rounded">AI_PROVIDER=openai</code>,
+                        run the dimension migration, re-upload all documents,
+                        and restart the server. Note: document content will
+                        leave your infrastructure.
+                      </p>
+                    </div>
+                  </div>
+
                   <a
                     href="https://ollama.com"
                     target="_blank"
@@ -509,12 +445,12 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                     className="flex items-center gap-3 p-3 border border-zinc-200 rounded-[10px] hover:bg-zinc-50 transition-colors"
                   >
                     <div className="w-8 h-8 rounded-[8px] bg-zinc-100 flex items-center justify-center shrink-0">
-                      <ShieldCheck className="size-4 text-zinc-600" />
+                      <ExternalLink className="size-4 text-zinc-500" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">Set up Ollama</p>
+                      <p className="text-sm font-medium">Ollama documentation</p>
                       <p className="text-xs text-zinc-500">
-                        Learn how to run the on-premise AI model locally
+                        Learn how to install and run the on-premise AI model
                       </p>
                     </div>
                     <ExternalLink className="size-3.5 text-zinc-400 shrink-0" />
