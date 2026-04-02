@@ -394,7 +394,9 @@ async function handlePost(req: Request) {
             .join("\n\n---\n\n");
         },
       }),
-      ...(activeProvider === "openai"
+      // web_search is OpenAI-only. Couple to the model object's provider string, not to
+      // the activeProvider variable, so they can never drift if the routing logic changes.
+      ...(chatModel.provider.startsWith("openai")
         ? { web_search: (await import("@ai-sdk/openai")).openai.tools.webSearch() }
         : {}),
     },
