@@ -179,6 +179,7 @@ model Resource {
   fullText       String?       @map("full_text")
   mimeType       String?       @map("mime_type")
   fileSize       Int?          @map("file_size")
+  sensitive      Boolean       @default(false)
   embeddings     Embedding[]
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   fileFolder     FileFolder?   @relation(fields: [fileFolderId], references: [id], onDelete: SetNull)

@@ -35,15 +35,15 @@ Check the box when a batch is fully done.
 
 ---
 
-## Batch 2: Document sensitivity flag
+## Batch 2: Document sensitivity flag ✅
 
 **Goal:** Mark documents as sensitive at upload time. Surface that flag in search results.
 
-- [ ] DB migration — add `sensitive boolean NOT NULL DEFAULT false` to `resources` table
-- [ ] Upload UI — "Sensitive document" toggle in `components/org/org-files-list.tsx`
-- [ ] `lib/rag/upload/actions.ts` — accept and store `sensitive` in `processRagFile`
-- [ ] `lib/rag/search.ts` — add `r."sensitive"` to both `vectorSearch` and `keywordSearch`; update `SearchRow` type
-- [ ] UX copy — explain what “Sensitive” means:
+- [x] DB migration — add `sensitive boolean NOT NULL DEFAULT false` to `resources` table
+- [x] Upload UI — "Sensitive document" toggle in `components/org/org-files-list.tsx`
+- [x] `lib/rag/upload/actions.ts` — accept and store `sensitive` in `processRagFile`
+- [x] `lib/rag/search.ts` — add `r."sensitive"` to both `vectorSearch` and `keywordSearch`; update `SearchRow` type
+- [x] UX copy — explain what “Sensitive” means:
   - “Sensitive docs will be routed to on-prem (Ollama) when available.”
   - “If Ollama is not configured, sensitive docs will be blocked by default (or require an explicit override).”
 
@@ -170,7 +170,7 @@ In development, `onboarding@resend.dev` can be used as the `RESEND_FROM_EMAIL` f
 | Batch | What it delivers | Status |
 |-------|-----------------|--------|
 | 1 | Ollama working end-to-end | ✅ Done |
-| 2 | Sensitive flag on documents | ⬜ Not started |
+| 2 | Sensitive flag on documents | ✅ Done |
 | 3 | Auto-routing chat to correct provider | ⬜ Not started |
 | 4 | Token counting and monthly cap | ⬜ Not started |
 | 5 | Admin UI for controls | ⬜ Not started |

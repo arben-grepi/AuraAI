@@ -107,9 +107,9 @@ export async function GET(req: Request) {
 
     const [rootFiles, folders] = await Promise.all([
       rootFileTake > 0
-        ? prisma.resource.findMany({
+        ?         prisma.resource.findMany({
             where: rootFilesWhere,
-            select: { id: true, name: true, tags: true },
+            select: { id: true, name: true, tags: true, sensitive: true },
             orderBy: { name: "asc" },
             skip: rootFileSkip,
             take: rootFileTake,
@@ -130,7 +130,7 @@ export async function GET(req: Request) {
                       },
                     }
                   : undefined,
-                select: { id: true, name: true, tags: true },
+                select: { id: true, name: true, tags: true, sensitive: true },
                 orderBy: { name: "asc" },
               },
             },

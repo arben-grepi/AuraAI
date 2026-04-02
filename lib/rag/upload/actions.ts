@@ -40,6 +40,7 @@ export async function processRagFile(
   const orgId = formData.get("orgId")?.toString() ?? null;
   const orgSlug = formData.get("orgSlug")?.toString() ?? null;
   const fileFolderId = formData.get("fileFolderId")?.toString() || null;
+  const sensitive = formData.get("sensitive") === "true";
   const tagsString = formData.get("tags")?.toString();
   let tags: string[] = [];
   if (tagsString) {
@@ -189,10 +190,10 @@ export async function processRagFile(
 
       const resourceId = crypto.randomUUID();
 
-      // Store resource with full text, mime type, and file size
+      // Store resource with full text, mime type, file size, and sensitivity flag
       await tx.$executeRawUnsafe(
-        `INSERT INTO "resources" ("id", "organization_id", "file_folder_id", "name", "tags", "full_text", "mime_type", "file_size")
-         VALUES ($1, $2, $3, $4, $5::text[], $6, $7, $8)`,
+        `INSERT INTO "resources" ("id", "organization_id", "file_folder_id", "name", "tags", "full_text", "mime_type", "file_size", "sensitive")
+         VALUES ($1, $2, $3, $4, $5::text[], $6, $7, $8, $9)`,
         resourceId,
         organizationId,
         fileFolderId,
@@ -201,6 +202,7 @@ export async function processRagFile(
         fullText.trim(),
         file.type || null,
         file.size,
+        sensitive,
       );
 
       // Insert embeddings with offsets

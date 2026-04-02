@@ -9,6 +9,7 @@ import {
   Folder,
   FolderPlus,
   Loader,
+  ShieldCheck,
   Trash2,
   Upload,
   X,
@@ -46,6 +47,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
   const [files, setFiles] = useState<File[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string>("");
+  const [isSensitive, setIsSensitive] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(
@@ -158,6 +160,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
     setFiles([]);
     setSelected([]);
     setSelectedFolderId("");
+    setIsSensitive(false);
   };
 
   const handleDialogOpenChange = (open: boolean) => {
@@ -186,6 +189,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
           formData.append("file", file);
           formData.append("tags", JSON.stringify(selected));
           formData.append("orgId", orgId);
+          formData.append("sensitive", String(isSensitive));
           if (selectedFolderId)
             formData.append("fileFolderId", selectedFolderId);
 
@@ -395,6 +399,33 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                 <TagInput selected={selected} setSelected={setSelected} />
               </div>
 
+              <button
+                type="button"
+                onClick={() => setIsSensitive((v) => !v)}
+                className={cn(
+                  "flex items-start gap-3 rounded-[10px] border p-3 text-left transition-colors cursor-pointer",
+                  isSensitive
+                    ? "border-amber-400 bg-amber-50"
+                    : "border-zinc-200 hover:bg-zinc-50",
+                )}
+              >
+                <ShieldCheck
+                  className={cn(
+                    "mt-0.5 size-4 shrink-0",
+                    isSensitive ? "text-amber-600" : "text-zinc-400",
+                  )}
+                />
+                <div>
+                  <p className={cn("text-sm font-medium", isSensitive ? "text-amber-700" : "text-zinc-700")}>
+                    Sensitive document
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    This file contains confidential data. It will be processed
+                    only by the on-premise AI model — never sent to the cloud.
+                  </p>
+                </div>
+              </button>
+
               <DialogFooter className="justify-end">
                 <Button
                   variant="outline"
@@ -502,6 +533,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                       id={entry.file.id}
                       name={entry.file.name}
                       tags={entry.file.tags}
+                      sensitive={entry.file.sensitive}
                     />
                   ) : (
                     <FolderRow
@@ -561,10 +593,12 @@ const ListItem = ({
   id,
   name,
   tags,
+  sensitive,
 }: {
   id: string;
   name: string;
   tags: string[];
+  sensitive: boolean;
 }) => {
   const queryClient = useQueryClient();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -597,7 +631,13 @@ const ListItem = ({
           <p className="text-xs text-zinc-500 font-medium">200KB</p>
         </div>
       </div>
-      <div className="flex gap-2 flex-1">
+      <div className="flex gap-2 flex-1 flex-wrap">
+        {sensitive && (
+          <div className="flex items-center gap-1 rounded-[12px] bg-amber-50 border border-amber-300 px-2.5 py-1">
+            <ShieldCheck className="size-3 text-amber-600" />
+            <p className="text-xs font-medium text-amber-700">Sensitive</p>
+          </div>
+        )}
         {tags.map((tag) => (
           <div
             key={tag}
@@ -733,6 +773,7 @@ const FolderRow = ({
                 id={file.id}
                 name={file.name}
                 tags={file.tags}
+                sensitive={file.sensitive}
               />
             ))
           )}
@@ -766,6 +807,7 @@ type OrgFile = {
   id: string;
   name: string;
   tags: string[];
+  sensitive: boolean;
 };
 
 type OrgFolder = {

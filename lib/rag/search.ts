@@ -12,6 +12,7 @@ export type SearchRow = {
   start_offset: number | null;
   end_offset: number | null;
   tags: string[] | null;
+  sensitive: boolean;
 };
 
 /**
@@ -45,6 +46,7 @@ export async function vectorSearch(
       e."start_offset",
       e."end_offset",
       r."tags",
+      r."sensitive",
       (1 - (e."embedding" <=> ${vecParam}::vector)) AS score
     FROM "embeddings" e
     JOIN "resources" r ON e."resource_id" = r."id"
@@ -76,6 +78,7 @@ async function keywordSearch(
       e."start_offset",
       e."end_offset",
       r."tags",
+      r."sensitive",
       ts_rank(to_tsvector('english', e."content"), plainto_tsquery('english', ${query})) AS score
     FROM "embeddings" e
     JOIN "resources" r ON e."resource_id" = r."id"
