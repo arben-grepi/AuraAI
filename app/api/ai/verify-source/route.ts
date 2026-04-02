@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateObject } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { getChatModel } from "@/lib/ai-provider";
 import { z } from "zod";
 
 const requestSchema = z.object({
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     const { url } = parsed.data;
 
     const { object } = await generateObject({
-      model: openai("gpt-4o-mini"),
+      model: getChatModel(),
       schema: verificationResultSchema,
       prompt: `Analyze this URL and determine if it is a safe, legitimate website suitable for use as a trusted knowledge source in a professional organization setting.
 

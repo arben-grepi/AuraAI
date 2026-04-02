@@ -1,7 +1,6 @@
-import { openai } from "@ai-sdk/openai";
 import { ollama } from "ai-sdk-ollama";
 
-export type AiProvider = "openai" | "ollama";
+export type AiProvider = "ollama";
 
 /** Server-side ping. Returns true if Ollama responds within the timeout. */
 export async function checkOllamaReachable(timeoutMs = 3000): Promise<boolean> {
@@ -17,35 +16,29 @@ export async function checkOllamaReachable(timeoutMs = 3000): Promise<boolean> {
 }
 
 export function getActiveProvider(): AiProvider {
-  const provider = process.env.AI_PROVIDER ?? "openai";
-  if (provider !== "openai" && provider !== "ollama") {
-    console.warn(
-      `[ai-provider] Unknown AI_PROVIDER value "${provider}", falling back to "openai"`,
-    );
-    return "openai";
-  }
-  return provider;
+  return "ollama";
 }
 
-export function getChatModel(provider: AiProvider = getActiveProvider()) {
-  if (provider === "ollama") {
-    const model = process.env.OLLAMA_CHAT_MODEL ?? "llama3.1";
-    const baseURL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
-    console.log(`[ai-provider] Chat model: ollama/${model} (${baseURL})`);
-    return ollama(model, { baseURL: `${baseURL}/api` });
-  }
-  const model = "gpt-4o-mini";
-  console.log(`[ai-provider] Chat model: openai/${model}`);
-  return openai(model);
+export function getChatModel(_provider?: AiProvider) {
+  const model = process.env.OLLAMA_CHAT_MODEL ?? "llama3.1";
+  const baseURL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
+  console.log(`[ai-provider] Chat model: ollama/${model} (${baseURL})`);
+  return ollama(model, {
+    baseURL: `${baseURL}/api`,
+    // llama3.1 can take several minutes to generate the first token on first load.
+    // undici's default header timeout is 300 s — raise it so slow local hardware
+    // doesn't kill the stream before the model starts responding.
+    fetch: (url, init) =>
+      fetch(url, {
+        ...init,
+        signal: AbortSignal.timeout(10 * 60 * 1000), // 10 min
+      }),
+  });
 }
 
-export function getEmbeddingModel(provider: AiProvider = getActiveProvider()) {
-  if (provider === "ollama") {
-    const model = process.env.OLLAMA_EMBEDDING_MODEL ?? "nomic-embed-text";
-    const baseURL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
-    console.log(`[ai-provider] Embedding model: ollama/${model} (${baseURL})`);
-    return ollama.textEmbeddingModel(model, { baseURL: `${baseURL}/api` });
-  }
-  console.log(`[ai-provider] Embedding model: openai/text-embedding-3-small`);
-  return openai.embedding("text-embedding-3-small");
+export function getEmbeddingModel(_provider?: AiProvider) {
+  const model = process.env.OLLAMA_EMBEDDING_MODEL ?? "nomic-embed-text";
+  const baseURL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
+  console.log(`[ai-provider] Embedding model: ollama/${model} (${baseURL})`);
+  return ollama.textEmbeddingModel(model, { baseURL: `${baseURL}/api` });
 }

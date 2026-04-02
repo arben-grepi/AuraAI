@@ -1,29 +1,22 @@
-// Dimension is determined by the active embedding model:
-//   openai (text-embedding-3-small) → 1 536
-//   ollama (nomic-embed-text)       → 768
-// ALL embeddings in the DB must use the same provider — mixing dimensions is not possible.
-const DIMENSION_BY_PROVIDER: Record<string, number> = {
-  openai: 1536,
-  ollama: 768,
-};
+// Ollama nomic-embed-text produces 768-dimensional vectors.
+// All embeddings in the DB use this single dimension.
+const VECTOR_DIMENSION = 768;
 
 export function getExpectedVectorDimension(): number {
-  const provider = process.env.AI_PROVIDER ?? "openai";
-  return DIMENSION_BY_PROVIDER[provider] ?? 1536;
+  return VECTOR_DIMENSION;
 }
 
 /** @deprecated Use getExpectedVectorDimension() */
-export const EXPECTED_VECTOR_DIMENSION = 1536;
+export const EXPECTED_VECTOR_DIMENSION = 768;
 
 export function validateVector(vec: number[]): void {
   if (!Array.isArray(vec)) {
     throw new Error("Vector must be an array");
   }
-  const expected = getExpectedVectorDimension();
-  if (vec.length !== expected) {
+  if (vec.length !== VECTOR_DIMENSION) {
     throw new Error(
-      `Vector dimension mismatch: expected ${expected} (AI_PROVIDER=${process.env.AI_PROVIDER ?? "openai"}), got ${vec.length}. ` +
-      `Check that your DB column matches the active embedding model, then re-index all documents.`,
+      `Vector dimension mismatch: expected ${VECTOR_DIMENSION} (nomic-embed-text), got ${vec.length}. ` +
+      `Ensure all documents are embedded with the configured Ollama embedding model.`,
     );
   }
   for (let i = 0; i < vec.length; i++) {

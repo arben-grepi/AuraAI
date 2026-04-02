@@ -29,14 +29,14 @@ async function checkDimensionIntegrity(): Promise<void> {
       console.error(
         `\n⛔  EMBEDDING DIMENSION MISMATCH DETECTED\n` +
         `   DB column dimension : ${actual}\n` +
-        `   AI_PROVIDER expects : ${expected} (AI_PROVIDER=${process.env.AI_PROVIDER ?? "openai"})\n` +
+        `   Expected embedding dimension : ${expected} (Ollama nomic-embed-text)\n` +
         `   Vector search will return ZERO results until this is fixed.\n` +
         `   Fix: run the matching dimension migration and re-upload all documents.\n`,
       );
     } else {
       console.log(
         `[search] Dimension check OK — embeddings are ${actual}-dim ` +
-        `(AI_PROVIDER=${process.env.AI_PROVIDER ?? "openai"})`,
+        `(Ollama embedding model)`,
       );
     }
   } catch {

@@ -471,22 +471,20 @@ Removing OpenAI touches **config, provider factory, chat routing, RAG errors, or
 | 9 | Email deliverability (verified domain) | ⬜ Not started |
 | 10 | Tokenizer-aware RAG chunking (per embedding model) | ⬜ Deferred |
 | 11 | Invite-only onboarding (remove admin-created users + passwords) | ⬜ Not started |
-| 12 | Ollama-only deployment (remove OpenAI) | ⬜ Not started |
+| 12 | Ollama-only deployment (remove OpenAI) | ✅ Done |
 
 ---
 
 ## Notes
 
-### Dual-provider rules (read before changing anything AI-related)
+### Architecture (Ollama-only since Batch 12)
 
-- **Ollama-only roadmap:** If you are **dropping OpenAI entirely**, follow **Batch 12** — the bullets below describe the current dual-provider codebase until that batch is done.
-- **One `AI_PROVIDER`, one vector dimension**: `AI_PROVIDER=ollama` → all vectors must be 768-dim. `AI_PROVIDER=openai` → all vectors must be 1 536-dim. Mixing is not supported — it causes a pgvector dimension mismatch error. Switching providers requires a DB migration + full re-index.
-- **`sensitive` flag controls chat routing only**, not embedding routing. All files are embedded by the global `AI_PROVIDER`.
-- **`web_search` tool** is OpenAI-only — automatically excluded when routing to Ollama.
-- **Ollama must be running** in any environment where `AI_PROVIDER=ollama` — for both chat and embedding.
-- **Token budget** (`openAiTokenBudget`) defaults to NULL (unlimited). Set it only after Batch 6 reset logic is deployed, or the budget will never reset.
-- **Recovery modal "Switch to Ollama"** is currently a no-op (Batch 4 known bug). Fix tracked in Batch 6.
-- **Chat fallback to OpenAI** (when Ollama is down + `allowSensitiveWithOpenAi = true`) is silent to the user until Batch 6 adds the warning banner.
+- **Single provider:** All AI work (chat, embeddings) uses **Ollama**. No OpenAI keys required. `@ai-sdk/openai` dependency can be removed once nothing else imports it.
+- **`sensitive` flag** — documents marked sensitive are still stored, but since the product is Ollama-only, this currently has no routing effect. It remains useful for UI visibility and future policy enforcement.
+- **Vector dimension: 768** — all embeddings use `nomic-embed-text` (768-dim). The DB column is `vector(768)`. Do not change the embedding model without running a dimension migration and re-indexing all documents.
+- **Ollama must be running** — if Ollama is unreachable, chat and file uploads return clear 503 errors. There is no cloud fallback.
+- **No `web_search` tool** — removed in Batch 12. If live web context is needed in future, add a dedicated tool (e.g. Tavily, Exa) in its own batch.
+- **Org AI fields** (`openAiEnabled`, `openAiTokenBudget`, etc.) remain in the DB schema but are no longer consulted by the chat route. They can be dropped in a future migration cleanup batch.
 
 ### Development
 

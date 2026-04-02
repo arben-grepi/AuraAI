@@ -10,9 +10,8 @@ import { headers } from "next/headers";
 import { extractText, isSupportedRagFile } from "@/lib/file-extraction";
 import { isSystemAdmin } from "@/lib/auth-utils";
 import { MAX_ORG_RAG_FILES, ORG_RAG_FILE_LIMIT_ERROR } from "@/lib/rag/limits";
-import { getActiveProvider } from "@/lib/ai-provider";
 
-export type ProcessRagFileErrorCode = "QUOTA_EXCEEDED" | "OLLAMA_UNAVAILABLE";
+export type ProcessRagFileErrorCode = "OLLAMA_UNAVAILABLE";
 
 export type ProcessRagFileResult =
   | { success: true; resourceId: string; chunksStored: number; fileName: string }
@@ -36,18 +35,6 @@ function isOllamaConnectionError(e: unknown): boolean {
   return false;
 }
 
-function isQuotaExceededError(e: unknown): boolean {
-  if (e && typeof e === "object") {
-    const status = (e as { statusCode?: unknown }).statusCode;
-    if (status === 429) return true;
-    const code = ((e as { data?: { error?: { code?: unknown } } }).data?.error?.code ?? "");
-    if (code === "insufficient_quota") return true;
-  }
-  const msg = e instanceof Error ? e.message : "";
-  return (
-    msg.includes("insufficient_quota") || msg.includes("You exceeded your current quota")
-  );
-}
 
 export async function processRagFile(
   formData: FormData,
@@ -75,12 +62,8 @@ export async function processRagFile(
   const orgSlug = formData.get("orgSlug")?.toString() ?? null;
   const fileFolderId = formData.get("fileFolderId")?.toString() || null;
   const sensitive = formData.get("sensitive") === "true";
-  // Embeddings always use the global AI_PROVIDER — all vectors in the DB must share
-  // the same dimension (768 for Ollama, 1536 for OpenAI). Mixing providers would
-  // create incompatible vectors in the same column.
-  // The sensitive flag only affects CHAT routing (which model answers questions),
-  // not which model indexes the document.
-  const embeddingProvider = undefined; // use getActiveProvider() inside generateEmbeddings
+  // The sensitive flag only affects CHAT routing — all documents are embedded by Ollama.
+  const embeddingProvider = undefined;
   const tagsString = formData.get("tags")?.toString();
   let tags: string[] = [];
   if (tagsString) {
@@ -169,9 +152,8 @@ export async function processRagFile(
     };
   }
 
-  const resolvedProvider = getActiveProvider();
   console.log(
-    `[embed] Using ${resolvedProvider} for file: ${file.name}${sensitive ? " (sensitive — chat-only restriction)" : ""}`,
+    `[embed] Embedding file: ${file.name}${sensitive ? " (sensitive — chat only via Ollama)" : ""}`,
   );
 
   let embeddings: number[][];
@@ -180,21 +162,12 @@ export async function processRagFile(
   } catch (e) {
     console.error("RAG embedding error:", e);
 
-    if (resolvedProvider === "ollama" && isOllamaConnectionError(e)) {
+    if (isOllamaConnectionError(e)) {
       return {
         success: false,
         error:
-          "The on-premise AI model (Ollama) is not reachable. Sensitive files cannot be embedded without it.",
+          "Ollama is not reachable. Make sure Ollama is running (`ollama serve`) and try again.",
         errorCode: "OLLAMA_UNAVAILABLE",
-      };
-    }
-
-    if (isQuotaExceededError(e)) {
-      return {
-        success: false,
-        error:
-          "Your OpenAI quota is exhausted — embeddings could not be generated. Switch to Ollama or add credits to continue.",
-        errorCode: "QUOTA_EXCEEDED",
       };
     }
 

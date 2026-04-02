@@ -28,85 +28,25 @@ import { isSystemAdmin } from "@/lib/auth-utils";
 import { withMetrics } from "@/lib/with-metrics";
 import { hybridSearch, searchDocuments } from "@/lib/rag/search";
 import type { SearchRow } from "@/lib/rag/search";
-import {
-  getChatModel,
-  getActiveProvider,
-  checkOllamaReachable,
-  type AiProvider,
-} from "@/lib/ai-provider";
+import { getChatModel, checkOllamaReachable } from "@/lib/ai-provider";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
-
-type OrgAiSettings = {
-  openAiEnabled: boolean;
-  allowSensitiveWithOpenAi: boolean;
-  openAiTokenBudget: number | null;
-  openAiTokensUsed: number;
-};
+export const maxDuration = 600;
 
 type ChatRouting =
-  | { blocked: false; provider: AiProvider; reason: string }
-  | { blocked: true; provider: null; reason: string };
+  | { blocked: false; reason: string }
+  | { blocked: true; reason: string };
 
-async function resolveChatProvider(
-  retrievedDocs: SearchRow[],
-  org: OrgAiSettings,
-): Promise<ChatRouting> {
-  const hasSensitiveDocs = retrievedDocs.some((r) => r.sensitive);
-  const budgetExhausted =
-    org.openAiTokenBudget !== null &&
-    org.openAiTokenBudget !== undefined &&
-    org.openAiTokensUsed >= org.openAiTokenBudget;
-
-  // Reasons to force Ollama or block
-  const needsOllama =
-    hasSensitiveDocs || !org.openAiEnabled || budgetExhausted;
-
-  if (!needsOllama) {
-    // Standard path — use OpenAI (or whatever the global default is)
-    return {
-      blocked: false,
-      provider: getActiveProvider(),
-      reason: "standard",
-    };
-  }
-
-  const reason = hasSensitiveDocs
-    ? "sensitive document in context"
-    : !org.openAiEnabled
-      ? "OpenAI disabled for this org"
-      : "monthly token budget exhausted";
-
-  // Check if Ollama is reachable
+async function resolveChatProvider(): Promise<ChatRouting> {
   const ollamaUp = await checkOllamaReachable();
-
   if (ollamaUp) {
-    return { blocked: false, provider: "ollama", reason };
+    return { blocked: false, reason: "standard" };
   }
-
-  // Sensitive documents must NEVER be sent to OpenAI — hard block regardless of org settings
-  if (hasSensitiveDocs) {
-    console.warn(
-      `[chat] Blocked: sensitive context requires Ollama (Ollama not reachable)`,
-    );
-    return {
-      blocked: true,
-      provider: null,
-      reason:
-        "This query references sensitive documents that require the on-premise AI model (Ollama). " +
-        "Ollama is not reachable right now. Please contact your administrator.",
-    };
-  }
-
-  // Non-sensitive reasons (budget exhausted, OpenAI disabled) — safe to fall back to OpenAI
-  console.warn(
-    `[chat] Fallback to OpenAI — Ollama not reachable (reason was: ${reason})`,
-  );
+  console.warn("[chat] Blocked: Ollama not reachable");
   return {
-    blocked: false,
-    provider: "openai",
-    reason: `${reason} — fell back to OpenAI (Ollama unavailable)`,
+    blocked: true,
+    reason:
+      "The on-premise AI model (Ollama) is not reachable. Please make sure Ollama is running and contact your administrator if the problem persists.",
   };
 }
 
@@ -230,10 +170,6 @@ async function handlePost(req: Request) {
     select: {
       name: true,
       description: true,
-      openAiEnabled: true,
-      allowSensitiveWithOpenAi: true,
-      openAiTokenBudget: true,
-      openAiTokensUsed: true,
     },
   });
 
@@ -336,10 +272,7 @@ async function handlePost(req: Request) {
     ...requestMessages,
   ]);
 
-  const chatProvider = await resolveChatProvider(
-    preRetrievalResults,
-    organization,
-  );
+  const chatProvider = await resolveChatProvider();
 
   if (chatProvider.blocked) {
     return NextResponse.json(
@@ -348,9 +281,8 @@ async function handlePost(req: Request) {
     );
   }
 
-  const activeProvider = chatProvider.provider;
-  const chatModel = getChatModel(activeProvider);
-  console.log(`[chat] Routing to: ${activeProvider} (reason: ${chatProvider.reason})`);
+  const chatModel = getChatModel();
+  console.log(`[chat] Routing to: ollama (reason: ${chatProvider.reason})`);
 
   const result = streamText({
     model: chatModel,
@@ -393,11 +325,6 @@ async function handlePost(req: Request) {
             .join("\n\n---\n\n");
         },
       }),
-      // web_search is OpenAI-only. Couple to the model object's provider string, not to
-      // the activeProvider variable, so they can never drift if the routing logic changes.
-      ...(chatModel.provider.startsWith("openai")
-        ? { web_search: (await import("@ai-sdk/openai")).openai.tools.webSearch() }
-        : {}),
     },
     stopWhen: stepCountIs(5),
     experimental_transform: smoothStream({ chunking: "word" }),
@@ -431,7 +358,7 @@ async function handlePost(req: Request) {
     messageMetadata: ({ part }) => {
       // Send citations + active provider on the "finish" event
       if (part.type === "finish") {
-        return { citations: citationMap, provider: activeProvider } as Record<string, unknown>;
+        return { citations: citationMap, provider: "ollama" } as Record<string, unknown>;
       }
       return undefined;
     },

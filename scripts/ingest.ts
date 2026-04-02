@@ -1,9 +1,9 @@
 import "dotenv/config";
 import { Client } from "pg";
-import { openai } from "@ai-sdk/openai";
 import { embedMany } from "ai";
 import crypto from "crypto";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { getEmbeddingModel } from "../lib/ai-provider";
 
 const DATABASE_URL = process.env.DATABASE_URL!;
 const CHUNK_SIZE = 1800;
@@ -85,7 +85,7 @@ async function main() {
   console.log(`Chunks: ${chunks.length}`);
 
   const { embeddings } = await embedMany({
-    model: openai.embedding("text-embedding-3-small"),
+    model: getEmbeddingModel(),
     values: chunks,
   });
 
