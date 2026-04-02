@@ -4,6 +4,14 @@ This document is the single source of truth for planned development batches.
 Each batch is independently testable before moving to the next.
 Check the box when a batch is fully done.
 
+### Standing rule — update `docs/potential-issues.md` after every batch
+
+Before marking a batch ✅ Done, ask:
+> *"Did anything break, behave unexpectedly, or only work because of a fragile assumption?"*
+
+If yes — or even if it was a close call — add an entry to [`docs/potential-issues.md`](docs/potential-issues.md).
+Keep entries short: symptom, root cause, fix applied, and what to watch out for next time.
+
 ---
 
 ## Overview
@@ -95,28 +103,62 @@ Check the box when a batch is fully done.
 
 ---
 
-## Batch 4: Chat routing based on sensitivity and org toggle
+## Batch 4: Upload UX, per-file sensitivity routing, and quota recovery ✅
+
+**Goal:** Make document upload a first-class experience. Each file gets its own sensitive toggle. Sensitive files are embedded using Ollama — never OpenAI. When the embedding provider fails (quota, unavailable), the user gets a clear actionable dialog instead of a dead-end error.
+
+### Upload UX
+
+- [x] File list in upload dialog — show all selected files stacked with name, size, type, and an individual **Sensitive** toggle per file (replacing the current single global toggle)
+- [x] Visual state per file: normal file shows a neutral card; sensitive file shows an amber shield badge on the card
+- [x] Remove files individually from the list before uploading
+
+### Per-file embedding routing
+
+- [x] Pass `sensitive` flag per file through `FormData` to `processRagFile`
+- [x] `lib/rag/upload/actions.ts` — if `sensitive = true`, call `getEmbeddingModel("ollama")` explicitly; if `sensitive = false`, use the active provider (OpenAI or Ollama depending on `AI_PROVIDER`); `forceProvider` param overrides both
+- [x] `lib/rag/embeddings.ts` — `generateEmbeddings` accepts optional `provider` parameter
+- [x] Ollama connection errors detected and surfaced as `OLLAMA_UNAVAILABLE` error code
+- [x] `app/api/check-ollama/route.ts` — pings Ollama availability (3 s timeout); recovery modal uses this
+- [x] Log: `[embed] Using <provider> for file: <filename> (sensitive)`
+
+### Quota and provider error recovery dialog
+
+- [x] `ProcessRagFileResult` extended with `errorCode?: "QUOTA_EXCEEDED" | "OLLAMA_UNAVAILABLE"`
+- [x] **OpenAI quota exceeded modal:** checks Ollama availability live; offers "Switch to Ollama" (if reachable) or "Add OpenAI credits" link
+- [x] **Ollama unavailable modal:** offers "Use OpenAI anyway" (re-uploads with `sensitive: false`, user accepts data privacy trade-off) or "Set up Ollama" link
+- [x] Generic errors continue to show as toasts
+
+### Test plan
+
+- Upload 3 files, mark 2 as sensitive individually — confirm correct per-file badges
+- With Ollama running: sensitive files embed via Ollama (check server logs); non-sensitive via OpenAI
+- With OpenAI quota exceeded: quota recovery dialog appears with Ollama option (if available)
+- With Ollama down and a sensitive file: Ollama-unavailable dialog appears; choosing "use OpenAI" re-uploads successfully
+- With both providers down: generic error shown
+
+---
+
+## Batch 5: Chat routing based on sensitivity and org toggle ✅
 
 **Goal:** Route chat to Ollama or OpenAI automatically based on retrieved document sensitivity.
 
-- [ ] `prisma/schema.prisma` + migration — add to `Organization`:
+- [x] `prisma/schema.prisma` + migration — added to `Organization`:
   - `openAiEnabled Boolean @default(true)`
+  - `allowSensitiveWithOpenAi Boolean @default(false)` ← Option A locked in
   - `openAiTokenBudget Int?`
   - `openAiTokensUsed Int @default(0)`
   - `openAiTokensResetAt DateTime?`
-- [ ] Add policy field(s) for sensitive routing (pick one approach):
-  - **Option A (recommended):** `allowSensitiveWithOpenAi Boolean @default(false)` (org-level)
-  - **Option B:** environment-level override only (simpler, less flexible)
-- [ ] `app/api/ai/chat/route.ts` — routing logic before `streamText`:
+- [x] `lib/ai-provider.ts` — `checkOllamaReachable(timeoutMs)` server-side helper
+- [x] `app/api/ai/chat/route.ts` — `resolveChatProvider()` function with full routing logic:
   - any sensitive chunks → Ollama **if Ollama is reachable**
-  - any sensitive chunks + Ollama not reachable:
-    - if `allowSensitiveWithOpenAi` (or env override) is `true` → OpenAI **with a warning banner**
-    - otherwise → **block** with a clear error telling the admin to configure Ollama or mark docs non-sensitive
-  - `openAiEnabled = false` → Ollama
-  - `tokensUsed >= budget` → Ollama
-  - otherwise → OpenAI
-- [ ] Log routing decision: `[chat] Routing to: ollama (reason: sensitive document in context)`
-- [ ] Log blocked decision: `[chat] Blocked: sensitive context requires Ollama (no Ollama available)`
+  - any sensitive chunks + Ollama not reachable + `allowSensitiveWithOpenAi = false` → **blocked** (HTTP 503) with clear message
+  - any sensitive chunks + Ollama not reachable + `allowSensitiveWithOpenAi = true` → OpenAI with warning logged
+  - `openAiEnabled = false` → Ollama (falls back to OpenAI if Ollama down, logged)
+  - `openAiTokensUsed >= openAiTokenBudget` → Ollama (falls back if Ollama down, logged)
+  - otherwise → active provider (OpenAI default)
+- [x] Log: `[chat] Routing to: <provider> (reason: <reason>)`
+- [x] Log: `[chat] Blocked: sensitive context requires Ollama (Ollama not reachable)`
 
 ### Test plan
 
@@ -125,11 +167,11 @@ Check the box when a batch is fully done.
 - Set `openAiEnabled = false` in DB → all chats route to Ollama
 - Sensitive + no Ollama:
   - Default: request is blocked with a clear error
-  - With override enabled: request uses OpenAI and shows a warning in the UI
+  - With `allowSensitiveWithOpenAi = true`: request uses OpenAI and logs a warning
 
 ---
 
-## Batch 5: Token tracking and budget enforcement
+## Batch 6: Token tracking and budget enforcement
 
 **Goal:** Count OpenAI tokens after each request and enforce the monthly cap.
 
@@ -145,7 +187,7 @@ Check the box when a batch is fully done.
 
 ---
 
-## Batch 6: Admin UI for budget and toggle
+## Batch 7: Admin UI for budget and toggle
 
 **Goal:** Admin can set/view token budget and toggle OpenAI per org from the UI.
 
@@ -162,7 +204,7 @@ Check the box when a batch is fully done.
 
 ---
 
-## Batch 7: User-facing token visibility
+## Batch 8: User-facing token visibility
 
 **Goal:** Users see how much OpenAI budget remains for their org.
 
@@ -176,7 +218,7 @@ Check the box when a batch is fully done.
 
 ---
 
-## Batch 8: Email deliverability (production-ready sending)
+## Batch 9: Email deliverability (production-ready sending)
 
 **Goal:** Verification emails and invitations can be delivered to any recipient, not just Resend test recipients.
 
@@ -212,11 +254,12 @@ In development, `onboarding@resend.dev` can be used as the `RESEND_FROM_EMAIL` f
 | 1 | Ollama working end-to-end | ✅ Done |
 | 2 | Sensitive flag on documents | ✅ Done |
 | 3 | UI — scrollable layouts, unified CSS, org colours | ✅ Done |
-| 4 | Auto-routing chat to correct provider | ⬜ Not started |
-| 5 | Token counting and monthly cap | ⬜ Not started |
-| 6 | Admin UI for controls | ⬜ Not started |
-| 7 | User-facing token visibility | ⬜ Not started |
-| 8 | Email deliverability (verified domain) | ⬜ Not started |
+| 4 | Upload UX, per-file sensitivity routing, quota recovery | ✅ Done |
+| 5 | Auto-routing chat to correct provider | ✅ Done |
+| 6 | Token counting and monthly cap | ⬜ Not started |
+| 7 | Admin UI for controls | ⬜ Not started |
+| 8 | User-facing token visibility | ⬜ Not started |
+| 9 | Email deliverability (verified domain) | ⬜ Not started |
 
 ---
 
@@ -229,3 +272,4 @@ In development, `onboarding@resend.dev` can be used as the `RESEND_FROM_EMAIL` f
 - **Dev invite emails**: if Resend cannot deliver in dev (unverified domain/recipient), the invite link is logged in the server console and returned in the API response so you can test the full flow manually.
 - **Dev invite auth**: the `DEV_ALLOW_SELF_ORG_CREATION` bypass is also threaded through `/api/admin/invite` — non-admin org owners can invite into their own org only (verified by `member.role = "owner"` check).
 - **Quota errors**: OpenAI `insufficient_quota` (HTTP 429) surfaces as a clear user-facing message in the file upload UI rather than a generic "failed to upload".
+- **Sensitive embedding gap (fixed in Batch 4)**: Batch 2 stores the `sensitive` flag but embeddings still use the global `AI_PROVIDER`. Batch 4 closes this by routing sensitive files to Ollama at embed time.

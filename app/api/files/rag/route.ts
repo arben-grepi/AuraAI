@@ -51,7 +51,10 @@ export async function POST(req: Request) {
     }
 
     const status = statusFromError(result.error);
-    return Response.json({ error: result.error }, { status });
+    return Response.json(
+      { error: result.error, errorCode: result.errorCode ?? null },
+      { status },
+    );
   } catch (e: unknown) {
     console.error("RAG upload error:", e);
     return Response.json(

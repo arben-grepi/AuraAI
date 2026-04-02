@@ -7,8 +7,15 @@
  * so we can highlight the exact passage in the source panel later.
  */
 
-const TARGET_CHUNK_CHARS = 2000; // ~500 tokens for nomic-embed-text
+const TARGET_CHUNK_CHARS = 1200; // ~600 tokens for nomic-embed-text (2 048-token BERT context)
 const OVERLAP_SENTENCES = 2;
+
+// Hard safety cap for nomic-embed-text (nomic-bert architecture).
+// Although Ollama reports num_ctx=8192, the underlying BERT model has a TRUE
+// context of 2 048 tokens. BERT's WordPiece tokeniser is much denser than GPT
+// BPE: Finnish compound words and financial tables can reach ~2 chars/token.
+// 1 500 chars ÷ 2 chars/token = 750 tokens — well under 2 048 in all cases.
+const MAX_CHUNK_CHARS = 1500;
 
 export interface ChunkWithOffset {
   text: string;
@@ -21,6 +28,44 @@ interface SentenceWithOffset {
   text: string;
   start: number;
   end: number;
+}
+
+/**
+ * Break a single long text segment into sub-segments at word boundaries so
+ * each sub-segment is at most MAX_CHUNK_CHARS characters.  This prevents a
+ * single "sentence" (e.g. an entire table row or a bullet list) from
+ * producing an embedding chunk that exceeds the model's context window.
+ */
+function splitLongSegment(
+  text: string,
+  startOffset: number,
+): SentenceWithOffset[] {
+  if (text.length <= MAX_CHUNK_CHARS) {
+    return [{ text, start: startOffset, end: startOffset + text.length }];
+  }
+
+  const parts: SentenceWithOffset[] = [];
+  let pos = 0;
+
+  while (pos < text.length) {
+    let end = Math.min(pos + MAX_CHUNK_CHARS, text.length);
+    // Back up to the last space so we don't cut mid-word (unless no space found)
+    if (end < text.length) {
+      const lastSpace = text.lastIndexOf(" ", end);
+      if (lastSpace > pos) end = lastSpace;
+    }
+    const segment = text.slice(pos, end).trim();
+    if (segment) {
+      parts.push({
+        text: segment,
+        start: startOffset + pos,
+        end: startOffset + end,
+      });
+    }
+    pos = end + 1; // +1 to skip the space we split on
+  }
+
+  return parts;
 }
 
 /**
@@ -42,11 +87,9 @@ function splitSentencesWithOffsets(text: string): SentenceWithOffset[] {
     const endIndex = match.index + match[1].length;
     const sentenceText = text.slice(lastIndex, endIndex).trim();
     if (sentenceText) {
-      sentences.push({
-        text: sentenceText,
-        start: lastIndex,
-        end: endIndex,
-      });
+      // A single "sentence" from a table/list can be huge; split it to stay
+      // within the embedding model's context window.
+      sentences.push(...splitLongSegment(sentenceText, lastIndex));
     }
     // Skip whitespace between sentences
     lastIndex = match.index + match[0].length;
@@ -55,16 +98,12 @@ function splitSentencesWithOffsets(text: string): SentenceWithOffset[] {
   // Remaining text after the last split point
   const remaining = text.slice(lastIndex).trim();
   if (remaining) {
-    sentences.push({
-      text: remaining,
-      start: lastIndex,
-      end: text.length,
-    });
+    sentences.push(...splitLongSegment(remaining, lastIndex));
   }
 
   // Fallback: if no sentence boundaries found, treat whole text as one sentence
   if (sentences.length === 0 && text.trim()) {
-    sentences.push({ text: text.trim(), start: 0, end: text.length });
+    sentences.push(...splitLongSegment(text.trim(), 0));
   }
 
   return sentences;

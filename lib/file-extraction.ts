@@ -18,6 +18,9 @@ export async function extractTextFromPDF(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const pdfParser = new PDFParser();
 
+    // pdf2json 4.x binds console.log at module-load time; runtime patches don't work.
+    // Type3-font warnings are silenced via PDF2JSON_DISABLE_LOGS=1 in .env instead.
+
     pdfParser.on("pdfParser_dataError", (errData: unknown) => {
       const errorMessage =
         errData && typeof errData === "object" && "parserError" in errData

@@ -3,6 +3,19 @@ import { ollama } from "ai-sdk-ollama";
 
 export type AiProvider = "openai" | "ollama";
 
+/** Server-side ping. Returns true if Ollama responds within the timeout. */
+export async function checkOllamaReachable(timeoutMs = 3000): Promise<boolean> {
+  const baseURL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
+  try {
+    const res = await fetch(`${baseURL}/api/version`, {
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export function getActiveProvider(): AiProvider {
   const provider = process.env.AI_PROVIDER ?? "openai";
   if (provider !== "openai" && provider !== "ollama") {

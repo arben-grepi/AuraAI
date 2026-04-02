@@ -28,10 +28,88 @@ import { isSystemAdmin } from "@/lib/auth-utils";
 import { withMetrics } from "@/lib/with-metrics";
 import { hybridSearch, searchDocuments } from "@/lib/rag/search";
 import type { SearchRow } from "@/lib/rag/search";
-import { getChatModel, getActiveProvider } from "@/lib/ai-provider";
+import {
+  getChatModel,
+  getActiveProvider,
+  checkOllamaReachable,
+  type AiProvider,
+} from "@/lib/ai-provider";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
+
+type OrgAiSettings = {
+  openAiEnabled: boolean;
+  allowSensitiveWithOpenAi: boolean;
+  openAiTokenBudget: number | null;
+  openAiTokensUsed: number;
+};
+
+type ChatRouting =
+  | { blocked: false; provider: AiProvider; reason: string }
+  | { blocked: true; provider: null; reason: string };
+
+async function resolveChatProvider(
+  retrievedDocs: SearchRow[],
+  org: OrgAiSettings,
+): Promise<ChatRouting> {
+  const hasSensitiveDocs = retrievedDocs.some((r) => r.sensitive);
+  const budgetExhausted =
+    org.openAiTokenBudget !== null &&
+    org.openAiTokenBudget !== undefined &&
+    org.openAiTokensUsed >= org.openAiTokenBudget;
+
+  // Reasons to force Ollama or block
+  const needsOllama =
+    hasSensitiveDocs || !org.openAiEnabled || budgetExhausted;
+
+  if (!needsOllama) {
+    // Standard path — use OpenAI (or whatever the global default is)
+    return {
+      blocked: false,
+      provider: getActiveProvider(),
+      reason: "standard",
+    };
+  }
+
+  const reason = hasSensitiveDocs
+    ? "sensitive document in context"
+    : !org.openAiEnabled
+      ? "OpenAI disabled for this org"
+      : "monthly token budget exhausted";
+
+  // Check if Ollama is reachable
+  const ollamaUp = await checkOllamaReachable();
+
+  if (ollamaUp) {
+    return { blocked: false, provider: "ollama", reason };
+  }
+
+  // Ollama is down — decide whether to fall back or block
+  if (hasSensitiveDocs && !org.allowSensitiveWithOpenAi) {
+    console.warn(
+      `[chat] Blocked: sensitive context requires Ollama (Ollama not reachable)`,
+    );
+    return {
+      blocked: true,
+      provider: null,
+      reason:
+        "This query references sensitive documents that require the on-premise AI model (Ollama). " +
+        "Ollama is not reachable right now. Please contact your administrator.",
+    };
+  }
+
+  // allowSensitiveWithOpenAi is true, or the reason was budget/toggle (not sensitivity)
+  // Fall back to OpenAI with a warning logged
+  console.warn(
+    `[chat] Fallback to OpenAI — Ollama not reachable (reason was: ${reason})`,
+  );
+  return {
+    blocked: false,
+    provider: "openai",
+    reason: `${reason} — fell back to OpenAI (Ollama unavailable)`,
+  };
+}
 
 type CitationMapEntry = {
   name: string;
@@ -150,7 +228,14 @@ async function handlePost(req: Request) {
 
   const organization = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { name: true, description: true },
+    select: {
+      name: true,
+      description: true,
+      openAiEnabled: true,
+      allowSensitiveWithOpenAi: true,
+      openAiTokenBudget: true,
+      openAiTokensUsed: true,
+    },
   });
 
   if (!user || !organization) {
@@ -252,9 +337,21 @@ async function handlePost(req: Request) {
     ...requestMessages,
   ]);
 
-  const activeProvider = getActiveProvider();
+  const chatProvider = await resolveChatProvider(
+    preRetrievalResults,
+    organization,
+  );
+
+  if (chatProvider.blocked) {
+    return NextResponse.json(
+      { error: chatProvider.reason },
+      { status: 503 },
+    );
+  }
+
+  const activeProvider = chatProvider.provider;
   const chatModel = getChatModel(activeProvider);
-  console.log(`[chat] Provider: ${activeProvider}`);
+  console.log(`[chat] Routing to: ${activeProvider} (reason: ${chatProvider.reason})`);
 
   const result = streamText({
     model: chatModel,

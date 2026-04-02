@@ -10,10 +10,44 @@ import { headers } from "next/headers";
 import { extractText, isSupportedRagFile } from "@/lib/file-extraction";
 import { isSystemAdmin } from "@/lib/auth-utils";
 import { MAX_ORG_RAG_FILES, ORG_RAG_FILE_LIMIT_ERROR } from "@/lib/rag/limits";
+import { getActiveProvider } from "@/lib/ai-provider";
+
+export type ProcessRagFileErrorCode = "QUOTA_EXCEEDED" | "OLLAMA_UNAVAILABLE";
 
 export type ProcessRagFileResult =
   | { success: true; resourceId: string; chunksStored: number; fileName: string }
-  | { success: false; error: string };
+  | { success: false; error: string; errorCode?: ProcessRagFileErrorCode };
+
+function isOllamaConnectionError(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message.toLowerCase() : "";
+  if (
+    msg.includes("econnrefused") ||
+    msg.includes("fetch failed") ||
+    msg.includes("connection refused") ||
+    msg.includes("failed to fetch")
+  )
+    return true;
+  const cause = e instanceof Error ? (e as { cause?: unknown }).cause : null;
+  if (cause && typeof cause === "object") {
+    const causeMsg = ((cause as { message?: string }).message ?? "").toLowerCase();
+    if (causeMsg.includes("econnrefused") || causeMsg.includes("connection refused"))
+      return true;
+  }
+  return false;
+}
+
+function isQuotaExceededError(e: unknown): boolean {
+  if (e && typeof e === "object") {
+    const status = (e as { statusCode?: unknown }).statusCode;
+    if (status === 429) return true;
+    const code = ((e as { data?: { error?: { code?: unknown } } }).data?.error?.code ?? "");
+    if (code === "insufficient_quota") return true;
+  }
+  const msg = e instanceof Error ? e.message : "";
+  return (
+    msg.includes("insufficient_quota") || msg.includes("You exceeded your current quota")
+  );
+}
 
 export async function processRagFile(
   formData: FormData,
@@ -41,6 +75,12 @@ export async function processRagFile(
   const orgSlug = formData.get("orgSlug")?.toString() ?? null;
   const fileFolderId = formData.get("fileFolderId")?.toString() || null;
   const sensitive = formData.get("sensitive") === "true";
+  // Embeddings always use the global AI_PROVIDER — all vectors in the DB must share
+  // the same dimension (768 for Ollama, 1536 for OpenAI). Mixing providers would
+  // create incompatible vectors in the same column.
+  // The sensitive flag only affects CHAT routing (which model answers questions),
+  // not which model indexes the document.
+  const embeddingProvider = undefined; // use getActiveProvider() inside generateEmbeddings
   const tagsString = formData.get("tags")?.toString();
   let tags: string[] = [];
   if (tagsString) {
@@ -129,53 +169,38 @@ export async function processRagFile(
     };
   }
 
+  const resolvedProvider = getActiveProvider();
+  console.log(
+    `[embed] Using ${resolvedProvider} for file: ${file.name}${sensitive ? " (sensitive — chat-only restriction)" : ""}`,
+  );
+
   let embeddings: number[][];
   try {
-    embeddings = await generateEmbeddings(chunks.map((c) => c.text));
+    embeddings = await generateEmbeddings(chunks.map((c) => c.text), embeddingProvider);
   } catch (e) {
     console.error("RAG embedding error:", e);
-    const message = (() => {
-      if (e && typeof e === "object") {
-        const maybeStatus = (e as { statusCode?: unknown }).statusCode;
-        const statusCode = typeof maybeStatus === "number" ? maybeStatus : null;
-        const maybeData = (e as { data?: unknown }).data as
-          | { error?: { code?: unknown; message?: unknown } }
-          | undefined;
-        const code =
-          typeof maybeData?.error?.code === "string" ? maybeData.error.code : null;
-        const apiMessage =
-          typeof maybeData?.error?.message === "string"
-            ? maybeData.error.message
-            : null;
 
-        // OpenAI quota / billing issues (commonly surfaced as 429 + insufficient_quota).
-        if (statusCode === 429 || code === "insufficient_quota") {
-          return (
-            "AI embeddings are temporarily unavailable (quota exceeded). " +
-            "Please check your AI provider billing/limits, or switch to a local embedding provider (AI_PROVIDER=ollama)."
-          );
-        }
+    if (resolvedProvider === "ollama" && isOllamaConnectionError(e)) {
+      return {
+        success: false,
+        error:
+          "The on-premise AI model (Ollama) is not reachable. Sensitive files cannot be embedded without it.",
+        errorCode: "OLLAMA_UNAVAILABLE",
+      };
+    }
 
-        // Some SDKs only expose the string message.
-        const rawMessage =
-          e instanceof Error ? e.message : apiMessage ?? "Failed to generate embeddings.";
-        if (
-          typeof rawMessage === "string" &&
-          (rawMessage.includes("insufficient_quota") ||
-            rawMessage.includes("You exceeded your current quota"))
-        ) {
-          return (
-            "AI embeddings are temporarily unavailable (quota exceeded). " +
-            "Please check your AI provider billing/limits, or switch to a local embedding provider (AI_PROVIDER=ollama)."
-          );
-        }
-      }
+    if (isQuotaExceededError(e)) {
+      return {
+        success: false,
+        error:
+          "Your OpenAI quota is exhausted — embeddings could not be generated. Switch to Ollama or add credits to continue.",
+        errorCode: "QUOTA_EXCEEDED",
+      };
+    }
 
-      return "Failed to generate embeddings.";
-    })();
     return {
       success: false,
-      error: message,
+      error: e instanceof Error ? e.message : "Failed to generate embeddings.",
     };
   }
 

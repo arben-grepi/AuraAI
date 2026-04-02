@@ -105,26 +105,32 @@ model Message {
 }
 
 model Organization {
-  id              String         @id
-  name            String
-  slug            String?        @unique
-  logo            String?
-  createdAt       DateTime
-  metadata        String?
-  backgroundColor String
-  buttonColor     String
-  tone            String?
-  description     String?
-  systemPrompt    String?
-  maxMembers      Int?
-  conversations   Conversation[]
-  invitations     Invitation[]
-  members         Member[]
-  resources       Resource[]
-  fileFolders     FileFolder[]
-  chatFolders     ChatFolder[]
-  sources         String[]      @default([])
-  sourceIndexes   SourceIndex[]
+  id                       String         @id
+  name                     String
+  slug                     String?        @unique
+  logo                     String?
+  createdAt                DateTime
+  metadata                 String?
+  backgroundColor          String
+  buttonColor              String
+  tone                     String?
+  description              String?
+  systemPrompt             String?
+  maxMembers               Int?
+  // OpenAI controls — managed via admin UI (Batch 7)
+  openAiEnabled            Boolean        @default(true)
+  allowSensitiveWithOpenAi Boolean        @default(false)
+  openAiTokenBudget        Int?
+  openAiTokensUsed         Int            @default(0)
+  openAiTokensResetAt      DateTime?
+  conversations            Conversation[]
+  invitations              Invitation[]
+  members                  Member[]
+  resources                Resource[]
+  fileFolders              FileFolder[]
+  chatFolders              ChatFolder[]
+  sources                  String[]       @default([])
+  sourceIndexes            SourceIndex[]
 
   @@map("organization")
 }

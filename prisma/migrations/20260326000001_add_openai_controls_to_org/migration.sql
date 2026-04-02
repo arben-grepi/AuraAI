@@ -1,0 +1,6 @@
+ALTER TABLE "organization"
+  ADD COLUMN IF NOT EXISTS "openAiEnabled"            BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "allowSensitiveWithOpenAi" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "openAiTokenBudget"        INTEGER,
+  ADD COLUMN IF NOT EXISTS "openAiTokensUsed"         INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "openAiTokensResetAt"      TIMESTAMP(3);
