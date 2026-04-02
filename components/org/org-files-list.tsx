@@ -278,7 +278,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
 
       return true;
     },
-    [queryClient, checkOllamaAvailability],
+    [queryClient],
   );
 
   const handleUploadFile = async () => {

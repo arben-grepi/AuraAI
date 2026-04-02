@@ -4,12 +4,12 @@ This document is the single source of truth for planned development batches.
 Each batch is independently testable before moving to the next.
 Check the box when a batch is fully done.
 
-### Standing rule — update `docs/potential-issues.md` after every batch
+### Standing rule — update [`potential-issues.md`](potential-issues.md) after every batch
 
 Before marking a batch ✅ Done, ask:
 > *"Did anything break, behave unexpectedly, or only work because of a fragile assumption?"*
 
-If yes — or even if it was a close call — add an entry to [`docs/potential-issues.md`](docs/potential-issues.md).
+If yes — or even if it was a close call — add an entry to [`potential-issues.md`](potential-issues.md).
 Keep entries short: symptom, root cause, fix applied, and what to watch out for next time.
 
 ---
@@ -110,7 +110,7 @@ Keep entries short: symptom, root cause, fix applied, and what to watch out for 
 > **Design note:** Per-file embedding routing (sensitive → Ollama, non-sensitive → OpenAI) was
 > originally planned but removed because it created a vector dimension mismatch (768 vs 1 536 in
 > the same DB column). Embeddings always use the global `AI_PROVIDER`. The `sensitive` flag
-> controls chat routing only. See `docs/potential-issues.md` for full context.
+> controls chat routing only. See `potential-issues.md` for full context.
 
 ### Upload UX
 
@@ -307,6 +307,155 @@ In development, `onboarding@resend.dev` can be used as the `RESEND_FROM_EMAIL` f
 
 ---
 
+## Batch 10: Tokenizer-aware RAG chunking (deferred)
+
+**Goal:** Replace conservative character caps in `lib/rag/chunking.ts` with **real token counts** per active embedding model, so chunks use the context window efficiently without risking `input length exceeds the context length` errors.
+
+### Why not now
+
+Character limits are simple, dependency-light, and already safe for worst-case token density. Tokenizer integration adds dependencies, must stay aligned with `AI_PROVIDER` and embedding model versions, and needs regression tests — defer until the dual-provider and upload flows feel stable.
+
+### When to schedule (recommended)
+
+| Situation | Priority |
+|-----------|----------|
+| You are about to **switch embedding model** (new context length or tokenizer) | **High** — swap tokenizer + re-tune max tokens in one batch |
+| You want **larger chunks for OpenAI** (better retrieval) while keeping Ollama safe | **Medium** — token caps differ by provider |
+| Production shows **rare OOM / context errors** despite current caps | **High** — indicates edge cases char heuristics miss |
+| Core product batches (6–9) are still open and char caps work | **Low** — wait |
+
+**Pragmatic rule of thumb:** implement after **Batch 6** (token budget + dual-provider polish is in place) *unless* you change the embedding model earlier — then do tokenizer work in the **same** batch as the model switch.
+
+### Implementation sketch (for later)
+
+- [ ] Introduce a small `countEmbeddingTokens(text, provider)` (or per-model) helper — **OpenAI:** `tiktoken` or `@ai-sdk` token helpers for `text-embedding-3-small`; **Ollama:** tokenizer matching `OLLAMA_EMBEDDING_MODEL` (e.g. Hugging Face tokenizer for `nomic-embed-text`, or official path documented by Ollama).
+- [ ] Refactor chunk assembly: grow/shrink segments until token count ≤ **model max context minus safety margin** (e.g. 1 900 for a 2 048 BERT limit), not fixed char counts.
+- [ ] Keep `splitLongSegment`-style word-boundary splitting as a **fallback** when tokenization is unavailable (tests, CI without native deps).
+- [ ] Golden tests: Finnish compound text, dense tables, English prose — assert no chunk exceeds the limit and offsets remain correct.
+- [ ] Document in `potential-issues.md`: which tokenizer package maps to which `AI_PROVIDER` / env model name.
+
+### Test plan
+
+- Same PDFs that previously triggered Ollama context errors — upload succeeds; spot-check chunk sizes in logs or a debug endpoint
+- `AI_PROVIDER=openai` — verify chunks approach but never exceed the OpenAI model limit
+- Switch `OLLAMA_EMBEDDING_MODEL` in env — confirm token limit follows the new model (or explicit error if tokenizer not bundled)
+
+---
+
+## Batch 11: Invite-only member onboarding (remove admin-created accounts)
+
+**Goal:** Admins must never create another person’s account or choose their password. Every new member is added **only by email invitation**. Invited people who do not yet have an account complete **sign-up themselves**, then accept the invitation (or follow a single clear flow documented in the UI).
+
+### Background — current behaviour (to remove)
+
+- **`app/(admin)/admin/create-org/page.tsx` — step 3 ("Add your first user")** offers two modes: **Create user** (email + password + name) and **Invite user**. "Create user" calls `createOrgUser` → Better Auth `createUser` with a password set by the admin — poor security and UX.
+- **`components/org/users.tsx`** — "Add member" dialog repeats the same **Create user / Invite user** split.
+
+### Target behaviour
+
+- **Step 3 of create-org** is **invite-only**: email(s), role, send invitation — same pattern as today’s "Invite user" branch. Remove the **Create user** tab, form, and related state (`addMode`, `userForm`, `existingUser` list for created users).
+- **Org → Users** dialog: **invite-only** — remove the create-user form; keep invitation + dev-mode link copy behaviour.
+- **Invitee without an account:** document and verify the flow end-to-end, e.g.:
+  - User receives invite email → opens link → if no session, redirect to **sign-up** (or sign-in) with email prefilled if possible → after account exists, **accept invitation** (Better Auth organisation invitation flow). Adjust copy on invite email and/or acceptance page so this is obvious ("Create your password on our site — we never set it for you").
+- **Server:** remove or gate `createOrgUser` in `lib/actions.ts`:
+  - Preferred: **delete** `createOrgUser` and all imports once no UI calls it.
+  - If something still needs programmatic user creation (e.g. tests only), isolate it to test helpers — not admin UI.
+
+### Checklist
+
+- [ ] `create-org/page.tsx` — step 3: invite UI only; "Skip" / "Continue" unchanged; preview card counts invited pending members, not "created" users
+- [ ] `components/org/users.tsx` — remove create-user mode; single invite flow
+- [ ] Remove `createOrgUser` from `lib/actions.ts` (and `signUpSchema` usage tied only to that flow, if unused elsewhere)
+- [ ] Audit any other callers of `createOrgUser` or `auth.api.createUser` from admin flows
+- [ ] E2E or manual test: invite → new user signs up → joins org; invite → existing user accepts
+- [ ] Short copy pass: invite emails + in-app help text explain that **passwords are always chosen by the invitee**
+
+### Test plan
+
+- Create org wizard: complete steps 1–2 → step 3 shows only invite; no password fields
+- Send invite to new email → complete sign-up → accept invite → user appears in org members
+- Send invite to email that already has an account → accept from link → member added
+- Org settings → Users: no "Create user" path; invite still works
+- Regression: `/api/admin/invite` permissions unchanged
+
+### When to schedule
+
+Fit around **Batch 9** (email deliverability) — invitations are much easier to test with a verified domain. Can start UI removal earlier; full E2E validation is smoother once production-like email works.
+
+---
+
+## Batch 12: Ollama-only deployment (remove OpenAI)
+
+**Goal:** Run the entire product on **Ollama only** — no OpenAI API keys, no dual-provider routing, no `gpt-4o-mini` / `text-embedding-3-small` code paths. **Embeddings stay 768-dim** (`nomic-embed-text` or your chosen Ollama embedding model).
+
+### Why this is a distinct batch
+
+Removing OpenAI touches **config, provider factory, chat routing, RAG errors, org DB fields, `web_search`, optional dependencies, and docs**. Doing it in one pass avoids half-migrated code.
+
+### Prerequisites (data)
+
+- **DB column** must already be **`vector(768)`** (see existing migration for Ollama). If you still have `vector(1536)` from an OpenAI era, run the dimension migration + **re-index all documents** before or as part of this batch.
+- **No mixed vectors** in `embeddings` — old OpenAI rows must be cleared or re-embedded.
+
+### Configuration
+
+- [ ] **`.env` / `.env.example`:** set `AI_PROVIDER=ollama` as the documented default; remove or clearly mark `OPENAI_API_KEY` as unused (or delete).
+- [ ] Document `OLLAMA_BASE_URL`, `OLLAMA_CHAT_MODEL`, `OLLAMA_EMBEDDING_MODEL` as **required** for production.
+
+### Core AI layer (`lib/ai-provider.ts`)
+
+- [ ] Default `getActiveProvider()` to **`ollama`** (unknown env values → `ollama`, not `openai`).
+- [ ] Remove `openai` imports and `getChatModel` / `getEmbeddingModel` branches for OpenAI — **or** keep a thin `AiProvider` type with only `"ollama"` if you want TypeScript to enforce single-provider.
+- [ ] Delete `OPENAI_API_KEY` checks if any.
+
+### Chat (`app/api/ai/chat/route.ts`)
+
+- [ ] **Simplify `resolveChatProvider()`:** if the product is Ollama-only, routing is always: use Ollama for chat; if Ollama is down, **return 503** (or a clear error) — **no fallback to OpenAI**.
+- [ ] Remove org-driven reasons that existed only for OpenAI (`openAiEnabled`, token budget forcing Ollama, etc.) **or** hide those DB fields until you need another cloud provider later.
+- [ ] Remove **`web_search`** tool injection (`@ai-sdk/openai` `webSearch`) — it has no Ollama equivalent in this stack. If you need live web later, add a **separate** tool (e.g. Tavily, Exa) in a dedicated batch.
+- [ ] Stream metadata `provider` can stay as `"ollama"` only, or simplify UI.
+
+### RAG
+
+- [ ] **`lib/rag/vector.ts`:** drop OpenAI dimension branch; `getExpectedVectorDimension()` returns **768** only (or reads from env model metadata later).
+- [ ] **`lib/rag/upload/actions.ts`:** remove `QUOTA_EXCEEDED` / OpenAI-specific messages; keep **`OLLAMA_UNAVAILABLE`** and connection errors.
+- [ ] **`components/org/org-files-list.tsx`:** recovery modal — remove "OpenAI quota exhausted" and "Add OpenAI credits" paths; keep only **Ollama unreachable / misconfigured** guidance.
+- [ ] **`lib/rag/search.ts`:** dimension check log messages — default to `ollama`, not `openai`.
+
+### Other API routes & scripts using OpenAI
+
+- [ ] **`lib/actions.ts`** — `generateTitleFromUserMessage` (or similar) uses `openai("gpt-4o-mini")` → switch to **`getChatModel("ollama")`** or a small dedicated Ollama call.
+- [ ] **`app/api/ai/verify-source/route.ts`**, **`app/api/ai/local/route.ts`** — replace `openai(...)` with Ollama.
+- [ ] **`scripts/ingest.ts`** — use Ollama embedding model only.
+
+### Database (optional cleanup)
+
+- [ ] **Prisma `Organization`:** fields like `openAiEnabled`, `allowSensitiveWithOpenAi`, `openAiTokenBudget`, `openAiTokensUsed`, `openAiTokensResetAt` become obsolete. Either **leave columns** (no UI) for a future provider, or add a migration to **drop** them and remove related API/UI.
+
+### UI & docs
+
+- [ ] **`components/ai/(chat)/message.tsx`** — provider badge: show **"Ollama"** only or remove if redundant.
+- [ ] **`README.md`**, **`potential-issues.md`** — rewrite dual-provider sections as **Ollama-only** (or "historical note").
+- [ ] **Batch 6–8** items that assume OpenAI billing/tokens — **cancel or narrow** to match Ollama-only (no OpenAI token budget UI).
+
+### Dependencies
+
+- [ ] Remove **`@ai-sdk/openai`** (and **`openai`** npm package if nothing else imports it) after all imports are gone.
+- [ ] Audit **`@langchain/openai`** — remove from `package.json` if unused.
+
+### Test plan
+
+- [ ] Chat, RAG upload, and title generation work with **`OPENAI_API_KEY` unset** and `AI_PROVIDER=ollama`.
+- [ ] Stop Ollama: chat and upload fail with **clear errors**, no silent OpenAI fallback.
+- [ ] No remaining `from "@ai-sdk/openai"` or `openai(` in app or `lib` (except maybe archived scripts).
+
+### Relation to other batches
+
+- **Batch 10 (tokenizer chunking):** becomes **Ollama-only** (no OpenAI branch in the tokenizer design).
+- **Batches 6–8** as written assume OpenAI billing — **re-scope** them to "Ollama-only" or skip.
+
+---
+
 ## Batch summary
 
 | Batch | What it delivers | Status |
@@ -320,6 +469,9 @@ In development, `onboarding@resend.dev` can be used as the `RESEND_FROM_EMAIL` f
 | 7 | Admin UI for budget and toggle | ⬜ Not started |
 | 8 | User-facing token and provider visibility | ⬜ Not started |
 | 9 | Email deliverability (verified domain) | ⬜ Not started |
+| 10 | Tokenizer-aware RAG chunking (per embedding model) | ⬜ Deferred |
+| 11 | Invite-only onboarding (remove admin-created users + passwords) | ⬜ Not started |
+| 12 | Ollama-only deployment (remove OpenAI) | ⬜ Not started |
 
 ---
 
@@ -327,6 +479,7 @@ In development, `onboarding@resend.dev` can be used as the `RESEND_FROM_EMAIL` f
 
 ### Dual-provider rules (read before changing anything AI-related)
 
+- **Ollama-only roadmap:** If you are **dropping OpenAI entirely**, follow **Batch 12** — the bullets below describe the current dual-provider codebase until that batch is done.
 - **One `AI_PROVIDER`, one vector dimension**: `AI_PROVIDER=ollama` → all vectors must be 768-dim. `AI_PROVIDER=openai` → all vectors must be 1 536-dim. Mixing is not supported — it causes a pgvector dimension mismatch error. Switching providers requires a DB migration + full re-index.
 - **`sensitive` flag controls chat routing only**, not embedding routing. All files are embedded by the global `AI_PROVIDER`.
 - **`web_search` tool** is OpenAI-only — automatically excluded when routing to Ollama.
