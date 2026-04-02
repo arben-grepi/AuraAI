@@ -43,9 +43,7 @@ Check the box when a batch is fully done.
 - [x] Upload UI — "Sensitive document" toggle in `components/org/org-files-list.tsx`
 - [x] `lib/rag/upload/actions.ts` — accept and store `sensitive` in `processRagFile`
 - [x] `lib/rag/search.ts` — add `r."sensitive"` to both `vectorSearch` and `keywordSearch`; update `SearchRow` type
-- [x] UX copy — explain what “Sensitive” means:
-  - “Sensitive docs will be routed to on-prem (Ollama) when available.”
-  - “If Ollama is not configured, sensitive docs will be blocked by default (or require an explicit override).”
+- [x] UX copy — toggle shows: "This file contains confidential data. It will be processed only by the on-premise AI model — never sent to the cloud."
 
 ### Test plan
 
@@ -55,7 +53,49 @@ Check the box when a batch is fully done.
 
 ---
 
-## Batch 3: Chat routing based on sensitivity and org toggle
+## Batch 3: UI — scrollable layouts, unified CSS, org colour system ✅
+
+**Goal:** Every screen is scrollable when content overflows, layouts are responsive across all viewports, and organization brand colours are applied consistently throughout the app.
+
+### Scrollable layouts
+
+- [x] Audit every Dialog/Sheet/panel — ensure they use `overflow-y-auto` with a `max-h-*` or `max-h-[calc(100vh-...)]` so content never clips off screen (confirmed broken: file upload dialog, user invite dialog, create-org steps)
+- [x] Admin org settings page — whole page should scroll, not clip sections
+- [x] Org chat layout — message list scrolls independently; sidebar never clips action buttons at the bottom
+- [x] All modals/dialogs: header + footer pinned, body scrolls (`flex flex-col` + `overflow-y-auto flex-1` pattern)
+
+### Responsive / scalable CSS
+
+- [x] Establish a single container pattern used everywhere: `max-w-screen-lg mx-auto px-4 sm:px-6 lg:px-8`
+- [x] Remove hard-coded `w-[...]` / `h-[...]` / `px-25` values that break on small screens; replace with Tailwind scale
+- [x] Admin panel pages — sidebar + content area stack correctly on narrow screens
+- [x] Forms (sign-in, sign-up, create-org steps) — centered + max-width on wide screens, full-width on small
+- [x] File list — tags wrap cleanly, no horizontal overflow on small viewports
+- [x] Typography — use `text-sm` / `text-base` / `text-lg` consistently; remove raw `text-[14px]` overrides
+
+### Organisation colour system
+
+- [x] Define org brand colours as CSS custom properties on the org layout root (`--org-bg`, `--org-btn`) from the org's `backgroundColor` / `buttonColor` DB fields
+- [x] Replace all inline `style={{ backgroundColor: org.buttonColor }}` scattered across components with a single `bg-[var(--org-btn)]` / `bg-[var(--org-bg)]` utility class
+- [x] Ensure org colours apply to: chat send button, sidebar active state, org header/banner — and nowhere else (avoid org colours leaking into admin UI)
+- [x] Verify org colours meet WCAG AA contrast against white text; add a contrast-check helper or note in code
+
+### Other
+
+- [x] Remove duplicate `<p>Upload</p>` button label in `org-files-list.tsx` (renders "Upload Upload")
+- [x] Remove any unused inline `style={{}}` props that duplicate Tailwind utilities
+- [x] Dark/light mode — confirm Tailwind CSS variables propagate correctly on all org-facing components
+
+### Test plan
+
+- Open file upload dialog with many files selected — body scrolls, header/footer stay pinned
+- Open invite dialog with a long list — same scroll behaviour
+- Resize browser from 375 px to 1440 px on each major page — no horizontal scrollbar, no clipped elements
+- Create an org with a custom colour — verify it appears only on the correct elements and admin UI is unaffected
+
+---
+
+## Batch 4: Chat routing based on sensitivity and org toggle
 
 **Goal:** Route chat to Ollama or OpenAI automatically based on retrieved document sensitivity.
 
@@ -89,7 +129,7 @@ Check the box when a batch is fully done.
 
 ---
 
-## Batch 4: Token tracking and budget enforcement
+## Batch 5: Token tracking and budget enforcement
 
 **Goal:** Count OpenAI tokens after each request and enforce the monthly cap.
 
@@ -105,7 +145,7 @@ Check the box when a batch is fully done.
 
 ---
 
-## Batch 5: Admin UI for budget and toggle
+## Batch 6: Admin UI for budget and toggle
 
 **Goal:** Admin can set/view token budget and toggle OpenAI per org from the UI.
 
@@ -122,7 +162,7 @@ Check the box when a batch is fully done.
 
 ---
 
-## Batch 6: User-facing token visibility
+## Batch 7: User-facing token visibility
 
 **Goal:** Users see how much OpenAI budget remains for their org.
 
@@ -136,7 +176,7 @@ Check the box when a batch is fully done.
 
 ---
 
-## Batch 7: Email deliverability (production-ready sending)
+## Batch 8: Email deliverability (production-ready sending)
 
 **Goal:** Verification emails and invitations can be delivered to any recipient, not just Resend test recipients.
 
@@ -171,34 +211,12 @@ In development, `onboarding@resend.dev` can be used as the `RESEND_FROM_EMAIL` f
 |-------|-----------------|--------|
 | 1 | Ollama working end-to-end | ✅ Done |
 | 2 | Sensitive flag on documents | ✅ Done |
-| 3 | Auto-routing chat to correct provider | ⬜ Not started |
-| 4 | Token counting and monthly cap | ⬜ Not started |
-| 5 | Admin UI for controls | ⬜ Not started |
-| 6 | User-facing token visibility | ⬜ Not started |
-| 7 | Email deliverability (verified domain) | ⬜ Not started |
-| 8 | UI styling and responsive design | ⬜ Not started |
-
----
-
-## Batch 8: UI styling and responsive design
-
-**Goal:** Ensure every screen works cleanly across desktop, tablet, and mobile. Replace ad-hoc px values and one-off class clusters with a unified, scalable Tailwind system.
-
-- [ ] Audit all pages and components for fixed `px-*` / `w-[...]` values that break on smaller viewports
-- [ ] Establish a spacing and container scale (e.g. `max-w-screen-lg mx-auto px-4 sm:px-6 lg:px-8`) used consistently across layouts
-- [ ] Admin panel pages (`/admin`, `/admin/org/[slug]`) — verify sidebar + content area stack correctly on narrow screens
-- [ ] Org chat layout — ensure sidebar collapses and message area fills correctly on mobile
-- [ ] File upload / RAG section — card grid → single column on small screens
-- [ ] Forms (sign-in, sign-up, create-org steps) — max-width constraint + centered on wide screens, full-width on small
-- [ ] Typography scale — use `text-sm` / `text-base` / `text-lg` consistently; avoid mixing raw `text-[14px]` overrides
-- [ ] Dark/light mode token consistency — confirm Tailwind CSS variables propagate correctly on all components
-- [ ] Remove any unused inline `style={{}}` props that duplicate Tailwind utilities
-
-### Test plan
-
-- Open each major page at 375 px, 768 px, and 1280 px width in browser DevTools
-- Confirm no horizontal scrollbar, no clipped text, no overlapping elements
-- Verify forms remain usable (labels, inputs, buttons visible and reachable) on mobile
+| 3 | UI — scrollable layouts, unified CSS, org colours | ✅ Done |
+| 4 | Auto-routing chat to correct provider | ⬜ Not started |
+| 5 | Token counting and monthly cap | ⬜ Not started |
+| 6 | Admin UI for controls | ⬜ Not started |
+| 7 | User-facing token visibility | ⬜ Not started |
+| 8 | Email deliverability (verified domain) | ⬜ Not started |
 
 ---
 

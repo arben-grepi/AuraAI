@@ -79,7 +79,7 @@ export async function AppSidebar({ org }: { org: string }) {
           <div
             className="w-full h-12 rounded-[12px] bg-white shadow-sm border border-zinc-200 flex items-center justify-between px-2 py-4"
             style={{
-              backgroundImage: `linear-gradient(to bottom, transparent, ${organization?.backgroundColor || ""})`,
+              backgroundImage: "linear-gradient(to bottom, transparent, var(--org-bg, #F4F4F5))",
             }}
           >
             <div className="flex gap-4">

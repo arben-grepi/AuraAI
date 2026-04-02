@@ -270,7 +270,7 @@ export default function Page() {
   };
 
   return (
-    <div className="bg-neutral-50 min-h-screen p-25 flex">
+    <div className="bg-neutral-50 min-h-screen p-6 sm:p-10 lg:p-16 flex flex-col lg:flex-row gap-10 overflow-y-auto">
       <div className="flex-1 space-y-6">
         <div className="space-y-2">
           <p className="text-sm text-gray-700 font-medium">Step {step} of 3</p>

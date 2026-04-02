@@ -25,14 +25,22 @@ export default async function Layout({
     notFound();
   }
 
+  let orgColors = { bg: "#F4F4F5", btn: "#06b6d4" };
+
   try {
     const organization = await prisma.organization.findUnique({
       where: { slug: org },
-      select: { id: true },
+      select: { id: true, backgroundColor: true, buttonColor: true },
     });
     if (!organization) {
       notFound();
     }
+
+    orgColors = {
+      bg: organization.backgroundColor || "#F4F4F5",
+      btn: organization.buttonColor || "#06b6d4",
+    };
+
     if (!isSystemAdmin(session.user.role)) {
       const membership = await prisma.member.findFirst({
         where: {
@@ -59,7 +67,12 @@ export default async function Layout({
   }
 
   return (
-    <SidebarProvider>
+    <SidebarProvider
+      style={{
+        "--org-bg": orgColors.bg,
+        "--org-btn": orgColors.btn,
+      } as React.CSSProperties}
+    >
       <AppSidebar org={org} />
       <main className="w-full">{children}</main>
     </SidebarProvider>

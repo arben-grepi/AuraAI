@@ -299,157 +299,165 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                 <Upload className="size-4" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-[526px]">
-              <DialogHeader className="gap-1">
-                <DialogTitle className="text-sm font-medium">
-                  Upload file
-                </DialogTitle>
-                <DialogDescription className="text-zinc-600 text-sm font-medium">
-                  Upload a file to the organization
-                </DialogDescription>
-              </DialogHeader>
-              <div className="h-px bg-zinc-200 w-full"></div>
-
-              <input
-                type="file"
-                onChange={handleChangeFiles}
-                accept="application/pdf,text/plain,.txt"
-                multiple
-                className="hidden"
-                ref={fileInputRef}
-              />
-
-              {files.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto pb-4">
-                  {files.map((file, index) => (
-                    <div
-                      key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
-                      className="shadow-sm relative group flex gap-1 p-2 bg-zinc-100 rounded-[8px] max-w-[202px]"
-                    >
-                      <div className="bg-neutral-100 flex items-center justify-center">
-                        <File />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <p className="text-sm font-medium truncate max-w-[140px]">
-                          {file.name}
-                        </p>
-                        <p className="text-xs text-zinc-500 font-medium">
-                          {file.type}
-                        </p>
-                      </div>
-                      <X
-                        className="size-4 bg-white rounded-full group-hover:block hidden transition-all duration-200 cursor-pointer absolute top-1 right-1 hover:text-zinc-500"
-                        onClick={() =>
-                          setFiles((prevFiles) =>
-                            prevFiles.filter(
-                              (_, fileIndex) => fileIndex !== index,
-                            ),
-                          )
-                        }
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div>
-                <p className="text-sm font-medium">Choose your file</p>
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  className={cn(
-                    "border border-dashed w-full rounded-[12px] min-h-[230px] mt-1 flex items-center justify-center flex-col gap-2 text-center transition-all duration-200 cursor-pointer",
-                    isDragging
-                      ? "border-primary bg-primary/5"
-                      : "border-zinc-300 hover:bg-zinc-100",
-                  )}
-                >
-                  <CircleArrowUp />
-                  <p className="text-sm font-medium">
-                    Click to upload
-                    <span className="text-zinc-500">
-                      {" "}
-                      or drag and drop files
-                      <br /> docx. xsxl. pdf. md. txt. (Max 10mb)
-                    </span>
-                  </p>
-                </div>
+            <DialogContent className="max-w-[526px] gap-0 p-0 overflow-hidden">
+              {/* Pinned header */}
+              <div className="shrink-0 px-6 pt-6 pb-4">
+                <DialogHeader className="gap-1">
+                  <DialogTitle className="text-sm font-medium">
+                    Upload file
+                  </DialogTitle>
+                  <DialogDescription className="text-zinc-600 text-sm font-medium">
+                    Upload a file to the organization
+                  </DialogDescription>
+                </DialogHeader>
               </div>
+              <div className="h-px bg-zinc-200 w-full shrink-0" />
 
-              <div className="flex flex-col gap-2">
-                <p className="text-sm font-medium">Folder (optional)</p>
-                <select
-                  value={selectedFolderId}
-                  onChange={(e) => setSelectedFolderId(e.target.value)}
-                  className="flex h-9 w-full rounded-md border border-zinc-200 bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400"
-                >
-                  <option value="">Root (no folder)</option>
-                  {data?.folderOptions?.map((f: FolderOption) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <p className="text-sm font-medium">Tags (optional)</p>
-                <TagInput selected={selected} setSelected={setSelected} />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsSensitive((v) => !v)}
-                className={cn(
-                  "flex items-start gap-3 rounded-[10px] border p-3 text-left transition-colors cursor-pointer",
-                  isSensitive
-                    ? "border-amber-400 bg-amber-50"
-                    : "border-zinc-200 hover:bg-zinc-50",
-                )}
-              >
-                <ShieldCheck
-                  className={cn(
-                    "mt-0.5 size-4 shrink-0",
-                    isSensitive ? "text-amber-600" : "text-zinc-400",
-                  )}
+              {/* Scrollable body */}
+              <div className="overflow-y-auto flex-1 px-6 py-4 flex flex-col gap-4">
+                <input
+                  type="file"
+                  onChange={handleChangeFiles}
+                  accept="application/pdf,text/plain,.txt"
+                  multiple
+                  className="hidden"
+                  ref={fileInputRef}
                 />
-                <div>
-                  <p className={cn("text-sm font-medium", isSensitive ? "text-amber-700" : "text-zinc-700")}>
-                    Sensitive document
-                  </p>
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    This file contains confidential data. It will be processed
-                    only by the on-premise AI model — never sent to the cloud.
-                  </p>
-                </div>
-              </button>
 
-              <DialogFooter className="justify-end">
-                <Button
-                  variant="outline"
-                  className="w-fit py-5 rounded-[10px] cursor-pointer"
-                  onClick={() => {
-                    setIsDialogOpen(false);
-                    handleResetForm();
-                  }}
-                >
-                  <p>Cancel</p>
-                </Button>
-                <Button
-                  onClick={handleUploadFile}
-                  className="w-fit py-5 rounded-[10px] cursor-pointer"
-                  disabled={isUploading}
-                >
-                  {isUploading ? (
-                    <Loader className="size-4 animate-spin" />
-                  ) : (
-                    <p>Upload</p>
+                {files.length > 0 && (
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {files.map((file, index) => (
+                      <div
+                        key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+                        className="shadow-sm relative group flex gap-1 p-2 bg-zinc-100 rounded-[8px] max-w-[202px] shrink-0"
+                      >
+                        <div className="bg-neutral-100 flex items-center justify-center">
+                          <File />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <p className="text-sm font-medium truncate max-w-[140px]">
+                            {file.name}
+                          </p>
+                          <p className="text-xs text-zinc-500 font-medium">
+                            {file.type}
+                          </p>
+                        </div>
+                        <X
+                          className="size-4 bg-white rounded-full group-hover:block hidden transition-all duration-200 cursor-pointer absolute top-1 right-1 hover:text-zinc-500"
+                          onClick={() =>
+                            setFiles((prevFiles) =>
+                              prevFiles.filter(
+                                (_, fileIndex) => fileIndex !== index,
+                              ),
+                            )
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-sm font-medium">Choose your file</p>
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={cn(
+                      "border border-dashed w-full rounded-[12px] min-h-[160px] mt-1 flex items-center justify-center flex-col gap-2 text-center transition-all duration-200 cursor-pointer",
+                      isDragging
+                        ? "border-primary bg-primary/5"
+                        : "border-zinc-300 hover:bg-zinc-100",
+                    )}
+                  >
+                    <CircleArrowUp />
+                    <p className="text-sm font-medium">
+                      Click to upload
+                      <span className="text-zinc-500">
+                        {" "}
+                        or drag and drop files
+                        <br /> docx. xlsx. pdf. md. txt. (Max 10 MB)
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm font-medium">Folder (optional)</p>
+                  <select
+                    value={selectedFolderId}
+                    onChange={(e) => setSelectedFolderId(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-zinc-200 bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400"
+                  >
+                    <option value="">Root (no folder)</option>
+                    {data?.folderOptions?.map((f: FolderOption) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm font-medium">Tags (optional)</p>
+                  <TagInput selected={selected} setSelected={setSelected} />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSensitive((v) => !v)}
+                  className={cn(
+                    "flex items-start gap-3 rounded-[10px] border p-3 text-left transition-colors cursor-pointer",
+                    isSensitive
+                      ? "border-amber-400 bg-amber-50"
+                      : "border-zinc-200 hover:bg-zinc-50",
                   )}
-                  <p>Upload</p>
-                </Button>
-              </DialogFooter>
+                >
+                  <ShieldCheck
+                    className={cn(
+                      "mt-0.5 size-4 shrink-0",
+                      isSensitive ? "text-amber-600" : "text-zinc-400",
+                    )}
+                  />
+                  <div>
+                    <p className={cn("text-sm font-medium", isSensitive ? "text-amber-700" : "text-zinc-700")}>
+                      Sensitive document
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      This file contains confidential data. It will be processed
+                      only by the on-premise AI model — never sent to the cloud.
+                    </p>
+                  </div>
+                </button>
+              </div>
+
+              {/* Pinned footer */}
+              <div className="shrink-0 px-6 py-4 border-t border-zinc-100">
+                <DialogFooter className="justify-end">
+                  <Button
+                    variant="outline"
+                    className="w-fit py-5 rounded-[10px] cursor-pointer"
+                    onClick={() => {
+                      setIsDialogOpen(false);
+                      handleResetForm();
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleUploadFile}
+                    className="w-fit py-5 rounded-[10px] cursor-pointer"
+                    disabled={isUploading}
+                  >
+                    {isUploading ? (
+                      <Loader className="size-4 animate-spin" />
+                    ) : (
+                      "Upload"
+                    )}
+                  </Button>
+                </DialogFooter>
+              </div>
             </DialogContent>
           </Dialog>
           <Dialog

@@ -224,43 +224,48 @@ export default function Users({
                 Add Member
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-[470px] sm:max-w-[470px]">
-              <DialogHeader>
-                <DialogTitle className="text-sm">Add Member</DialogTitle>
-                <DialogDescription>
-                  Create a new user or invite by email
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="flex gap-2 mb-2">
-                <button
-                  type="button"
-                  onClick={() => setAddMode("create")}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer ${
-                    addMode === "create"
-                      ? "bg-zinc-900 text-white"
-                      : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-                  }`}
-                >
-                  <UserPlus className="size-3.5" />
-                  Create user
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAddMode("invite")}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer ${
-                    addMode === "invite"
-                      ? "bg-zinc-900 text-white"
-                      : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-                  }`}
-                >
-                  <Mail className="size-3.5" />
-                  Invite user
-                </button>
+            <DialogContent className="max-w-[470px] sm:max-w-[470px] gap-0 p-0 overflow-hidden">
+              {/* Pinned header */}
+              <div className="shrink-0 px-6 pt-6 pb-4">
+                <DialogHeader>
+                  <DialogTitle className="text-sm">Add Member</DialogTitle>
+                  <DialogDescription>
+                    Create a new user or invite by email
+                  </DialogDescription>
+                </DialogHeader>
               </div>
+              <div className="h-px bg-zinc-200 w-full shrink-0" />
 
-              {addMode === "create" && (
-                <div className="space-y-4">
+              {/* Scrollable body */}
+              <div className="overflow-y-auto flex-1 px-6 py-4 flex flex-col gap-4">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAddMode("create")}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer ${
+                      addMode === "create"
+                        ? "bg-zinc-900 text-white"
+                        : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                    }`}
+                  >
+                    <UserPlus className="size-3.5" />
+                    Create user
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAddMode("invite")}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer ${
+                      addMode === "invite"
+                        ? "bg-zinc-900 text-white"
+                        : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                    }`}
+                  >
+                    <Mail className="size-3.5" />
+                    Invite user
+                  </button>
+                </div>
+
+                {addMode === "create" && (
                   <Form {...addMemberForm}>
                     <form
                       onSubmit={addMemberForm.handleSubmit(onSubmit)}
@@ -322,10 +327,7 @@ export default function Users({
                           </FormItem>
                         )}
                       />
-                      <Button
-                        type="submit"
-                        className="py-5 cursor-pointer w-full"
-                      >
+                      <Button type="submit" className="py-5 cursor-pointer w-full">
                         {isLoadingForm ? (
                           <Loader className="size-4 animate-spin" />
                         ) : (
@@ -334,61 +336,64 @@ export default function Users({
                       </Button>
                     </form>
                   </Form>
-                </div>
-              )}
+                )}
 
-              {addMode === "invite" && (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Email addresses</label>
-                    <p className="text-xs text-zinc-500">
-                      Type and press Enter, or paste comma-separated emails.
-                    </p>
-                    <EmailsInput
-                      value={inviteEmails}
-                      onChange={setInviteEmails}
-                      disabled={isLoadingForm}
-                    />
+                {addMode === "invite" && (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Email addresses</label>
+                      <p className="text-xs text-zinc-500">
+                        Type and press Enter, or paste comma-separated emails.
+                      </p>
+                      <EmailsInput
+                        value={inviteEmails}
+                        onChange={setInviteEmails}
+                        disabled={isLoadingForm}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Role</label>
+                      <Select value={inviteRole} onValueChange={setInviteRole}>
+                        <SelectTrigger className="form-input w-full">
+                          <SelectValue placeholder="Select a role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="member">Member</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      onClick={handleInviteUser}
+                      disabled={
+                        !inviteEmails.some((e) =>
+                          /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e),
+                        ) || isLoadingForm
+                      }
+                      className="py-5 cursor-pointer w-full"
+                    >
+                      {isLoadingForm ? (
+                        <Loader className="size-4 animate-spin" />
+                      ) : inviteEmails.length > 1 ? (
+                        `Send ${inviteEmails.length} Invitations`
+                      ) : (
+                        "Send Invitation"
+                      )}
+                    </Button>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Role</label>
-                    <Select value={inviteRole} onValueChange={setInviteRole}>
-                      <SelectTrigger className="form-input w-full">
-                        <SelectValue placeholder="Select a role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="member">Member</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button
-                    onClick={handleInviteUser}
-                    disabled={
-                      !inviteEmails.some((e) =>
-                        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e),
-                      ) || isLoadingForm
-                    }
-                    className="py-5 cursor-pointer w-full"
-                  >
-                    {isLoadingForm ? (
-                      <Loader className="size-4 animate-spin" />
-                    ) : inviteEmails.length > 1 ? (
-                      `Send ${inviteEmails.length} Invitations`
-                    ) : (
-                      "Send Invitation"
-                    )}
-                  </Button>
-                </div>
-              )}
+                )}
+              </div>
 
-              <Button
-                onClick={() => setOpen(false)}
-                className="py-5 cursor-pointer w-full"
-                variant="outline"
-              >
-                Cancel
-              </Button>
+              {/* Pinned footer */}
+              <div className="shrink-0 px-6 py-4 border-t border-zinc-100">
+                <Button
+                  onClick={() => setOpen(false)}
+                  className="py-5 cursor-pointer w-full"
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+              </div>
             </DialogContent>
           </Dialog>
         </div>
