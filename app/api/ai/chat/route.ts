@@ -85,8 +85,8 @@ async function resolveChatProvider(
     return { blocked: false, provider: "ollama", reason };
   }
 
-  // Ollama is down — decide whether to fall back or block
-  if (hasSensitiveDocs && !org.allowSensitiveWithOpenAi) {
+  // Sensitive documents must NEVER be sent to OpenAI — hard block regardless of org settings
+  if (hasSensitiveDocs) {
     console.warn(
       `[chat] Blocked: sensitive context requires Ollama (Ollama not reachable)`,
     );
@@ -99,8 +99,7 @@ async function resolveChatProvider(
     };
   }
 
-  // allowSensitiveWithOpenAi is true, or the reason was budget/toggle (not sensitivity)
-  // Fall back to OpenAI with a warning logged
+  // Non-sensitive reasons (budget exhausted, OpenAI disabled) — safe to fall back to OpenAI
   console.warn(
     `[chat] Fallback to OpenAI — Ollama not reachable (reason was: ${reason})`,
   );
@@ -430,9 +429,9 @@ async function handlePost(req: Request) {
 
   return result.toUIMessageStreamResponse({
     messageMetadata: ({ part }) => {
-      // Send citations on the "finish" event (includes pre-retrieval + tool-retrieved)
+      // Send citations + active provider on the "finish" event
       if (part.type === "finish") {
-        return { citations: citationMap } as Record<string, unknown>;
+        return { citations: citationMap, provider: activeProvider } as Record<string, unknown>;
       }
       return undefined;
     },

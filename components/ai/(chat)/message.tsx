@@ -13,7 +13,7 @@ import type {
   ChatTextPart,
   ChatToolInvocationPart,
 } from "./types";
-import { File, Cloud } from "lucide-react";
+import { File, Cloud, Cpu } from "lucide-react";
 
 const messageVariants = cva("flex w-full min-w-0 mb-4", {
   variants: {
@@ -189,6 +189,20 @@ function Message({
                           }
                         />
                         <CopyToClipboard text={textContent} />
+                        {!isStreaming && message?.metadata?.provider && (
+                          <div className="flex items-center gap-1 mt-2 text-[10px] text-zinc-400 select-none">
+                            {message.metadata.provider === "ollama" ? (
+                              <Cpu className="size-3 shrink-0" />
+                            ) : (
+                              <Cloud className="size-3 shrink-0" />
+                            )}
+                            <span>
+                              {message.metadata.provider === "ollama"
+                                ? "Ollama"
+                                : "OpenAI"}
+                            </span>
+                          </div>
+                        )}
                       </>
                     )}
                     {isStreaming && (

@@ -10,6 +10,7 @@ export type CitationInfo = {
 export type ChatMessage = UIMessage<{
   createdAt?: string;
   citations?: Record<string, CitationInfo>;
+  provider?: "openai" | "ollama";
 }>;
 
 export type ChatMessagePart = ChatMessage["parts"][number];

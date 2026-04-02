@@ -21,6 +21,7 @@ import { toChatMessage } from "@/components/ai/(chat)/types";
 type MessageMetadata = {
   citations?: Record<string, CitationInfo>;
   createdAt?: string;
+  provider?: string;
 };
 
 const messageMetadataSchema = jsonSchema<MessageMetadata>({
@@ -41,6 +42,7 @@ const messageMetadataSchema = jsonSchema<MessageMetadata>({
       },
     },
     createdAt: { type: "string" },
+    provider: { type: "string" },
   },
 });
 
