@@ -31,6 +31,27 @@ AuraAI is **Ollama-only** — all AI work (chat and embeddings) runs on a privat
 
 ---
 
+### [Batch 10] Tokenizer-aware RAG chunking (Transformers.js)
+
+**Symptom**
+Fixed character caps (~1 200 / 1 500) under-used the embedding model context window once the true limit was understood; users wanted larger chunks without risking `input length exceeds the context length`.
+
+**Root cause**
+Chunk length was driven by conservative char heuristics, not the actual WordPiece token count for `nomic-embed-text`.
+
+**Fix applied**
+- Added `@xenova/transformers` with `AutoTokenizer.from_pretrained('Xenova/nomic-embed-text-v1')` (override via `OLLAMA_EMBEDDING_TOKENIZER_ID`).
+- `lib/rag/embedding-tokenizer.ts` — `countEmbeddingTokens`, `resolveMaxChunkTokens` / `resolveTargetChunkTokens` (defaults from `model_max_length` minus margin; optional `OLLAMA_EMBEDDING_CHUNK_*` env clamps).
+- `lib/rag/chunking.ts` — sentence groups and long-segment splits use token counts when the tokenizer loads; **char fallback** when `AURA_DISABLE_EMBEDDING_TOKENIZER=1` or load fails (tests, air-gapped CI).
+
+**Watch out for**
+- If you **change `OLLAMA_EMBEDDING_MODEL`**, set `OLLAMA_EMBEDDING_TOKENIZER_ID` to a matching Hugging Face tokenizer or verify token counts match Ollama’s embedder (mismatch → wrong chunk sizes).
+- If Ollama’s **true** context for the embedder is lower than the tokenizer’s `model_max_length`, set `OLLAMA_EMBEDDING_CHUNK_MAX_TOKENS` explicitly (check `GET /api/show` for the running model).
+- First server load may download tokenizer files from Hugging Face — ensure production can reach HF or vendor the cache.
+- **Jest** cannot `import()` `@xenova/transformers` without extra ESM wiring; unit tests use `AURA_DISABLE_EMBEDDING_TOKENIZER=1` and exercise the char fallback. Token-based behaviour is validated in dev/production.
+
+---
+
 ### [Batch 2 / Batch 4] PDF text extraction — sentence splitter fails on table/list content
 
 **Symptom**
@@ -49,27 +70,27 @@ OllamaError: the input length exceeds the context length
    one "sentence". The chunker always includes at least one sentence per chunk, so a
    30 000-char document with no punctuation became a single 30 000-char chunk.
 
-2. More importantly: although Ollama shows `num_ctx 8192` in its model parameters for
-   `nomic-embed-text`, the **actual BERT architecture limit is 2 048 tokens**
-   (`nomic-bert.context_length: 2048` from `GET /api/show`). BERT's WordPiece tokeniser is
-   much denser than GPT-style BPE — Finnish compound words and financial tables can reach
-   **~2 chars per token**. A chunk of 6 000 chars can therefore be ~3 000 tokens, far over
-   the 2 048 limit.
+2. More importantly: the embedding chunk length was measured in chars, not tokens. BERT's
+   WordPiece tokeniser is much denser than GPT-style BPE — Finnish compound words and financial
+   tables can reach **~2 chars per token**. A chunk of 6 000 chars could be ~3 000 tokens.
 
 **Fix applied**
 - Added `splitLongSegment()` in `chunking.ts` that caps every segment at **1 500 chars**
   (≈ 750 tokens in the worst case) by splitting at word boundaries.
-- Lowered `TARGET_CHUNK_CHARS` from 2 000 → **1 200** to keep assembled chunks safely
-  under the BERT context limit even with overlap.
+- Lowered `TARGET_CHUNK_CHARS` from 2 000 → **1 200**.
+
+> **Updated by Batch 10:** The char caps are now the *fallback only*. The active path uses the
+> Transformers.js tokenizer to measure real token counts. `nomic-embed-text` (nomic-bert
+> architecture) supports a true **8 192-token** context — `model_max_length` from
+> `Xenova/nomic-embed-text-v1` is `8192`. The old belief that the limit was 2 048 was incorrect;
+> that refers to standard BERT, not the nomic variant.
 
 **Watch out for**
-- PDFs exported from spreadsheets or databases (pure table data, no prose)
-- Finnish / other morphologically-rich languages — WordPiece tokenises them aggressively
-- Any upgrade to a different Ollama embedding model: always check
-  `model_info["*.context_length"]` from `GET /api/show`, **not** the `num_ctx` parameter
-  (which may be a misleading override)
-- Never raise `MAX_CHUNK_CHARS` without first verifying the true BERT context length of
-  the target model
+- PDFs exported from spreadsheets or databases (pure table data, no prose) — still handled by
+  the sentence regex + long-segment splitter
+- If you switch embedding models: verify the tokenizer `model_max_length` is correct for your
+  model. If Ollama's embed endpoint rejects inputs smaller than `model_max_length - 64`, clamp
+  with `OLLAMA_EMBEDDING_CHUNK_MAX_TOKENS`.
 
 ---
 

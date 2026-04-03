@@ -180,36 +180,23 @@ In development, `onboarding@resend.dev` can be used as the `RESEND_FROM_EMAIL` f
 
 ---
 
-## Batch 10: Tokenizer-aware RAG chunking (deferred)
+## Batch 10: Tokenizer-aware RAG chunking ✅
 
 **Goal:** Replace conservative character caps in `lib/rag/chunking.ts` with **real token counts** per active embedding model, so chunks use the context window efficiently without risking `input length exceeds the context length` errors.
 
-### Why not now
+### What was done
 
-Character limits are simple, dependency-light, and already safe for worst-case token density. Tokenizer integration adds dependencies, must stay aligned with `AI_PROVIDER` and embedding model versions, and needs regression tests — defer until the dual-provider and upload flows feel stable.
+- [x] `lib/rag/embedding-tokenizer.ts` — `loadEmbeddingTokenizer`, `countEmbeddingTokens`, `resolveMaxChunkTokens` / `resolveTargetChunkTokens` (defaults from HF `model_max_length`; optional `OLLAMA_EMBEDDING_CHUNK_MAX_TOKENS`, `OLLAMA_EMBEDDING_CHUNK_TARGET_TOKENS`, `OLLAMA_EMBEDDING_TOKENIZER_ID`)
+- [x] `lib/rag/chunking.ts` — token-based long-segment splitting (binary search on token budget) and sentence grouping; **char fallback** when `AURA_DISABLE_EMBEDDING_TOKENIZER=1` or tokenizer load fails
+- [x] Dependency `@xenova/transformers`; `serverExternalPackages` in `next.config.ts`
+- [x] `chunkContentWithOffsets` is **async**; callers updated (`upload/actions`, org sources index route)
+- [x] Tests: char-fallback path (`AURA_DISABLE_EMBEDDING_TOKENIZER=1`; Jest does not load Transformers.js ESM — production Next server does)
+- [x] `.env.example`, `README.md`, `potential-issues.md` updated
 
-### When to schedule (recommended)
+### Test plan (manual)
 
-| Situation | Priority |
-|-----------|----------|
-| You are about to **switch embedding model** (new context length or tokenizer) | **High** — swap tokenizer + re-tune max tokens in one batch |
-| Production shows **rare OOM / context errors** despite current caps | **High** — indicates edge cases char heuristics miss |
-| Char caps work and no model switch is planned | **Low** — wait |
-
-**Pragmatic rule of thumb:** implement when the embedding model changes — do tokenizer work in the **same** batch as the model switch.
-
-### Implementation sketch (for later)
-
-- [ ] Introduce a small `countEmbeddingTokens(text)` helper — tokenizer matching `OLLAMA_EMBEDDING_MODEL` (e.g. Hugging Face tokenizer for `nomic-embed-text`).
-- [ ] Refactor chunk assembly: grow/shrink segments until token count ≤ **model max context minus safety margin** (e.g. 1 900 for a 2 048 BERT limit), not fixed char counts.
-- [ ] Keep `splitLongSegment`-style word-boundary splitting as a **fallback** when tokenization is unavailable (tests, CI without native deps).
-- [ ] Golden tests: Finnish compound text, dense tables, English prose — assert no chunk exceeds the limit and offsets remain correct.
-- [ ] Document in `potential-issues.md`: which tokenizer package maps to `OLLAMA_EMBEDDING_MODEL`.
-
-### Test plan
-
-- Same PDFs that previously triggered Ollama context errors — upload succeeds; spot-check chunk sizes in logs or a debug endpoint
-- Switch `OLLAMA_EMBEDDING_MODEL` in env — confirm token limit follows the new model (or explicit error if tokenizer not bundled)
+- Upload PDFs that used to stress context — confirm embed succeeds; optional: compare chunk count vs old char-only behaviour
+- If you change embedding model — set `OLLAMA_EMBEDDING_TOKENIZER_ID` and/or `OLLAMA_EMBEDDING_CHUNK_MAX_TOKENS` to match Ollama’s real limit
 
 ---
 
@@ -339,7 +326,7 @@ Removing OpenAI touches **config, provider factory, chat routing, RAG errors, or
 | 7 | Admin UI for OpenAI budget and toggle | ❌ Cancelled |
 | 8 | User-facing OpenAI token visibility | ❌ Cancelled |
 | 9 | Email deliverability (verified domain) | ⬜ Not started |
-| 10 | Tokenizer-aware RAG chunking (Ollama-only) | ⬜ Deferred |
+| 10 | Tokenizer-aware RAG chunking (Ollama-only) | ✅ Done |
 | 11 | Invite-only onboarding (remove admin-created users + passwords) | ⬜ Not started |
 | 12 | Ollama-only deployment (remove OpenAI) | ✅ Done |
 | 13 | Schema + UI cleanup (remove sensitive flag, obsolete org AI fields) | ✅ Done |

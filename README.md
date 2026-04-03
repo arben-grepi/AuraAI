@@ -37,7 +37,7 @@ The system implements a **Retrieval-Augmented Generation** flow:
 | **Files**   | PDF, DOCX, XLSX, TXT, MD, CSV, etc. → `extractText` → `chunkContentWithOffsets` → `generateEmbeddings` → `resources` + `embeddings` |
 | **Websites**| BFS crawl (up to 50 pages) → per-page extraction → same chunking/embedding pipeline → tagged `["web-scrape", "source:<hostname>"]` |
 
-- **Chunking**: ~1200 chars target, 2-sentence overlap, sentence-aware splits with hard 1500-char cap to respect the embedding model's context window; `startOffset`/`endOffset` kept for source highlighting
+- **Chunking**: sentence-aware splits with 2-sentence overlap; default path uses **Transformers.js** (`Xenova/nomic-embed-text-v1`) to size chunks by **token** count up to the model max (minus margin). If the tokenizer is disabled or fails to load, falls back to ~1200-char target / 1500-char hard cap; `startOffset`/`endOffset` kept for source highlighting
 - **Embeddings**: Ollama `nomic-embed-text` — 768-dim vectors stored in pgvector
 
 ### Hybrid Search
@@ -178,7 +178,8 @@ npm run test:e2e         # Playwright E2E
 │   └── ui/               # Shadcn components
 ├── lib/
 │   ├── rag/
-│   │   ├── chunking.ts   # Sentence-aware chunking with hard char cap
+│   │   ├── chunking.ts   # Sentence-aware chunking (tokenizer-sized; char fallback)
+│   │   ├── embedding-tokenizer.ts # HF tokenizer for chunk token limits
 │   │   ├── embeddings.ts # Embedding generation via Ollama
 │   │   ├── search.ts     # Hybrid search, RRF, rerank, dimension check
 │   │   ├── crawl.ts      # Web crawling

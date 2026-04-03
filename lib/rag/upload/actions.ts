@@ -143,8 +143,8 @@ export async function processRagFile(
     return { success: false, error: "File is empty" };
   }
 
-  // Sentence-aware chunking with offsets
-  const chunks = chunkContentWithOffsets(fullText.trim());
+  // Sentence-aware chunking with offsets (tokenizer-sized when available)
+  const chunks = await chunkContentWithOffsets(fullText.trim());
   if (!chunks.length) {
     return {
       success: false,

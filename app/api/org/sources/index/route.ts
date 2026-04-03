@@ -222,7 +222,7 @@ export async function POST(request: Request) {
             const cleanContent = page.content.replace(/\0/g, "");
 
             // Chunk the content
-            const chunks = chunkContentWithOffsets(cleanContent);
+            const chunks = await chunkContentWithOffsets(cleanContent);
             console.log(`[index]   Chunked into ${chunks.length} chunks (${cleanContent.length} chars)`);
             if (chunks.length === 0) {
               sendEvent(controller, encoder, {

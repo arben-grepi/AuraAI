@@ -1,20 +1,26 @@
 /**
  * Sentence-aware text chunking with character offset tracking.
  *
- * Chunks are built by grouping sentences up to TARGET_CHUNK_CHARS,
- * with OVERLAP_SENTENCES sentence overlap between consecutive chunks.
- * Each chunk records its start/end character offsets in the original text
- * so we can highlight the exact passage in the source panel later.
+ * When an embedding tokenizer is available (Transformers.js, matching
+ * `OLLAMA_EMBEDDING_MODEL`), chunks are sized by **token** counts up to the
+ * model context minus a safety margin — so we use the full context window
+ * without exceeding it. If the tokenizer cannot load, we fall back to the
+ * previous character-based limits.
  */
 
-const TARGET_CHUNK_CHARS = 1200; // ~600 tokens for nomic-embed-text (2 048-token BERT context)
-const OVERLAP_SENTENCES = 2;
+import type { PreTrainedTokenizer } from "@xenova/transformers";
+import { logOps } from "@/lib/ops-log";
+import {
+  countEmbeddingTokens,
+  getHfTokenizerModelId,
+  loadEmbeddingTokenizer,
+  resolveMaxChunkTokens,
+  resolveTargetChunkTokens,
+} from "./embedding-tokenizer";
 
-// Hard safety cap for nomic-embed-text (nomic-bert architecture).
-// Although Ollama reports num_ctx=8192, the underlying BERT model has a TRUE
-// context of 2 048 tokens. BERT's WordPiece tokeniser is much denser than GPT
-// BPE: Finnish compound words and financial tables can reach ~2 chars/token.
-// 1 500 chars ÷ 2 chars/token = 750 tokens — well under 2 048 in all cases.
+/** Fallback when tokenizer is unavailable (tests, CI, load failure). */
+const TARGET_CHUNK_CHARS = 1200;
+const OVERLAP_SENTENCES = 2;
 const MAX_CHUNK_CHARS = 1500;
 
 export interface ChunkWithOffset {
@@ -30,13 +36,7 @@ interface SentenceWithOffset {
   end: number;
 }
 
-/**
- * Break a single long text segment into sub-segments at word boundaries so
- * each sub-segment is at most MAX_CHUNK_CHARS characters.  This prevents a
- * single "sentence" (e.g. an entire table row or a bullet list) from
- * producing an embedding chunk that exceeds the model's context window.
- */
-function splitLongSegment(
+function splitLongSegmentChars(
   text: string,
   startOffset: number,
 ): SentenceWithOffset[] {
@@ -49,7 +49,6 @@ function splitLongSegment(
 
   while (pos < text.length) {
     let end = Math.min(pos + MAX_CHUNK_CHARS, text.length);
-    // Back up to the last space so we don't cut mid-word (unless no space found)
     if (end < text.length) {
       const lastSpace = text.lastIndexOf(" ", end);
       if (lastSpace > pos) end = lastSpace;
@@ -62,19 +61,101 @@ function splitLongSegment(
         end: startOffset + end,
       });
     }
-    pos = end + 1; // +1 to skip the space we split on
+    pos = end + 1;
   }
 
   return parts;
 }
 
 /**
- * Split text into sentences, preserving character offsets.
- * Handles: ". ", "! ", "? " followed by uppercase, quote, or parenthesis.
- * Keeps the terminator with the sentence it ends.
+ * Largest `end` in [0, text.length] such that the tokenizer assigns
+ * at most `maxTokens` tokens to `text.slice(0, end)` (monotonic in `end`).
  */
-function splitSentencesWithOffsets(text: string): SentenceWithOffset[] {
-  // Match sentence-ending punctuation followed by whitespace and a new-sentence start
+async function maxPrefixCharsWithinTokenBudget(
+  text: string,
+  maxTokens: number,
+  tokenizer: PreTrainedTokenizer,
+): Promise<number> {
+  if (text.length === 0) return 0;
+  if ((await countEmbeddingTokens(tokenizer, text)) <= maxTokens) {
+    return text.length;
+  }
+
+  let lo = 0;
+  let hi = text.length;
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    const n = await countEmbeddingTokens(tokenizer, text.slice(0, mid));
+    if (n <= maxTokens) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function snapPrefixToWordBoundary(text: string, end: number): number {
+  if (end <= 0 || end >= text.length) return end;
+  const lastSpace = text.lastIndexOf(" ", end);
+  return lastSpace > 0 ? lastSpace : end;
+}
+
+async function splitLongSegmentTokens(
+  text: string,
+  startOffset: number,
+  tokenizer: PreTrainedTokenizer,
+  maxTokens: number,
+): Promise<SentenceWithOffset[]> {
+  if ((await countEmbeddingTokens(tokenizer, text)) <= maxTokens) {
+    return [{ text, start: startOffset, end: startOffset + text.length }];
+  }
+
+  const parts: SentenceWithOffset[] = [];
+  let pos = 0;
+
+  while (pos < text.length) {
+    const rest = text.slice(pos);
+    let takeChars = await maxPrefixCharsWithinTokenBudget(
+      rest,
+      maxTokens,
+      tokenizer,
+    );
+    if (takeChars === 0) {
+      takeChars = 1;
+    } else if (takeChars < rest.length) {
+      const snapped = snapPrefixToWordBoundary(rest, takeChars);
+      if (snapped > 0) {
+        const snappedText = rest.slice(0, snapped).trimEnd();
+        if (
+          snappedText.length > 0 &&
+          (await countEmbeddingTokens(tokenizer, snappedText)) <= maxTokens
+        ) {
+          takeChars = snapped;
+        }
+      }
+    }
+
+    const rawSlice = rest.slice(0, takeChars);
+    const segment = rawSlice.trim();
+    if (segment) {
+      const trimLead = rawSlice.length - rawSlice.trimStart().length;
+      const segStart = startOffset + pos + trimLead;
+      parts.push({
+        text: segment,
+        start: segStart,
+        end: segStart + segment.length,
+      });
+    }
+    pos += takeChars;
+    while (pos < text.length && /\s/.test(text[pos]!)) pos++;
+  }
+
+  return parts.length > 0 ? parts : splitLongSegmentChars(text, startOffset);
+}
+
+async function splitSentencesWithOffsets(
+  text: string,
+  tokenizer: PreTrainedTokenizer | null,
+  maxSegmentTokens: number | null,
+): Promise<SentenceWithOffset[]> {
   const splitPattern =
     /([.!?]+)\s+(?=[A-Z\u00C0-\u024F"'\u201C\u201D(])/g;
 
@@ -82,28 +163,41 @@ function splitSentencesWithOffsets(text: string): SentenceWithOffset[] {
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
+  const splitSeg = async (
+    sentenceText: string,
+    absStart: number,
+  ): Promise<void> => {
+    if (!sentenceText) return;
+    if (tokenizer && maxSegmentTokens != null) {
+      sentences.push(
+        ...(await splitLongSegmentTokens(
+          sentenceText,
+          absStart,
+          tokenizer,
+          maxSegmentTokens,
+        )),
+      );
+    } else {
+      sentences.push(...splitLongSegmentChars(sentenceText, absStart));
+    }
+  };
+
   while ((match = splitPattern.exec(text)) !== null) {
-    // Include the punctuation in the current sentence
     const endIndex = match.index + match[1].length;
     const sentenceText = text.slice(lastIndex, endIndex).trim();
     if (sentenceText) {
-      // A single "sentence" from a table/list can be huge; split it to stay
-      // within the embedding model's context window.
-      sentences.push(...splitLongSegment(sentenceText, lastIndex));
+      await splitSeg(sentenceText, lastIndex);
     }
-    // Skip whitespace between sentences
     lastIndex = match.index + match[0].length;
   }
 
-  // Remaining text after the last split point
   const remaining = text.slice(lastIndex).trim();
   if (remaining) {
-    sentences.push(...splitLongSegment(remaining, lastIndex));
+    await splitSeg(remaining, lastIndex);
   }
 
-  // Fallback: if no sentence boundaries found, treat whole text as one sentence
   if (sentences.length === 0 && text.trim()) {
-    sentences.push(...splitLongSegment(text.trim(), 0));
+    await splitSeg(text.trim(), 0);
   }
 
   return sentences;
@@ -121,48 +215,133 @@ function buildChunk(
   };
 }
 
+/** One structured line per chunking run — grep for `rag.chunking.complete`. No document text. */
+function logChunkingComplete(
+  inputCharCount: number,
+  tokenizer: PreTrainedTokenizer | null,
+  maxSegmentTokens: number | null,
+  targetGroupTokens: number | null,
+  chunkCount: number,
+): void {
+  if (tokenizer && maxSegmentTokens != null && targetGroupTokens != null) {
+    logOps("rag.chunking.complete", {
+      chunkingMode: "tokenizer",
+      hfTokenizerId: getHfTokenizerModelId(),
+      maxChunkTokens: maxSegmentTokens,
+      targetChunkTokens: targetGroupTokens,
+      chunkCount,
+      inputChars: inputCharCount,
+    });
+  } else {
+    logOps("rag.chunking.complete", {
+      chunkingMode: "chars_fallback",
+      chunkCount,
+      inputChars: inputCharCount,
+    });
+  }
+}
+
 /**
  * Chunk text into sentence-grouped segments with offset tracking.
- * Each chunk is ~TARGET_CHUNK_CHARS with OVERLAP_SENTENCES sentence overlap.
+ * Uses tokenizer-based limits when available; otherwise character caps.
  */
-export function chunkContentWithOffsets(fullText: string): ChunkWithOffset[] {
-  const sentences = splitSentencesWithOffsets(fullText);
+export async function chunkContentWithOffsets(
+  fullText: string,
+): Promise<ChunkWithOffset[]> {
+  const tokenizer = await loadEmbeddingTokenizer();
+  const maxSegmentTokens = tokenizer
+    ? resolveMaxChunkTokens(tokenizer)
+    : null;
+  const targetGroupTokens =
+    tokenizer && maxSegmentTokens != null
+      ? resolveTargetChunkTokens(maxSegmentTokens)
+      : null;
 
-  if (sentences.length === 0) return [];
+  const sentences = await splitSentencesWithOffsets(
+    fullText,
+    tokenizer,
+    maxSegmentTokens,
+  );
+
+  if (sentences.length === 0) {
+    logChunkingComplete(
+      fullText.length,
+      tokenizer,
+      maxSegmentTokens,
+      targetGroupTokens,
+      0,
+    );
+    return [];
+  }
 
   const chunks: ChunkWithOffset[] = [];
   let windowStart = 0;
   let chunkIndex = 0;
 
   while (windowStart < sentences.length) {
-    // Accumulate sentences until we exceed target size
-    let windowEnd = windowStart;
-    let currentLength = 0;
+    if (tokenizer && targetGroupTokens != null) {
+      let windowEnd = windowStart;
+      let joined = "";
 
-    while (windowEnd < sentences.length) {
-      const sentLen = sentences[windowEnd].text.length;
-      // Always include at least one sentence
-      if (currentLength + sentLen > TARGET_CHUNK_CHARS && windowEnd > windowStart) {
-        break;
+      while (windowEnd < sentences.length) {
+        const next = sentences[windowEnd].text;
+        const candidate = joined ? `${joined} ${next}` : next;
+        const tok = await countEmbeddingTokens(tokenizer, candidate);
+        if (tok > targetGroupTokens && windowEnd > windowStart) break;
+        joined = candidate;
+        windowEnd++;
       }
-      currentLength += sentLen + 1; // +1 for space joining
-      windowEnd++;
+
+      if (windowEnd === windowStart) {
+        windowEnd = windowStart + 1;
+      }
+
+      chunks.push(
+        buildChunk(sentences.slice(windowStart, windowEnd), chunkIndex++),
+      );
+
+      const advance = windowEnd - windowStart - OVERLAP_SENTENCES;
+      windowStart += Math.max(advance, 1);
+    } else {
+      let windowEnd = windowStart;
+      let currentLength = 0;
+
+      while (windowEnd < sentences.length) {
+        const sentLen = sentences[windowEnd].text.length;
+        if (
+          currentLength + sentLen > TARGET_CHUNK_CHARS &&
+          windowEnd > windowStart
+        ) {
+          break;
+        }
+        currentLength += sentLen + 1;
+        windowEnd++;
+      }
+
+      chunks.push(
+        buildChunk(sentences.slice(windowStart, windowEnd), chunkIndex++),
+      );
+
+      const advance = windowEnd - windowStart - OVERLAP_SENTENCES;
+      windowStart += Math.max(advance, 1);
     }
-
-    chunks.push(buildChunk(sentences.slice(windowStart, windowEnd), chunkIndex++));
-
-    // Advance, overlapping by OVERLAP_SENTENCES
-    const advance = windowEnd - windowStart - OVERLAP_SENTENCES;
-    windowStart += Math.max(advance, 1); // always advance at least 1 sentence
   }
+
+  logChunkingComplete(
+    fullText.length,
+    tokenizer,
+    maxSegmentTokens,
+    targetGroupTokens,
+    chunks.length,
+  );
 
   return chunks;
 }
 
 /**
  * Backwards-compatible wrapper — returns just the text strings.
- * Use chunkContentWithOffsets() for new code.
  */
 export async function chunkContent(content: string): Promise<string[]> {
-  return chunkContentWithOffsets(content.trim()).map((c) => c.text);
+  const chunks = await chunkContentWithOffsets(content.trim());
+  return chunks.map((c) => c.text);
 }
