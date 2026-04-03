@@ -117,12 +117,6 @@ model Organization {
   description              String?
   systemPrompt             String?
   maxMembers               Int?
-  // OpenAI controls — managed via admin UI (Batch 7)
-  openAiEnabled            Boolean        @default(true)
-  allowSensitiveWithOpenAi Boolean        @default(false)
-  openAiTokenBudget        Int?
-  openAiTokensUsed         Int            @default(0)
-  openAiTokensResetAt      DateTime?
   conversations            Conversation[]
   invitations              Invitation[]
   members                  Member[]
@@ -185,7 +179,6 @@ model Resource {
   fullText       String?       @map("full_text")
   mimeType       String?       @map("mime_type")
   fileSize       Int?          @map("file_size")
-  sensitive      Boolean       @default(false)
   embeddings     Embedding[]
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   fileFolder     FileFolder?   @relation(fields: [fileFolderId], references: [id], onDelete: SetNull)

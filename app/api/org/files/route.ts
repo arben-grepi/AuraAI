@@ -109,7 +109,7 @@ export async function GET(req: Request) {
       rootFileTake > 0
         ?         prisma.resource.findMany({
             where: rootFilesWhere,
-            select: { id: true, name: true, tags: true, sensitive: true },
+            select: { id: true, name: true, tags: true },
             orderBy: { name: "asc" },
             skip: rootFileSkip,
             take: rootFileTake,
@@ -130,7 +130,7 @@ export async function GET(req: Request) {
                       },
                     }
                   : undefined,
-                select: { id: true, name: true, tags: true, sensitive: true },
+                select: { id: true, name: true, tags: true },
                 orderBy: { name: "asc" },
               },
             },

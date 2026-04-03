@@ -168,6 +168,20 @@ and compare against the expected dimension for `OLLAMA_EMBEDDING_MODEL`.
 
 ---
 
+### [Batch 13] Removed sensitive flag and OpenAI org fields
+
+**What was removed**
+- `resources.sensitive` column + schema field + upload `FormData` key + search SQL + file list UI (toggle, badge, amber info box)
+- `Organization` fields: `openAiEnabled`, `allowSensitiveWithOpenAi`, `openAiTokenBudget`, `openAiTokensUsed`, `openAiTokensResetAt`
+- `AiProvider` type and `getActiveProvider()` from `lib/ai-provider.ts` (unused after Ollama-only transition)
+- Provider parameter from `getChatModel()`, `getEmbeddingModel()`, `generateEmbedding()`, `generateEmbeddings()` (Ollama-only — no provider choice to make)
+
+**Watch out for**
+- Any branch or fork that still references these columns — it will fail the Prisma migration
+- The migration file is `20260403000000_remove_sensitive_and_openai_fields/migration.sql`
+
+---
+
 ### [General] All orgs share a single embedding model and dimension
 
 **Risk**

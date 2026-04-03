@@ -1,7 +1,5 @@
 import { ollama } from "ai-sdk-ollama";
 
-export type AiProvider = "ollama";
-
 /** Server-side ping. Returns true if Ollama responds within the timeout. */
 export async function checkOllamaReachable(timeoutMs = 3000): Promise<boolean> {
   const baseURL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
@@ -15,11 +13,7 @@ export async function checkOllamaReachable(timeoutMs = 3000): Promise<boolean> {
   }
 }
 
-export function getActiveProvider(): AiProvider {
-  return "ollama";
-}
-
-export function getChatModel(_provider?: AiProvider) {
+export function getChatModel() {
   const model = process.env.OLLAMA_CHAT_MODEL ?? "llama3.1";
   const baseURL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
   console.log(`[ai-provider] Chat model: ollama/${model} (${baseURL})`);
@@ -36,7 +30,7 @@ export function getChatModel(_provider?: AiProvider) {
   });
 }
 
-export function getEmbeddingModel(_provider?: AiProvider) {
+export function getEmbeddingModel() {
   const model = process.env.OLLAMA_EMBEDDING_MODEL ?? "nomic-embed-text";
   const baseURL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
   console.log(`[ai-provider] Embedding model: ollama/${model} (${baseURL})`);

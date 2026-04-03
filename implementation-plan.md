@@ -342,7 +342,7 @@ Removing OpenAI touches **config, provider factory, chat routing, RAG errors, or
 | 10 | Tokenizer-aware RAG chunking (Ollama-only) | ⬜ Deferred |
 | 11 | Invite-only onboarding (remove admin-created users + passwords) | ⬜ Not started |
 | 12 | Ollama-only deployment (remove OpenAI) | ✅ Done |
-| 13 | Schema + UI cleanup (remove sensitive flag, obsolete org AI fields) | ⬜ Not started |
+| 13 | Schema + UI cleanup (remove sensitive flag, obsolete org AI fields) | ✅ Done |
 
 ---
 
@@ -390,7 +390,7 @@ Since every document is processed entirely on-premise by Ollama, every file is i
 - **Vector dimension: 768** — all embeddings use `nomic-embed-text` (768-dim). The DB column is `vector(768)`. Do not change the embedding model without running a dimension migration and re-indexing all documents.
 - **Ollama must be running** — if Ollama is unreachable, chat and file uploads return clear 503 errors. There is no cloud fallback.
 - **No `web_search` tool** — removed in Batch 12. If live web context is needed in future, add a dedicated tool (e.g. Tavily, Exa) in its own batch.
-- **No sensitive flag** — scheduled for removal in Batch 13. Until then the column exists in the DB but is not used for any routing or access decision.
+- **No sensitive flag** — removed in Batch 13. The column no longer exists in the schema or the UI.
 
 ### Development
 

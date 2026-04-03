@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlertCircle,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -10,8 +11,7 @@ import {
   Folder,
   FolderPlus,
   Loader,
-  ShieldAlert,
-  ShieldCheck,
+  Server,
   Trash2,
   Upload,
   X,
@@ -38,7 +38,7 @@ import {
   deleteResource,
 } from "@/lib/actions";
 
-type FileItem = { file: File; sensitive: boolean };
+type FileItem = { file: File };
 
 type RecoveryState = {
   failedItems: FileItem[];
@@ -125,7 +125,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
 
     setFileItems((prev) => [
       ...prev,
-      ...validFiles.map((file) => ({ file, sensitive: false })),
+      ...validFiles.map((file) => ({ file })),
     ]);
     toast.success(
       `${validFiles.length} file${validFiles.length === 1 ? "" : "s"} selected`,
@@ -154,14 +154,6 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
     event.stopPropagation();
     setIsDragging(false);
     processSelectedFiles(Array.from(event.dataTransfer.files ?? []));
-  };
-
-  const toggleFileSensitive = (index: number) => {
-    setFileItems((prev) =>
-      prev.map((item, i) =>
-        i === index ? { ...item, sensitive: !item.sensitive } : item,
-      ),
-    );
   };
 
   const removeFile = (index: number) => {
@@ -194,7 +186,6 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
           formData.append("file", item.file);
           formData.append("tags", JSON.stringify(selected));
           formData.append("orgId", orgId);
-          formData.append("sensitive", String(item.sensitive));
           if (selectedFolderId) formData.append("fileFolderId", selectedFolderId);
 
           const response = await fetch(`/api/files/rag`, {
@@ -326,7 +317,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
           <DialogContent className="max-w-[480px]">
             <DialogHeader>
               <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center mb-2">
-                <ShieldAlert className="size-5 text-red-600" />
+                <AlertCircle className="size-5 text-red-600" />
               </div>
               <DialogTitle className="text-sm font-semibold">
                 On-premise AI not reachable
@@ -341,7 +332,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
               {/* Start Ollama */}
               <div className="flex items-start gap-3 p-3 border border-zinc-200 rounded-[10px] bg-zinc-50">
                 <div className="w-8 h-8 rounded-[8px] bg-green-100 flex items-center justify-center shrink-0 mt-0.5">
-                  <ShieldCheck className="size-4 text-green-700" />
+                  <Server className="size-4 text-green-700" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-medium">Start Ollama</p>
@@ -410,7 +401,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                       Upload files
                     </DialogTitle>
                     <DialogDescription className="text-zinc-600 text-sm font-medium">
-                      Select files and choose which ones contain sensitive data.
+                      Select files to upload to the knowledge base.
                     </DialogDescription>
                   </DialogHeader>
                 </div>
@@ -433,12 +424,7 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                       {fileItems.map((item, index) => (
                         <div
                           key={`${item.file.name}-${item.file.size}-${item.file.lastModified}-${index}`}
-                          className={cn(
-                            "flex items-center gap-3 p-3 rounded-[10px] border transition-colors",
-                            item.sensitive
-                              ? "border-amber-300 bg-amber-50"
-                              : "border-zinc-200 bg-zinc-50",
-                          )}
+                          className="flex items-center gap-3 p-3 rounded-[10px] border border-zinc-200 bg-zinc-50 transition-colors"
                         >
                           <div className="w-8 h-8 rounded-[6px] bg-white border border-zinc-200 flex items-center justify-center shrink-0">
                             <File className="size-4 text-zinc-500" />
@@ -451,24 +437,6 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                               {(item.file.size / 1024).toFixed(0)} KB
                             </p>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => toggleFileSensitive(index)}
-                            className={cn(
-                              "flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-xs font-medium transition-colors shrink-0 border",
-                              item.sensitive
-                                ? "border-amber-300 bg-amber-100 text-amber-700 hover:bg-amber-200"
-                                : "border-zinc-200 bg-white text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100",
-                            )}
-                            title={
-                              item.sensitive
-                                ? "Marked sensitive — processed by on-premise AI only"
-                                : "Mark as sensitive"
-                            }
-                          >
-                            <ShieldCheck className="size-3" />
-                            <span>Sensitive</span>
-                          </button>
                           <button
                             type="button"
                             onClick={() => removeFile(index)}
@@ -509,16 +477,6 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                       </p>
                     </div>
                   </div>
-
-                  {fileItems.some((i) => i.sensitive) && (
-                    <div className="flex items-start gap-2 p-3 rounded-[10px] bg-amber-50 border border-amber-200 text-xs text-amber-700">
-                      <ShieldCheck className="size-3.5 mt-0.5 shrink-0" />
-                      <span>
-                        Sensitive files will be processed only by the
-                        on-premise AI model — never sent to the cloud.
-                      </span>
-                    </div>
-                  )}
 
                   <div className="flex flex-col gap-2">
                     <p className="text-sm font-medium">Folder (optional)</p>
@@ -651,7 +609,6 @@ export default function OrgFilesList({ orgId }: { orgId: string }) {
                         id={entry.file.id}
                         name={entry.file.name}
                         tags={entry.file.tags}
-                        sensitive={entry.file.sensitive}
                       />
                     ) : (
                       <FolderRow
@@ -718,12 +675,10 @@ const ListItem = ({
   id,
   name,
   tags,
-  sensitive,
 }: {
   id: string;
   name: string;
   tags: string[];
-  sensitive: boolean;
 }) => {
   const queryClient = useQueryClient();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -757,12 +712,6 @@ const ListItem = ({
         </div>
       </div>
       <div className="flex gap-2 flex-1 flex-wrap">
-        {sensitive && (
-          <div className="flex items-center gap-1 rounded-[12px] bg-amber-50 border border-amber-300 px-2.5 py-1">
-            <ShieldCheck className="size-3 text-amber-600" />
-            <p className="text-xs font-medium text-amber-700">Sensitive</p>
-          </div>
-        )}
         {tags.map((tag) => (
           <div
             key={tag}
@@ -896,7 +845,6 @@ const FolderRow = ({
                 id={file.id}
                 name={file.name}
                 tags={file.tags}
-                sensitive={file.sensitive}
               />
             ))
           )}
@@ -928,7 +876,6 @@ type OrgFile = {
   id: string;
   name: string;
   tags: string[];
-  sensitive: boolean;
 };
 
 type OrgFolder = {

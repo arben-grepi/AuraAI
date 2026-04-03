@@ -61,9 +61,6 @@ export async function processRagFile(
   const orgId = formData.get("orgId")?.toString() ?? null;
   const orgSlug = formData.get("orgSlug")?.toString() ?? null;
   const fileFolderId = formData.get("fileFolderId")?.toString() || null;
-  const sensitive = formData.get("sensitive") === "true";
-  // The sensitive flag only affects CHAT routing — all documents are embedded by Ollama.
-  const embeddingProvider = undefined;
   const tagsString = formData.get("tags")?.toString();
   let tags: string[] = [];
   if (tagsString) {
@@ -152,13 +149,11 @@ export async function processRagFile(
     };
   }
 
-  console.log(
-    `[embed] Embedding file: ${file.name}${sensitive ? " (sensitive — chat only via Ollama)" : ""}`,
-  );
+  console.log(`[embed] Embedding file: ${file.name}`);
 
   let embeddings: number[][];
   try {
-    embeddings = await generateEmbeddings(chunks.map((c) => c.text), embeddingProvider);
+    embeddings = await generateEmbeddings(chunks.map((c) => c.text));
   } catch (e) {
     console.error("RAG embedding error:", e);
 
@@ -188,10 +183,9 @@ export async function processRagFile(
 
       const resourceId = crypto.randomUUID();
 
-      // Store resource with full text, mime type, file size, and sensitivity flag
       await tx.$executeRawUnsafe(
-        `INSERT INTO "resources" ("id", "organization_id", "file_folder_id", "name", "tags", "full_text", "mime_type", "file_size", "sensitive")
-         VALUES ($1, $2, $3, $4, $5::text[], $6, $7, $8, $9)`,
+        `INSERT INTO "resources" ("id", "organization_id", "file_folder_id", "name", "tags", "full_text", "mime_type", "file_size")
+         VALUES ($1, $2, $3, $4, $5::text[], $6, $7, $8)`,
         resourceId,
         organizationId,
         fileFolderId,
@@ -200,7 +194,6 @@ export async function processRagFile(
         fullText.trim(),
         file.type || null,
         file.size,
-        sensitive,
       );
 
       // Insert embeddings with offsets
