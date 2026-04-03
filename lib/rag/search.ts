@@ -1,5 +1,6 @@
 import { Prisma } from "@/app/generated/prisma";
 import prisma from "@/lib/prisma";
+import { logOps, getOllamaModelsForLog } from "@/lib/ops-log";
 import { generateEmbedding } from "./embeddings";
 import { getExpectedVectorDimension } from "./vector";
 
@@ -73,12 +74,16 @@ export async function vectorSearch(
   limit: number,
   threshold: number,
   organizationId: string,
-): Promise<SearchRow[]> {
+): Promise<{ rows: SearchRow[]; embedMs: number; queryMs: number }> {
+  const tEmbed = performance.now();
   const embedding = await generateEmbedding(query);
+  const embedMs = performance.now() - tEmbed;
+
   const vecParam = toVectorParam(embedding);
   const safeLimit = Math.min(Math.max(1, limit), 50);
 
-  return (await prisma.$queryRaw(Prisma.sql`
+  const tQuery = performance.now();
+  const rows = (await prisma.$queryRaw(Prisma.sql`
     SELECT
       e."id",
       e."content",
@@ -95,6 +100,9 @@ export async function vectorSearch(
     ORDER BY e."embedding" <=> ${vecParam}::vector ASC
     LIMIT ${safeLimit};
   `)) as SearchRow[];
+  const queryMs = performance.now() - tQuery;
+
+  return { rows, embedMs, queryMs };
 }
 
 // ---------------------------------------------------------------------------
@@ -105,27 +113,36 @@ async function keywordSearch(
   query: string,
   limit: number,
   organizationId: string,
-): Promise<SearchRow[]> {
+): Promise<{ rows: SearchRow[]; ms: number; failed: boolean }> {
   const safeLimit = Math.min(Math.max(1, limit), 50);
-
-  // plainto_tsquery handles user input safely (no special syntax required)
-  return (await prisma.$queryRaw(Prisma.sql`
-    SELECT
-      e."id",
-      e."content",
-      e."resource_id",
-      r."name" AS resource_name,
-      e."start_offset",
-      e."end_offset",
-      r."tags",
-      ts_rank(to_tsvector('english', e."content"), plainto_tsquery('english', ${query})) AS score
-    FROM "embeddings" e
-    JOIN "resources" r ON e."resource_id" = r."id"
-    WHERE r."organization_id" = ${organizationId}::text
-      AND to_tsvector('english', e."content") @@ plainto_tsquery('english', ${query})
-    ORDER BY score DESC
-    LIMIT ${safeLimit};
-  `)) as SearchRow[];
+  const t0 = performance.now();
+  try {
+    const rows = (await prisma.$queryRaw(Prisma.sql`
+      SELECT
+        e."id",
+        e."content",
+        e."resource_id",
+        r."name" AS resource_name,
+        e."start_offset",
+        e."end_offset",
+        r."tags",
+        ts_rank(to_tsvector('english', e."content"), plainto_tsquery('english', ${query})) AS score
+      FROM "embeddings" e
+      JOIN "resources" r ON e."resource_id" = r."id"
+      WHERE r."organization_id" = ${organizationId}::text
+        AND to_tsvector('english', e."content") @@ plainto_tsquery('english', ${query})
+      ORDER BY score DESC
+      LIMIT ${safeLimit};
+    `)) as SearchRow[];
+    return { rows, ms: performance.now() - t0, failed: false };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    logOps("rag.keyword_search_failed", {
+      ms: Math.round(performance.now() - t0),
+      error: msg.slice(0, 200),
+    });
+    return { rows: [], ms: performance.now() - t0, failed: true };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -215,11 +232,18 @@ function rerank(results: SearchRow[], query: string): SearchRow[] {
 // Hybrid search: vector + keyword → RRF → rerank
 // ---------------------------------------------------------------------------
 
+export type HybridSearchOpsContext = {
+  requestId: string;
+  organizationId: string;
+  phase: "pre_retrieval" | "tool_retrieve_context";
+};
+
 export async function hybridSearch(
   query: string,
   limit: number,
   organizationId: string,
   vectorThreshold = 0.3,
+  ops?: HybridSearchOpsContext,
 ): Promise<SearchRow[]> {
   if (!organizationId || !query?.trim()) return [];
 
@@ -227,17 +251,38 @@ export async function hybridSearch(
   checkDimensionIntegrity().catch(() => {});
 
   const fetchLimit = limit * 2; // fetch more candidates for fusion
+  const hybridStart = performance.now();
 
-  const [vecResults, kwResults] = await Promise.all([
+  const [vec, kw] = await Promise.all([
     vectorSearch(query, fetchLimit, vectorThreshold, organizationId),
-    keywordSearch(query, fetchLimit, organizationId).catch(() => {
-      // Keyword search may fail if content has unusual characters; degrade gracefully
-      return [] as SearchRow[];
-    }),
+    keywordSearch(query, fetchLimit, organizationId),
   ]);
 
-  const fused = reciprocalRankFusion(vecResults, kwResults, limit);
-  return rerank(fused, query);
+  const fused = reciprocalRankFusion(vec.rows, kw.rows, limit);
+  const tRerank = performance.now();
+  const results = rerank(fused, query);
+  const rerankMs = performance.now() - tRerank;
+  const totalMs = performance.now() - hybridStart;
+
+  const zeroResults = results.length === 0;
+  logOps("rag.hybrid_search", {
+    requestId: ops?.requestId,
+    organizationId: ops?.organizationId ?? organizationId,
+    phase: ops?.phase ?? "unspecified",
+    returnedChunks: results.length,
+    zeroResults,
+    vectorCandidateRows: vec.rows.length,
+    keywordCandidateRows: kw.rows.length,
+    keywordSearchFailed: kw.failed,
+    embedMs: Math.round(vec.embedMs),
+    vectorSqlMs: Math.round(vec.queryMs),
+    keywordMs: Math.round(kw.ms),
+    rerankMs: Math.round(rerankMs),
+    totalSearchMs: Math.round(totalMs),
+    ...getOllamaModelsForLog(),
+  });
+
+  return results;
 }
 
 // ---------------------------------------------------------------------------
@@ -249,7 +294,8 @@ export async function searchDocuments(
   limit = 5,
   vectorThreshold = 0.5,
   organizationId?: string | null,
+  ops?: HybridSearchOpsContext,
 ): Promise<SearchRow[]> {
   if (!organizationId) return [];
-  return hybridSearch(query, limit, organizationId, vectorThreshold);
+  return hybridSearch(query, limit, organizationId, vectorThreshold, ops);
 }

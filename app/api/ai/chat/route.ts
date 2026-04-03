@@ -29,6 +29,11 @@ import { withMetrics } from "@/lib/with-metrics";
 import { hybridSearch, searchDocuments } from "@/lib/rag/search";
 import type { SearchRow } from "@/lib/rag/search";
 import { getChatModel, checkOllamaReachable } from "@/lib/ai-provider";
+import {
+  getCorrelationId,
+  getOllamaModelsForLog,
+  logOps,
+} from "@/lib/ops-log";
 
 export const runtime = "nodejs";
 export const maxDuration = 600;
@@ -37,12 +42,20 @@ type ChatRouting =
   | { blocked: false; reason: string }
   | { blocked: true; reason: string };
 
-async function resolveChatProvider(): Promise<ChatRouting> {
+async function resolveChatProvider(
+  requestId: string,
+  organizationId: string,
+): Promise<ChatRouting> {
   const ollamaUp = await checkOllamaReachable();
   if (ollamaUp) {
     return { blocked: false, reason: "standard" };
   }
-  console.warn("[chat] Blocked: Ollama not reachable");
+  logOps("chat.blocked", {
+    requestId,
+    organizationId,
+    reason: "ollama_unreachable",
+    ...getOllamaModelsForLog(),
+  });
   return {
     blocked: true,
     reason:
@@ -77,6 +90,7 @@ function getLastUserText(messages: UIMessage[]): string {
 }
 
 async function handlePost(req: Request) {
+  const requestId = getCorrelationId(req);
   const body = await req.json();
   const {
     conversationId,
@@ -103,6 +117,15 @@ async function handlePost(req: Request) {
   if (!organizationId) {
     return new Response("No active organization", { status: 400 });
   }
+
+  logOps("chat.request", {
+    requestId,
+    userId: session.user.id,
+    organizationId,
+    conversationId: isAnonymous === true ? null : conversationId,
+    isAnonymous: isAnonymous === true,
+    ...getOllamaModelsForLog(),
+  });
 
   const organizationName = await prisma.organization.findUnique({
     where: { id: organizationId },
@@ -199,14 +222,19 @@ async function handlePost(req: Request) {
         lastUserText,
         8,
         organizationId,
+        0.3,
+        {
+          requestId,
+          organizationId,
+          phase: "pre_retrieval",
+        },
       );
-      console.log("[chat] Pre-retrieval:", {
-        query: lastUserText.slice(0, 200),
-        results: preRetrievalResults.length,
-        topScore: preRetrievalResults[0]?.score?.toFixed(3) ?? "n/a",
+    } catch (e: unknown) {
+      logOps("chat.pre_retrieval_error", {
+        requestId,
+        organizationId,
+        error: e instanceof Error ? e.message.slice(0, 200) : "unknown",
       });
-    } catch (e) {
-      console.error("[chat] Pre-retrieval failed:", e);
     }
   }
 
@@ -272,21 +300,31 @@ async function handlePost(req: Request) {
     ...requestMessages,
   ]);
 
-  const chatProvider = await resolveChatProvider();
+  const chatProvider = await resolveChatProvider(requestId, organizationId);
 
   if (chatProvider.blocked) {
     return NextResponse.json(
       { error: chatProvider.reason },
-      { status: 503 },
+      { status: 503, headers: { "x-request-id": requestId } },
     );
   }
 
   const chatModel = getChatModel();
-  console.log(`[chat] Routing to: ollama (reason: ${chatProvider.reason})`);
+
+  const streamT0 = performance.now();
+  let timeToFirstTokenMs: number | undefined;
 
   const result = streamText({
     model: chatModel,
     messages: await finalMessages,
+    onChunk: ({ chunk }) => {
+      if (
+        chunk.type === "text-delta" &&
+        timeToFirstTokenMs === undefined
+      ) {
+        timeToFirstTokenMs = performance.now() - streamT0;
+      }
+    },
     tools: {
       retrieve_context: tool({
         description:
@@ -302,6 +340,11 @@ async function handlePost(req: Request) {
             6,
             0.5,
             organizationId,
+            {
+              requestId,
+              organizationId,
+              phase: "tool_retrieve_context",
+            },
           );
           const baseIndex =
             Math.max(0, ...Object.keys(citationMap).map(Number)) + 1;
@@ -315,6 +358,10 @@ async function handlePost(req: Request) {
             };
           });
           if (results.length === 0) {
+            logOps("chat.tool_retrieve_empty", {
+              requestId,
+              organizationId,
+            });
             return "(No relevant documents found for this follow-up search.)";
           }
           return results
@@ -328,9 +375,29 @@ async function handlePost(req: Request) {
     },
     stopWhen: stepCountIs(5),
     experimental_transform: smoothStream({ chunking: "word" }),
-    onFinish: (r) => {
+    onFinish: (event) => {
+      const streamTotalMs = Math.round(performance.now() - streamT0);
+      logOps("chat.stream.finish", {
+        requestId,
+        userId: session.user.id,
+        organizationId,
+        conversationId: isAnonymous === true ? null : conversationId,
+        isAnonymous: isAnonymous === true,
+        routingReason: chatProvider.reason,
+        preRetrievalChunks: preRetrievalResults.length,
+        ...getOllamaModelsForLog(),
+        streamTotalMs,
+        timeToFirstTokenMs:
+          timeToFirstTokenMs !== undefined
+            ? Math.round(timeToFirstTokenMs)
+            : undefined,
+        inputTokens: event.totalUsage?.inputTokens,
+        outputTokens: event.totalUsage?.outputTokens,
+        totalTokens: event.totalUsage?.totalTokens,
+        finishReason: event.finishReason,
+      });
       if (isAnonymous === true) return;
-      const parts = buildPersistedAssistantParts(r.text, citationMap);
+      const parts = buildPersistedAssistantParts(event.text, citationMap);
       const persistBody: {
         conversationId: string;
         role: "assistant";
@@ -339,7 +406,7 @@ async function handlePost(req: Request) {
       } = {
         conversationId,
         role: "assistant",
-        content: r.text,
+        content: event.text,
         parts,
       };
       const cookie = req.headers.get("cookie");
@@ -355,6 +422,7 @@ async function handlePost(req: Request) {
   });
 
   return result.toUIMessageStreamResponse({
+    headers: { "x-request-id": requestId },
     messageMetadata: ({ part }) => {
       // Send citations + active provider on the "finish" event
       if (part.type === "finish") {

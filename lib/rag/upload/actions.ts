@@ -10,6 +10,7 @@ import { headers } from "next/headers";
 import { extractText, isSupportedRagFile } from "@/lib/file-extraction";
 import { isSystemAdmin } from "@/lib/auth-utils";
 import { MAX_ORG_RAG_FILES, ORG_RAG_FILE_LIMIT_ERROR } from "@/lib/rag/limits";
+import { getOllamaModelsForLog, logOps } from "@/lib/ops-log";
 
 export type ProcessRagFileErrorCode = "OLLAMA_UNAVAILABLE";
 
@@ -38,7 +39,9 @@ function isOllamaConnectionError(e: unknown): boolean {
 
 export async function processRagFile(
   formData: FormData,
+  meta?: { requestId?: string },
 ): Promise<ProcessRagFileResult> {
+  const requestId = meta?.requestId ?? crypto.randomUUID();
   const session = await auth.api.getSession({ headers: await headers() });
 
   if (!session) {
@@ -149,13 +152,32 @@ export async function processRagFile(
     };
   }
 
-  console.log(`[embed] Embedding file: ${file.name}`);
+  logOps("rag.upload.embed_start", {
+    requestId,
+    userId: session.user.id,
+    organizationId,
+    chunkCount: chunks.length,
+    fileSizeBytes: file.size,
+    mimeType: file.type || null,
+    ...getOllamaModelsForLog(),
+  });
 
   let embeddings: number[][];
+  const embedStarted = performance.now();
   try {
     embeddings = await generateEmbeddings(chunks.map((c) => c.text));
   } catch (e) {
-    console.error("RAG embedding error:", e);
+    const embedMs = Math.round(performance.now() - embedStarted);
+    logOps("rag.embed.error", {
+      requestId,
+      userId: session.user.id,
+      organizationId,
+      chunkCount: chunks.length,
+      embedMs,
+      ollamaUnreachable: isOllamaConnectionError(e),
+      error: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300),
+      ...getOllamaModelsForLog(),
+    });
 
     if (isOllamaConnectionError(e)) {
       return {
@@ -171,6 +193,17 @@ export async function processRagFile(
       error: e instanceof Error ? e.message : "Failed to generate embeddings.",
     };
   }
+
+  const embedMs = Math.round(performance.now() - embedStarted);
+  logOps("rag.embed.complete", {
+    requestId,
+    userId: session.user.id,
+    organizationId,
+    chunkCount: chunks.length,
+    batchCount: Math.ceil(chunks.length / 50),
+    embedMs,
+    ...getOllamaModelsForLog(),
+  });
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -231,6 +264,14 @@ export async function processRagFile(
       return { resourceId, chunksStored: chunks.length };
     });
 
+    logOps("rag.upload.success", {
+      requestId,
+      userId: session.user.id,
+      organizationId,
+      resourceId: result.resourceId,
+      chunksStored: result.chunksStored,
+    });
+
     return {
       success: true,
       fileName: file.name,
@@ -238,7 +279,12 @@ export async function processRagFile(
       chunksStored: result.chunksStored,
     };
   } catch (e) {
-    console.error("RAG upload DB error:", e);
+    logOps("rag.upload.db_error", {
+      requestId,
+      userId: session.user.id,
+      organizationId,
+      error: e instanceof Error ? e.message.slice(0, 300) : "unknown",
+    });
     return {
       success: false,
       error: e instanceof Error ? e.message : "Failed to save to database",
