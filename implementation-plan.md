@@ -16,13 +16,11 @@ Keep entries short: symptom, root cause, fix applied, and what to watch out for 
 
 ## Overview
 
-- Switch all embeddings to Ollama (one model, one vector table).
-- Add a `sensitive` flag to documents.
-- Route chat to Ollama or OpenAI based on: sensitivity of retrieved docs, org-level toggle, and token budget.
-- Track OpenAI token usage per org with a monthly cap.
-- Show remaining tokens to users and admins.
-- Allow admins to toggle OpenAI off entirely per org.
+- All AI work (chat + embeddings) runs on **Ollama** — privately hosted, fully on-premise.
+- No OpenAI API keys, no cloud routing, no token budgets.
 - Email deliverability: verify a sending domain so invites + verification emails can reach any recipient.
+- Invite-only member onboarding (remove admin-created accounts).
+- Clean up leftover dual-provider DB fields and the `sensitive` flag (no longer needed — everything is on-premise by default).
 
 ---
 
@@ -43,21 +41,17 @@ Keep entries short: symptom, root cause, fix applied, and what to watch out for 
 
 ---
 
-## Batch 2: Document sensitivity flag ✅
+## Batch 2: Document sensitivity flag ✅ (superseded — see Batch 13)
 
 **Goal:** Mark documents as sensitive at upload time. Surface that flag in search results.
+
+> **Architecture note:** This flag was originally intended to control chat routing (sensitive → Ollama, non-sensitive → OpenAI). Since the product is now **Ollama-only**, every document is processed entirely on-premise regardless of this flag. The `sensitive` column, UI toggle, and routing logic are scheduled for removal in **Batch 13**.
 
 - [x] DB migration — add `sensitive boolean NOT NULL DEFAULT false` to `resources` table
 - [x] Upload UI — "Sensitive document" toggle in `components/org/org-files-list.tsx`
 - [x] `lib/rag/upload/actions.ts` — accept and store `sensitive` in `processRagFile`
 - [x] `lib/rag/search.ts` — add `r."sensitive"` to both `vectorSearch` and `keywordSearch`; update `SearchRow` type
 - [x] UX copy — toggle shows: "This file contains confidential data. It will be processed only by the on-premise AI model — never sent to the cloud."
-
-### Test plan
-
-- Upload a document with "Sensitive" toggled on
-- Check Prisma Studio: `resources.sensitive = true`
-- Trigger a chat query that retrieves the sensitive doc; confirm `sensitive: true` is present in results
 
 ---
 
@@ -107,10 +101,10 @@ Keep entries short: symptom, root cause, fix applied, and what to watch out for 
 
 **Goal:** Make document upload a first-class experience — per-file sensitive toggles, clear provider errors, actionable recovery dialogs.
 
-> **Design note:** Per-file embedding routing (sensitive → Ollama, non-sensitive → OpenAI) was
+> **Historical note:** Per-file embedding routing (sensitive → Ollama, non-sensitive → OpenAI) was
 > originally planned but removed because it created a vector dimension mismatch (768 vs 1 536 in
-> the same DB column). Embeddings always use the global `AI_PROVIDER`. The `sensitive` flag
-> controls chat routing only. See `potential-issues.md` for full context.
+> the same DB column). The product is now Ollama-only; the `sensitive` toggle in the upload UI
+> is scheduled for removal in Batch 13.
 
 ### Upload UX
 
@@ -118,163 +112,42 @@ Keep entries short: symptom, root cause, fix applied, and what to watch out for 
 - [x] Amber shield badge on sensitive file cards
 - [x] Remove files individually from the list before uploading
 
-### Embedding routing (as built)
+### Embedding (Ollama-only)
 
-- [x] `sensitive` flag stored per file and passed through `FormData`
-- [x] All embeddings use **global `AI_PROVIDER`** — no per-file provider override
-- [x] `lib/rag/vector.ts` — `getExpectedVectorDimension()` reads `AI_PROVIDER` dynamically (no more hardcoded 1 536)
+- [x] All embeddings use **Ollama** — 768-dim, `nomic-embed-text`
+- [x] `lib/rag/vector.ts` — `getExpectedVectorDimension()` returns 768
 - [x] Ollama connection errors → `errorCode: "OLLAMA_UNAVAILABLE"`
-- [x] OpenAI quota errors → `errorCode: "QUOTA_EXCEEDED"`
 - [x] `app/api/check-ollama/route.ts` — pings Ollama availability (3 s timeout)
-- [x] Log: `[embed] Using <provider> for file: <filename>`
-
-### Provider error recovery dialog
-
-- [x] `ProcessRagFileResult` extended with `errorCode?`
-- [x] Recovery modal shown for `QUOTA_EXCEEDED` and `OLLAMA_UNAVAILABLE`
-- [x] Generic errors continue as toasts
-
-> ⚠️ **Known bug (fix tracked in Batch 6):** The recovery modal's "Switch to Ollama" and "Use
-> OpenAI anyway" buttons are no-ops. They send `forceProvider` in FormData which the backend
-> now ignores. The modal needs to be redesigned to show config-level instructions instead of
-> attempting a per-request provider switch.
+- [x] Recovery modal shows `ollama serve` command when Ollama is unreachable
 
 ### Test plan
 
-- Upload 3 files, mark 2 as sensitive — confirm amber badge appears on the correct cards
-- Confirm `resources.sensitive = true/false` in Prisma Studio after upload
-- Server log shows `[embed] Using ollama` (or `openai`) matching `AI_PROVIDER`
 - Upload a PDF with table-heavy content (no sentence punctuation) — confirm it embeds without context-length error
-- Trigger quota exceeded (bad OpenAI key): recovery modal appears
-- Stop Ollama (`AI_PROVIDER=ollama`): recovery modal shows "Ollama unavailable"
-- Confirm `vector_dims(embedding)` in DB matches expected dimension for active provider
+- Stop Ollama: recovery modal shows "Ollama unavailable" with `ollama serve` command
+- Confirm `vector_dims(embedding)` in DB is 768
 
 ---
 
-## Batch 5: Chat routing based on sensitivity and org toggle ✅
+## Batch 5: Chat routing based on sensitivity and org toggle ✅ (superseded)
 
-**Goal:** Route chat to Ollama or OpenAI automatically based on retrieved document sensitivity.
+**Goal (original):** Route chat to Ollama or OpenAI automatically based on retrieved document sensitivity.
 
-- [x] `prisma/schema.prisma` + migration — added to `Organization`:
-  - `openAiEnabled Boolean @default(true)`
-  - `allowSensitiveWithOpenAi Boolean @default(false)` ← Option A locked in
-  - `openAiTokenBudget Int?`
-  - `openAiTokensUsed Int @default(0)`
-  - `openAiTokensResetAt DateTime?`
-- [x] `lib/ai-provider.ts` — `checkOllamaReachable(timeoutMs)` server-side helper
-- [x] `app/api/ai/chat/route.ts` — `resolveChatProvider()` function with full routing logic:
-  - any sensitive chunks → Ollama **if Ollama is reachable**
-  - any sensitive chunks + Ollama not reachable + `allowSensitiveWithOpenAi = false` → **blocked** (HTTP 503) with clear message
-  - any sensitive chunks + Ollama not reachable + `allowSensitiveWithOpenAi = true` → OpenAI with warning logged
-  - `openAiEnabled = false` → Ollama (falls back to OpenAI if Ollama down, logged)
-  - `openAiTokensUsed >= openAiTokenBudget` → Ollama (falls back if Ollama down, logged)
-  - otherwise → active provider (OpenAI default)
-- [x] Log: `[chat] Routing to: <provider> (reason: <reason>)`
-- [x] Log: `[chat] Blocked: sensitive context requires Ollama (Ollama not reachable)`
+> **Architecture note:** This batch implemented dual-provider routing logic that is now fully
+> superseded by Batch 12 (Ollama-only). `resolveChatProvider()` has been simplified — chat
+> always uses Ollama; if Ollama is unreachable the request returns 503 with a clear error.
+> The org DB fields added here (`openAiEnabled`, `openAiTokenBudget`, etc.) are obsolete and
+> scheduled for removal in Batch 13.
 
-### Test plan
-
-- Upload one sensitive + one non-sensitive doc; query each
-  - Logs must show `[chat] Routing to: ollama (reason: sensitive document in context)` for the sensitive one
-  - Logs must show `[chat] Routing to: openai (reason: standard)` for the non-sensitive one
-- Set `openAiEnabled = false` in DB → all chats must route to Ollama regardless of sensitivity
-- Set `openAiTokenBudget = 1` and send a chat → next request logs `reason: monthly token budget exhausted`
-- Sensitive doc + Ollama stopped:
-  - `allowSensitiveWithOpenAi = false` (default) → HTTP 503, clear blocked message to user
-  - `allowSensitiveWithOpenAi = true` → falls back to OpenAI, warning logged server-side
-- Non-sensitive doc + Ollama stopped + `openAiEnabled = false`:
-  - Falls back to OpenAI, warning logged (not blocked — sensitive data not involved)
-- Confirm `web_search` tool is absent in Ollama responses (check network tab — tool call should not appear)
+- [x] `lib/ai-provider.ts` — `checkOllamaReachable(timeoutMs)` server-side helper (still used)
+- [x] `app/api/ai/chat/route.ts` — simplified: always Ollama, 503 if unreachable
 
 ---
 
-## Batch 6: Token tracking, budget enforcement, and dual-provider UX polish
+## Batches 6, 7, 8: OpenAI token tracking and dual-provider UX ❌ Cancelled
 
-**Goal:** Count OpenAI tokens, enforce monthly budget, fix the broken recovery modal, and surface provider fallbacks to users.
+These batches assumed an OpenAI integration that no longer exists. All work described here — token counting, monthly budget reset, budget admin UI, provider fallback banners — is cancelled.
 
-### Token tracking
-
-- [ ] `onFinish` in chat route: read `usage.totalTokens`, update `openAiTokensUsed` on org via Prisma
-- [ ] Monthly reset logic: if `openAiTokensResetAt` is null or in the past → reset `openAiTokensUsed = 0`, set `openAiTokensResetAt` to start of next calendar month
-- [ ] Admin API: `PATCH /api/admin/org/[slug]/ai-settings` — allow setting `openAiTokenBudget`, `openAiEnabled`, `allowSensitiveWithOpenAi`
-
-### Recovery modal redesign (fixes Batch 4 known bug)
-
-The current modal sends `forceProvider` which the backend ignores. Replace with config-level guidance:
-
-- [ ] **QUOTA_EXCEEDED modal:**
-  - Remove "Switch to Ollama" button (can't be done per-request)
-  - Show: "Add OpenAI credits" → link to billing page
-  - Show: "Use Ollama instead" → instructions: set `AI_PROVIDER=ollama` in `.env`, run dimension migration, restart server, re-upload documents
-- [ ] **OLLAMA_UNAVAILABLE modal:**
-  - Remove "Use OpenAI anyway" button (can't be done per-request)
-  - Show: "Start Ollama" → display `ollama serve` command
-  - Show: "Switch to OpenAI" → same config-level instructions as above (reverse)
-
-### Provider fallback visibility in chat UI
-
-- [ ] When `resolveChatProvider()` falls back from Ollama → OpenAI, include a flag in the stream response metadata
-- [ ] Chat UI: show a subtle amber warning banner when a fallback occurred:
-  `"Ollama was unavailable — this response was generated by OpenAI"`
-- [ ] When chat is blocked (503): display the error message inline in the chat instead of a generic failure
-
-### Startup dimension integrity check
-
-- [ ] On server start (or first request), query `SELECT vector_dims(embedding) FROM embeddings LIMIT 1`
-  and compare against `getExpectedVectorDimension()` — log a prominent warning if they don't match
-- [ ] This catches the case where `AI_PROVIDER` was changed without running the dimension migration
-
-### Test plan
-
-- Set `openAiTokenBudget = 100` on a test org; send 3 chats → `openAiTokensUsed` increments in Prisma Studio
-- Exceed budget → routing log shows `reason: monthly token budget exhausted`; next month starts → counter resets automatically
-- Trigger QUOTA_EXCEEDED: confirm modal shows billing link + config instructions, not the broken "Switch to Ollama" button
-- Stop Ollama; trigger OLLAMA_UNAVAILABLE: confirm modal shows `ollama serve` command
-- Set `AI_PROVIDER=openai` but leave DB column as `vector(768)`: confirm startup warning appears in logs
-- With Ollama fallback: confirm amber warning banner appears in the chat UI
-- With blocked request (sensitive + no Ollama): confirm inline error message in chat, not a blank failure
-
----
-
-## Batch 7: Admin UI for budget and toggle
-
-**Goal:** Admin can set/view token budget and toggle OpenAI per org from the UI.
-
-- [ ] Admin org settings page — add "AI Provider" section:
-  - Toggle: "Allow OpenAI for this organization" (`openAiEnabled`)
-  - Toggle: "Allow sensitive documents to use OpenAI as fallback" (`allowSensitiveWithOpenAi`)
-  - Input: "Monthly OpenAI token budget (tokens)" — leave blank for unlimited
-  - Read-only: "Tokens used this month: X / Y — resets [date]"
-- [ ] Wire to `PATCH /api/admin/org/[slug]/ai-settings` (built in Batch 6)
-- [ ] `app/api/org/route.ts` — include `openAiEnabled`, `openAiTokensUsed`, `openAiTokenBudget`, `openAiTokensResetAt` in org response
-
-### Test plan
-
-- Toggle OpenAI off → save → send chat → server logs `reason: OpenAI disabled for this org`
-- Re-enable OpenAI → send chat → routes to OpenAI again
-- Set budget to 1 000 → send chat → Prisma Studio shows `openAiTokensUsed` rising
-- Set `allowSensitiveWithOpenAi = true` → stop Ollama → send chat with sensitive doc → fallback banner visible in chat
-
----
-
-## Batch 8: User-facing token and provider visibility
-
-**Goal:** Users understand which AI provider is active and how much OpenAI budget remains.
-
-- [ ] New API: `GET /api/org/token-usage?slug=<slug>` → `{ openAiEnabled, tokensUsed, tokenBudget, resetsAt, activeProvider }`
-- [ ] `components/org/ai-settings-dialog.tsx` (or equivalent) — show:
-  - Active embedding provider (from `AI_PROVIDER` env, surfaced via API)
-  - Active chat provider (OpenAI / Ollama / blocked)
-  - Token usage bar: "X / Y tokens used — resets [date]" (hidden if no budget set)
-  - Badge: "Sensitive documents: on-premise only" when any sensitive docs exist for the org
-- [ ] If `openAiEnabled = false`: show clear indicator "OpenAI disabled for this org"
-
-### Test plan
-
-- Open AI settings dialog with OpenAI active + budget set — usage bar shows correct numbers
-- Exhaust budget → indicator updates on next page load
-- `openAiEnabled = false` → "OpenAI disabled" badge visible
-- Sensitive docs uploaded → "on-premise only" badge visible
+The product is **Ollama-only**. There is no cloud provider to count tokens for, no budget to enforce, and no fallback banner to show.
 
 ---
 
@@ -320,24 +193,22 @@ Character limits are simple, dependency-light, and already safe for worst-case t
 | Situation | Priority |
 |-----------|----------|
 | You are about to **switch embedding model** (new context length or tokenizer) | **High** — swap tokenizer + re-tune max tokens in one batch |
-| You want **larger chunks for OpenAI** (better retrieval) while keeping Ollama safe | **Medium** — token caps differ by provider |
 | Production shows **rare OOM / context errors** despite current caps | **High** — indicates edge cases char heuristics miss |
-| Core product batches (6–9) are still open and char caps work | **Low** — wait |
+| Char caps work and no model switch is planned | **Low** — wait |
 
-**Pragmatic rule of thumb:** implement after **Batch 6** (token budget + dual-provider polish is in place) *unless* you change the embedding model earlier — then do tokenizer work in the **same** batch as the model switch.
+**Pragmatic rule of thumb:** implement when the embedding model changes — do tokenizer work in the **same** batch as the model switch.
 
 ### Implementation sketch (for later)
 
-- [ ] Introduce a small `countEmbeddingTokens(text, provider)` (or per-model) helper — **OpenAI:** `tiktoken` or `@ai-sdk` token helpers for `text-embedding-3-small`; **Ollama:** tokenizer matching `OLLAMA_EMBEDDING_MODEL` (e.g. Hugging Face tokenizer for `nomic-embed-text`, or official path documented by Ollama).
+- [ ] Introduce a small `countEmbeddingTokens(text)` helper — tokenizer matching `OLLAMA_EMBEDDING_MODEL` (e.g. Hugging Face tokenizer for `nomic-embed-text`).
 - [ ] Refactor chunk assembly: grow/shrink segments until token count ≤ **model max context minus safety margin** (e.g. 1 900 for a 2 048 BERT limit), not fixed char counts.
 - [ ] Keep `splitLongSegment`-style word-boundary splitting as a **fallback** when tokenization is unavailable (tests, CI without native deps).
 - [ ] Golden tests: Finnish compound text, dense tables, English prose — assert no chunk exceeds the limit and offsets remain correct.
-- [ ] Document in `potential-issues.md`: which tokenizer package maps to which `AI_PROVIDER` / env model name.
+- [ ] Document in `potential-issues.md`: which tokenizer package maps to `OLLAMA_EMBEDDING_MODEL`.
 
 ### Test plan
 
 - Same PDFs that previously triggered Ollama context errors — upload succeeds; spot-check chunk sizes in logs or a debug endpoint
-- `AI_PROVIDER=openai` — verify chunks approach but never exceed the OpenAI model limit
 - Switch `OLLAMA_EMBEDDING_MODEL` in env — confirm token limit follows the new model (or explicit error if tokenizer not bundled)
 
 ---
@@ -435,8 +306,7 @@ Removing OpenAI touches **config, provider factory, chat routing, RAG errors, or
 ### UI & docs
 
 - [ ] **`components/ai/(chat)/message.tsx`** — provider badge: show **"Ollama"** only or remove if redundant.
-- [ ] **`README.md`**, **`potential-issues.md`** — rewrite dual-provider sections as **Ollama-only** (or "historical note").
-- [ ] **Batch 6–8** items that assume OpenAI billing/tokens — **cancel or narrow** to match Ollama-only (no OpenAI token budget UI).
+- [ ] **`README.md`**, **`potential-issues.md`** — dual-provider sections already updated to Ollama-only.
 
 ### Dependencies
 
@@ -451,8 +321,8 @@ Removing OpenAI touches **config, provider factory, chat routing, RAG errors, or
 
 ### Relation to other batches
 
-- **Batch 10 (tokenizer chunking):** becomes **Ollama-only** (no OpenAI branch in the tokenizer design).
-- **Batches 6–8** as written assume OpenAI billing — **re-scope** them to "Ollama-only" or skip.
+- **Batch 10 (tokenizer chunking):** Ollama-only (no OpenAI branch needed).
+- **Batches 6–8:** cancelled — assumed OpenAI billing which no longer exists.
 
 ---
 
@@ -461,30 +331,66 @@ Removing OpenAI touches **config, provider factory, chat routing, RAG errors, or
 | Batch | What it delivers | Status |
 |-------|-----------------|--------|
 | 1 | Ollama working end-to-end | ✅ Done |
-| 2 | Sensitive flag on documents | ✅ Done |
+| 2 | Sensitive flag on documents | ✅ Done (superseded — removal in Batch 13) |
 | 3 | UI — scrollable layouts, unified CSS, org colours | ✅ Done |
-| 4 | Upload UX, provider error surfacing (⚠️ recovery modal fix pending) | ✅ Done |
-| 5 | Auto-routing chat to correct provider | ✅ Done |
-| 6 | Token counting, budget reset, recovery modal fix, fallback UX | ⬜ Not started |
-| 7 | Admin UI for budget and toggle | ⬜ Not started |
-| 8 | User-facing token and provider visibility | ⬜ Not started |
+| 4 | Upload UX, Ollama error surfacing | ✅ Done |
+| 5 | Chat routing (dual-provider) | ✅ Done (superseded by Batch 12) |
+| 6 | OpenAI token counting and budget | ❌ Cancelled |
+| 7 | Admin UI for OpenAI budget and toggle | ❌ Cancelled |
+| 8 | User-facing OpenAI token visibility | ❌ Cancelled |
 | 9 | Email deliverability (verified domain) | ⬜ Not started |
-| 10 | Tokenizer-aware RAG chunking (per embedding model) | ⬜ Deferred |
+| 10 | Tokenizer-aware RAG chunking (Ollama-only) | ⬜ Deferred |
 | 11 | Invite-only onboarding (remove admin-created users + passwords) | ⬜ Not started |
 | 12 | Ollama-only deployment (remove OpenAI) | ✅ Done |
+| 13 | Schema + UI cleanup (remove sensitive flag, obsolete org AI fields) | ⬜ Not started |
+
+---
+
+## Batch 13: Schema and UI cleanup (sensitive flag + obsolete org AI fields)
+
+**Goal:** Remove the `sensitive` document flag and the OpenAI-related org DB fields — both were built for a dual-provider world that no longer exists.
+
+### Why remove the sensitive flag
+
+Since every document is processed entirely on-premise by Ollama, every file is inherently private. The "sensitive" distinction was meaningful only when OpenAI was a possible destination. With Ollama-only, the flag adds UI noise without providing any protection guarantee beyond what the architecture already guarantees universally.
+
+### DB schema
+
+- [ ] Migration: drop `sensitive` column from `resources` table
+- [ ] Migration: drop `openAiEnabled`, `allowSensitiveWithOpenAi`, `openAiTokenBudget`, `openAiTokensUsed`, `openAiTokensResetAt` from `Organization` table
+- [ ] Update `prisma/schema.prisma` to match
+
+### Upload UI
+
+- [ ] `components/org/org-files-list.tsx` — remove per-file Sensitive toggle and amber shield badge
+- [ ] Remove `sensitive` from `FormData` in the upload flow
+
+### RAG layer
+
+- [ ] `lib/rag/upload/actions.ts` — remove `sensitive` parameter from `processRagFile`
+- [ ] `lib/rag/search.ts` — remove `r."sensitive"` from `vectorSearch` / `keywordSearch` and `SearchRow` type
+
+### Chat route
+
+- [ ] `app/api/ai/chat/route.ts` — remove any remaining reference to `hasSensitiveDocs` or `sensitive` field in chunk results
+
+### Test plan
+
+- Upload a file — no Sensitive toggle visible in the dialog
+- Prisma Studio — `resources` table has no `sensitive` column; `Organization` has no `openAi*` fields
+- Chat works normally — no errors from missing `sensitive` field in search results
 
 ---
 
 ## Notes
 
-### Architecture (Ollama-only since Batch 12)
+### Architecture (Ollama-only)
 
-- **Single provider:** All AI work (chat, embeddings) uses **Ollama**. No OpenAI keys required. `@ai-sdk/openai` dependency can be removed once nothing else imports it.
-- **`sensitive` flag** — documents marked sensitive are still stored, but since the product is Ollama-only, this currently has no routing effect. It remains useful for UI visibility and future policy enforcement.
+- **Single provider:** All AI work (chat, embeddings) uses **Ollama**. No OpenAI keys required.
 - **Vector dimension: 768** — all embeddings use `nomic-embed-text` (768-dim). The DB column is `vector(768)`. Do not change the embedding model without running a dimension migration and re-indexing all documents.
 - **Ollama must be running** — if Ollama is unreachable, chat and file uploads return clear 503 errors. There is no cloud fallback.
 - **No `web_search` tool** — removed in Batch 12. If live web context is needed in future, add a dedicated tool (e.g. Tavily, Exa) in its own batch.
-- **Org AI fields** (`openAiEnabled`, `openAiTokenBudget`, etc.) remain in the DB schema but are no longer consulted by the chat route. They can be dropped in a future migration cleanup batch.
+- **No sensitive flag** — scheduled for removal in Batch 13. Until then the column exists in the DB but is not used for any routing or access decision.
 
 ### Development
 

@@ -16,7 +16,7 @@ Most AI tools send everything to the cloud. That's fine for general questions, b
 
 AuraAI runs entirely on **[Ollama](https://ollama.com)** — an open-source AI runtime you host yourself. Every document, every chat message, and every embedding is processed inside your own infrastructure. **Nothing leaves your network.**
 
-You can still mark individual documents as **sensitive** to give them a clear classification in the UI and enforce access policies — but the privacy guarantee applies to everything by default, because the model itself never contacts the cloud.
+Because the model itself never contacts the cloud, the privacy guarantee applies to every document by default — no special tagging required.
 
 ---
 
@@ -78,7 +78,6 @@ The system implements a **Retrieval-Augmented Generation** flow:
 - **Hybrid Search** — Vector + keyword with RRF and reranking
 - **Citations** — Source highlighting and retrieval from KB via tools
 - **Chat Attachments** — PDF, TXT, images (non-RAG) passed as context
-- **Sensitive Document Flag** — Mark files as sensitive for UI visibility and policy enforcement
 - **Auth** — Better Auth (sign-in, sign-up, email verification, password reset, invite flow)
 - **Admin Panel** — Org management, sources, file folders, member invites
 - **Testing** — Unit, integration, E2E with Jest and Playwright
