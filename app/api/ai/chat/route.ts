@@ -342,15 +342,15 @@ async function handlePost(req: Request) {
     tools: {
       retrieve_context: tool({
         description:
-          "Search the organization's knowledge base for additional information. Use this ONLY for follow-up questions on new topics not covered by the pre-retrieved context.",
+          "Search the organization's knowledge base for additional information. Use this ONLY for follow-up questions on new topics not covered by the pre-retrieved context. Pass the search topic as the `query` string.",
         inputSchema: z.object({
-          userRequest: z
+          query: z
             .string()
-            .describe("The follow-up question or topic to search for."),
+            .describe("The search query — a concise phrase or question to look up in the knowledge base."),
         }),
-        execute: async ({ userRequest }) => {
+        execute: async ({ query }) => {
           const results = await searchDocuments(
-            userRequest.trim(),
+            query.trim(),
             6,
             0.5,
             organizationId,

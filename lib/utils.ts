@@ -114,6 +114,8 @@ The retrieve_context tool is available for follow-up searches within a conversat
 
 For the initial question in each turn, context is already provided — do not call the tool redundantly.
 
+When calling retrieve_context, pass one string field named query (your search phrase). Example tool input: {"query": "budget spread definition"}.
+
 ## RAG Workflow
 1. Review the "Knowledge base context" provided in the conversation.
 2. Synthesize the most relevant facts, citing with [[1]], [[2]], etc. when referencing specific chunks.
