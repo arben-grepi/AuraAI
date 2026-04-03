@@ -161,9 +161,23 @@ async function handlePost(req: Request) {
     });
 
     if (!conversation && lastMessage) {
-      const title = await generateTitleFromUserMessage({
-        message: lastMessage,
-      });
+      let title: string;
+      try {
+        title = await generateTitleFromUserMessage({
+          message: lastMessage,
+        });
+      } catch (e) {
+        console.warn("[chat] Title generation failed, using fallback:", e);
+        const preview = getLastUserText([lastMessage])
+          .trim()
+          .replace(/\s+/g, " ");
+        title =
+          preview.length > 0
+            ? preview.length > 80
+              ? `${preview.slice(0, 77)}...`
+              : preview
+            : "New conversation";
+      }
       await prisma.conversation.upsert({
         where: { id: conversationId },
         update: {},
