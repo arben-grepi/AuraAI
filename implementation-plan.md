@@ -4,13 +4,12 @@ This document is the single source of truth for planned development batches.
 Each batch is independently testable before moving to the next.
 Check the box when a batch is fully done.
 
-### Standing rule — update [`potential-issues.md`](potential-issues.md) after every batch
+### Standing rule — potential issues live **in this file, under each batch**
 
 Before marking a batch ✅ Done, ask:
 > *"Did anything break, behave unexpectedly, or only work because of a fragile assumption?"*
 
-If yes — or even if it was a close call — add an entry to [`potential-issues.md`](potential-issues.md).
-Keep entries short: symptom, root cause, fix applied, and what to watch out for next time.
+If yes — or even if it was a close call — add a short entry under **that batch’s `### Potential issues`** subsection below (symptom, root cause, fix, watch-outs). Cross-cutting risks that are not specific to one batch go under [Notes → Cross-cutting potential issues](#cross-cutting-potential-issues).
 
 ---
 
@@ -42,6 +41,10 @@ Keep entries short: symptom, root cause, fix applied, and what to watch out for 
 ### Still needed to fully close
 - [x] Re-index existing documents — database was wiped clean, no re-indexing needed
 
+### Potential issues
+
+- **Vector dimension invariant:** Every row in `embeddings` must use the same dimension (768 for `nomic-embed-text`). Switching `OLLAMA_EMBEDDING_MODEL` without a migration and full re-index breaks hybrid search; see **Notes → Cross-cutting potential issues**.
+
 ---
 
 ## Batch 2: Document sensitivity flag ✅ (superseded — see Batch 13)
@@ -55,6 +58,11 @@ Keep entries short: symptom, root cause, fix applied, and what to watch out for 
 - [x] `lib/rag/upload/actions.ts` — accept and store `sensitive` in `processRagFile`
 - [x] `lib/rag/search.ts` — add `r."sensitive"` to both `vectorSearch` and `keywordSearch`; update `SearchRow` type
 - [x] UX copy — toggle shows: "This file contains confidential data. It will be processed only by the on-premise AI model — never sent to the cloud."
+
+### Potential issues
+
+- The `sensitive` column and UI were **removed in Batch 13**; this batch is superseded.
+- PDF / table chunking and context-length caveats are recorded under **Batch 4** and **Batch 10** (not repeated here).
 
 ---
 
@@ -98,6 +106,10 @@ Keep entries short: symptom, root cause, fix applied, and what to watch out for 
 - Resize browser from 375 px to 1440 px on each major page — no horizontal scrollbar, no clipped elements
 - Create an org with a custom colour — verify it appears only on the correct elements and admin UI is unaffected
 
+### Potential issues
+
+- *No entries migrated from the legacy log.*
+
 ---
 
 ## Batch 4: Upload UX and provider error surfacing ✅
@@ -129,6 +141,30 @@ Keep entries short: symptom, root cause, fix applied, and what to watch out for 
 - Stop Ollama: recovery modal shows "Ollama unavailable" with `ollama serve` command
 - Confirm `vector_dims(embedding)` in DB is 768
 
+### Potential issues
+
+**PDF / table / list text — sentence splitter and context length**
+
+- **Symptom:** PDFs dominated by tables, bullets, or financial rows (no `. ! ?` + capital boundary) caused `input length exceeds the context length` from the embedder.
+- **Root cause:** (1) Regex sentence split in `lib/rag/chunking.ts` can treat the whole file as one “sentence”. (2) Chunk length was once measured in chars; WordPiece can be ~2 chars/token on dense text.
+- **Fix:** Long-segment caps + tokenizer-aware chunking (**Batch 10**). `nomic-embed-text` supports a large tokenizer `model_max_length` (8192); use `OLLAMA_EMBEDDING_CHUNK_MAX_TOKENS` if Ollama’s true limit is lower.
+- **Watch out for:** Spreadsheet exports with no prose; Finnish / morphologically rich text; re-verify limits if you change embedding model.
+
+**pdf2json Type3 font warnings**
+
+- **Symptom:** `Warning: Found Type3 font...` spam in dev when uploading certain PDFs.
+- **Root cause:** pdf2json binds `console.log` at module load; runtime patches do not help.
+- **Fix:** `PDF2JSON_DISABLE_LOGS=1` in `.env` / `.env.example`. Parse errors still surface via `pdfParser_dataError`.
+- **Watch out for:** Upgrading pdf2json — confirm the env flag still exists.
+
+**Historical — dual-provider embedding routing (pre–Ollama-only)**
+
+- Routing sensitive vs non-sensitive files to different embedding dimensions (768 vs 1536) into one column caused dimension mismatch. **Rule:** one global embedding model and dimension; any model change requires migration + re-index.
+
+**Ollama reachability check before upload**
+
+- `checkOllamaReachable()` (3 s timeout) runs before RAG upload. Healthy setups are fast; misconfigured `OLLAMA_BASE_URL` can add up to 3 s per upload. *Future:* optional short TTL cache on the result.
+
 ---
 
 ## Batch 5: Chat routing based on sensitivity and org toggle ✅ (superseded)
@@ -144,6 +180,10 @@ Keep entries short: symptom, root cause, fix applied, and what to watch out for 
 - [x] `lib/ai-provider.ts` — `checkOllamaReachable(timeoutMs)` server-side helper (still used)
 - [x] `app/api/ai/chat/route.ts` — simplified: always Ollama, 503 if unreachable
 
+### Potential issues
+
+- Superseded by **Batch 12** (Ollama-only). *No separate log entries.*
+
 ---
 
 ## Batches 6, 7, 8: OpenAI token tracking and dual-provider UX ❌ Cancelled
@@ -151,6 +191,10 @@ Keep entries short: symptom, root cause, fix applied, and what to watch out for 
 These batches assumed an OpenAI integration that no longer exists. All work described here — token counting, monthly budget reset, budget admin UI, provider fallback banners — is cancelled.
 
 The product is **Ollama-only**. There is no cloud provider to count tokens for, no budget to enforce, and no fallback banner to show.
+
+### Potential issues
+
+- *Cancelled — no log entries.*
 
 ---
 
@@ -181,6 +225,10 @@ In development, `onboarding@resend.dev` can be used as the `RESEND_FROM_EMAIL` f
 - Run `npx tsx scripts/send-test-email.ts` with the new `RESEND_FROM_EMAIL`
 - Invite a member from the app; confirm the email arrives at an address outside your control
 
+### Potential issues
+
+- *None recorded yet.*
+
 ---
 
 ## Batch 10: Tokenizer-aware RAG chunking ✅
@@ -194,12 +242,21 @@ In development, `onboarding@resend.dev` can be used as the `RESEND_FROM_EMAIL` f
 - [x] Dependency `@xenova/transformers`; `serverExternalPackages` in `next.config.ts`
 - [x] `chunkContentWithOffsets` is **async**; callers updated (`upload/actions`, org sources index route)
 - [x] Tests: char-fallback path (`AURA_DISABLE_EMBEDDING_TOKENIZER=1`; Jest does not load Transformers.js ESM — production Next server does)
-- [x] `.env.example`, `README.md`, `potential-issues.md` updated
+- [x] `.env.example`, `README.md`, this implementation plan updated
 
 ### Test plan (manual)
 
 - Upload PDFs that used to stress context — confirm embed succeeds; optional: compare chunk count vs old char-only behaviour
 - If you change embedding model — set `OLLAMA_EMBEDDING_TOKENIZER_ID` and/or `OLLAMA_EMBEDDING_CHUNK_MAX_TOKENS` to match Ollama’s real limit
+
+### Potential issues
+
+**Tokenizer-aware RAG chunking (Transformers.js)**
+
+- **Symptom:** Fixed char caps (~1 200 / 1 500) under-used the embedding context window; risk of `input length exceeds the context length` when limits were wrong.
+- **Root cause:** Chunk sizing used char heuristics instead of WordPiece token counts for `nomic-embed-text`.
+- **Fix applied:** `@xenova/transformers` / `AutoTokenizer` (`Xenova/nomic-embed-text-v1` by default); `embedding-tokenizer.ts` + token-based splits in `chunking.ts`; char fallback when `AURA_DISABLE_EMBEDDING_TOKENIZER=1` or load fails.
+- **Watch out for:** Set `OLLAMA_EMBEDDING_TOKENIZER_ID` if you change `OLLAMA_EMBEDDING_MODEL`; clamp with `OLLAMA_EMBEDDING_CHUNK_MAX_TOKENS` if Ollama’s true context is below the tokenizer’s `model_max_length`; HF tokenizer download on first server load (air-gapped / CI: use env disable). **Jest** does not load Transformers ESM — tests use char fallback only.
 
 ---
 
@@ -242,6 +299,10 @@ In development, `onboarding@resend.dev` can be used as the `RESEND_FROM_EMAIL` f
 ### When to schedule
 
 Fit around **Batch 9** (email deliverability) — invitations are much easier to test with a verified domain. Can start UI removal earlier; full E2E validation is smoother once production-like email works.
+
+### Potential issues
+
+- *None recorded yet.*
 
 ---
 
@@ -296,7 +357,7 @@ Removing OpenAI touches **config, provider factory, chat routing, RAG errors, or
 ### UI & docs
 
 - [ ] **`components/ai/(chat)/message.tsx`** — provider badge: show **"Ollama"** only or remove if redundant.
-- [ ] **`README.md`**, **`potential-issues.md`** — dual-provider sections already updated to Ollama-only.
+- [ ] **`README.md`**, **this implementation plan** — dual-provider sections already updated to Ollama-only.
 
 ### Dependencies
 
@@ -313,6 +374,10 @@ Removing OpenAI touches **config, provider factory, chat routing, RAG errors, or
 
 - **Batch 10 (tokenizer chunking):** Ollama-only (no OpenAI branch needed).
 - **Batches 6–8:** cancelled — assumed OpenAI billing which no longer exists.
+
+### Potential issues
+
+- **Query vs stored embedding dimension:** If indexed documents used one dimension and `OLLAMA_EMBEDDING_MODEL` now produces another, hybrid search can fail or return empty context — see **Notes → Cross-cutting potential issues**. The dimension check in `lib/rag/search.ts` logs a warning on first search.
 
 ---
 
@@ -365,7 +430,7 @@ Pick **one** of these families (exact tag = `ollama pull` name on your machine):
 - [ ] Optionally update **`README.md`** (stack / configuration) to mention the default and that chat is separate from embeddings.
 - [ ] **Operational:** document `ollama pull <model>` for deploys so the model exists before traffic hits the app.
 - [ ] **Validate:** same RAG flows (upload → chat with citations; `retrieve_context` follow-up); confirm time-to-first-token improves vs your previous default.
-- [ ] If anything regresses (citations dropped, ignores system prompt), note in [`potential-issues.md`](potential-issues.md) and bump to a slightly larger tag or tune generation params in a follow-up (not required in this batch).
+- [ ] If anything regresses (citations dropped, ignores system prompt), add an entry under **Batch 15 → Potential issues** below and bump to a slightly larger tag or tune generation params in a follow-up (not required in this batch).
 
 ### Test plan
 
@@ -377,6 +442,10 @@ Pick **one** of these families (exact tag = `ollama pull` name on your machine):
 
 - **Batch 9 / 11:** Independent (email / invites).
 - **Batch 10:** Embedding tokenizer chunking — independent; chat model size does not change embedding model.
+
+### Potential issues
+
+- *After you change the default chat model, add latency/quality notes here if regressions appear.*
 
 ---
 
@@ -399,6 +468,14 @@ Pick **one** of these families (exact tag = `ollama pull` name on your machine):
 - Org settings → former AI page shows knowledge base uploads only; no tone or custom prompt UI
 - Chat: answers cite chunks; for questions with no retrieval, model states KB has no information (does not invent from general knowledge)
 - `npx prisma migrate deploy` (or `db push` in dev) applies migration
+
+### Potential issues
+
+**Documentation-only assistant**
+
+- **Goal:** Chat acts as a **reader of org documents**, not general chat — no tone/custom prompt; no general-knowledge filler; no “fact-checking” docs against the outside world.
+- **Fix applied:** Dropped `organization.tone` and `organization.systemPrompt`; `getSystemPrompt()` / `getUserContextMsg()` encode cite-only behaviour.
+- **Watch out for:** Small LLMs may still drift from instructions; users may expect helpful general answers — align product copy.
 
 ---
 
@@ -436,11 +513,46 @@ Since every document is processed entirely on-premise by Ollama, every file is i
 - Prisma Studio — `resources` table has no `sensitive` column; `Organization` has no `openAi*` fields
 - Chat works normally — no errors from missing `sensitive` field in search results
 
+### Potential issues
+
+**Removed columns / fields**
+
+- `resources.sensitive`, org `openAi*` fields, unused provider plumbing — see migration folder `20260403000000_remove_sensitive_and_openai_fields` (and follow-ups such as `20260403193115_removing_the_sensitive_field` if present).
+- **Watch out for:** Forks or old code paths that still reference removed columns will fail at runtime or migrate.
+
 ---
 
 ## Notes
 
+### Cross-cutting potential issues
+
+These apply across batches — not tied to a single delivery milestone.
+
+**Switching the Ollama embedding model**
+
+- Changing `OLLAMA_EMBEDDING_MODEL` to a different **vector dimension** without migrating the DB column and **re-indexing all documents** causes new uploads to work while old rows become invisible to search or error at query time. Procedure: migration for `vector(N)` → full re-index → update env → restart.
+
+**Vector search query dimension must match stored embeddings**
+
+- `hybridSearch()` embeds the user query with the current model. If stored rows used another dimension, pgvector errors or the route may continue with **zero** retrieved context. Check `vector_dims(embedding)` in SQL vs expected 768; watch logs for the dimension check on first search.
+
+**All orgs share one deployment embedding model**
+
+- `OLLAMA_EMBEDDING_MODEL` is global. Per-org embedding models would need schema and query changes (e.g. filter by model id).
+
+**Prisma migration drift after manual SQL**
+
+- Raw `ALTER TABLE` without a migration file causes shadow DB / `migrate` failures (`P3006`). Prefer proper migrations; run `npx prisma migrate status` after any manual change.
+
 ### Architecture (Ollama-only)
+
+| Concern | Rule |
+|--------|------|
+| Embedding (indexing) | Ollama `nomic-embed-text`, **768-dim** |
+| Chat | Ollama; 503 if unreachable |
+| Vector column | **Same dimension for every row** — never mix models without migration + re-index |
+
+**Invariant:** Changing the embedding model without updating the `vector(N)` column and re-indexing all documents can make vector search return **no rows** with no obvious UI error. The hybrid-search dimension check logs a warning on first query when misconfigured.
 
 - **Single provider:** All AI work (chat, embeddings) uses **Ollama**. No OpenAI keys required.
 - **Vector dimension: 768** — all embeddings use `nomic-embed-text` (768-dim). The DB column is `vector(768)`. Do not change the embedding model without running a dimension migration and re-indexing all documents.
