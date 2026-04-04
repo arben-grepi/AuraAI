@@ -342,12 +342,28 @@ async function handlePost(req: Request) {
     tools: {
       retrieve_context: tool({
         description:
-          "Search only the organization's uploaded-document knowledge base for more passages. Use for follow-ups when pre-retrieved context is insufficient. Pass the search text in the query field (string).",
-        inputSchema: z.object({
-          query: z
-            .string()
-            .describe("The search query — a concise phrase or question to look up in the knowledge base."),
-        }),
+          "Search only the organization's uploaded-document knowledge base for more passages. Use for follow-ups when pre-retrieved context is insufficient. Pass the search string in the query field (some models wrongly use Search — both are accepted).",
+        inputSchema: z.preprocess(
+          (raw) => {
+            if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+              const o = raw as Record<string, unknown>;
+              const q =
+                (typeof o.query === "string" && o.query) ||
+                (typeof o.Search === "string" && o.Search) ||
+                (typeof o.search === "string" && o.search) ||
+                (typeof o.q === "string" && o.q);
+              if (q !== undefined) return { query: q };
+            }
+            return raw;
+          },
+          z.object({
+            query: z
+              .string()
+              .describe(
+                "The search query — a concise phrase or question to look up in the knowledge base.",
+              ),
+          }),
+        ),
         execute: async ({ query }) => {
           const results = await searchDocuments(
             query.trim(),
