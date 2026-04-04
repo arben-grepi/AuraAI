@@ -21,6 +21,7 @@ Keep entries short: symptom, root cause, fix applied, and what to watch out for 
 - Email deliverability: verify a sending domain so invites + verification emails can reach any recipient.
 - Invite-only member onboarding (remove admin-created accounts).
 - Clean up leftover dual-provider DB fields and the `sensitive` flag (no longer needed — everything is on-premise by default).
+- Chat answers are **documentation-grounded only** — no configurable tone, no custom org system prompt; the model must cite sources and not substitute general knowledge (see Batch 14).
 
 ---
 
@@ -330,6 +331,29 @@ Removing OpenAI touches **config, provider factory, chat routing, RAG errors, or
 | 11 | Invite-only onboarding (remove admin-created users + passwords) | ⬜ Not started |
 | 12 | Ollama-only deployment (remove OpenAI) | ✅ Done |
 | 13 | Schema + UI cleanup (remove sensitive flag, obsolete org AI fields) | ✅ Done |
+| 14 | Documentation-only assistant (remove tone / custom prompt; strict system prompt) | ✅ Done |
+
+---
+
+## Batch 14: Documentation-only assistant (remove org AI tone & custom system prompt)
+
+**Goal:** Remove per-organization controls for “how the AI behaves” (tone presets and free-text system prompt). Fix assistant behaviour in code: answers must **only** reflect retrieved organization documents, with citations — **no** general-knowledge filler, **no** fact-checking documents against external truth, **no** creative elaboration beyond what sources support.
+
+### What was done
+
+- [x] `lib/utils.ts` — `getSystemPrompt()` rewritten; `getUserContextMsg()` no longer asks the model to “align with org values” as factual guidance
+- [x] `components/org/ai.tsx` — tone pills and system-prompt textarea removed; page explains knowledge-base-only behaviour
+- [x] `lib/actions.ts` — removed `handleUpdateOrganizationTone`, `handleUpdateOrganizationSystemPrompt`; `createOrganization` no longer passes `tone`
+- [x] `lib/schema.ts`, `lib/auth.ts`, `lib/types.ts` — dropped `tone` / `systemPrompt` from org shape
+- [x] Prisma migration — drop `organization.tone` and `organization.systemPrompt`
+- [x] `app/api/ai/chat/route.ts` — `retrieve_context` tool description clarified (KB-only)
+- [x] `lib/utils.test.ts` — expectations updated
+
+### Test plan
+
+- Org settings → former AI page shows knowledge base uploads only; no tone or custom prompt UI
+- Chat: answers cite chunks; for questions with no retrieval, model states KB has no information (does not invent from general knowledge)
+- `npx prisma migrate deploy` (or `db push` in dev) applies migration
 
 ---
 

@@ -51,7 +51,7 @@ The system implements a **Retrieval-Augmented Generation** flow:
 
 1. Validate session and org membership
 2. **Pre-retrieval**: Top 8 chunks from hybrid search over last user message
-3. Build system prompt + knowledge base context + user context + optional attachment context
+3. Build fixed documentation-grounded system prompt + knowledge base context + user context + optional attachment context
 4. Tool: `retrieve_context` (follow-up KB search for multi-turn conversations)
 5. Stream response via AI SDK; persist messages; send citation metadata for source highlighting
 

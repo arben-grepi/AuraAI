@@ -82,15 +82,7 @@ export const auth = betterAuth({
               type: "string",
               required: true,
             },
-            tone: {
-              type: "string",
-              required: false,
-            },
             description: {
-              type: "string",
-              required: false,
-            },
-            systemPrompt: {
               type: "string",
               required: false,
             },

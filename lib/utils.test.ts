@@ -98,12 +98,13 @@ describe("getSystemPrompt", () => {
   it("includes organization name", () => {
     const prompt = getSystemPrompt("Acme");
     expect(prompt).toContain("Acme");
-    expect(prompt).toContain("retrieval-augmented assistant");
+    expect(prompt).toContain("knowledge-base assistant");
   });
 
-  it("includes RAG and citation instructions", () => {
+  it("requires sources and forbids general knowledge as filler", () => {
     const prompt = getSystemPrompt("X");
     expect(prompt).toContain("[[1]]");
     expect(prompt).toContain("Knowledge base context");
+    expect(prompt).toContain("No general knowledge");
   });
 });

@@ -52,6 +52,22 @@ Chunk length was driven by conservative char heuristics, not the actual WordPiec
 
 ---
 
+### [Batch 14] Documentation-only assistant (strict system prompt)
+
+**Symptom / goal**
+Product owners wanted the chat to behave as a **reader of org documents**, not a general chatbot — no user-chosen tone, no custom “how to behave” prompt, and no answers filled in from general knowledge or “fact-checking” the docs.
+
+**Fix applied**
+- Removed `organization.tone` and `organization.systemPrompt` (UI, actions, Prisma migration).
+- `getSystemPrompt()` in `lib/utils.ts` now encodes: cite-only answers, no general knowledge when the KB is empty, do not judge document truth against the outside world.
+- `getUserContextMsg()` only supplies addressing context; org description is explicitly not treated as verified knowledge.
+
+**Watch out for**
+- Small LLMs may still drift; tighten prompts further or add post-checks if compliance requires it.
+- Users may expect “helpful” general answers — set expectations in product copy.
+
+---
+
 ### [Batch 2 / Batch 4] PDF text extraction — sentence splitter fails on table/list content
 
 **Symptom**

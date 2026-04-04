@@ -33,8 +33,6 @@ export type Organization = {
   description: string | null;
   backgroundColor: string;
   buttonColor: string;
-  tone: string | null;
-  systemPrompt: string | null;
   createdAt: string;
   updatedAt: string;
   metadata: { [key: string]: string };

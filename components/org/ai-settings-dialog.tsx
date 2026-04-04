@@ -53,7 +53,7 @@ export function AiSettingsDialog({ orgSlug }: AiSettingsDialogProps) {
       <DialogContent className="min-w-[1026px] p-0">
         <ScrollArea className=" max-h-[90vh] overflow-y-auto p-0">
           <DialogHeader className="px-6 pt-6 pb-4 hidden">
-            <DialogTitle>AI Customization</DialogTitle>
+            <DialogTitle>Knowledge base</DialogTitle>
           </DialogHeader>
           {isLoading ? (
             <div className="flex items-center justify-center py-8">

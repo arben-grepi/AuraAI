@@ -342,7 +342,7 @@ async function handlePost(req: Request) {
     tools: {
       retrieve_context: tool({
         description:
-          "Search the organization's knowledge base for additional information. Use this ONLY for follow-up questions on new topics not covered by the pre-retrieved context. Pass the search topic as the `query` string.",
+          "Search only the organization's uploaded-document knowledge base for more passages. Use for follow-ups when pre-retrieved context is insufficient. Pass the search text in the query field (string).",
         inputSchema: z.object({
           query: z
             .string()

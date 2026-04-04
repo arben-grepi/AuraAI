@@ -36,5 +36,4 @@ export const createOrganizationSchema = z.object({
   keepCurrentActiveOrganization: z.boolean().optional(),
   backgroundColor: z.string().optional(),
   buttonColor: z.string().optional(),
-  tone: z.string().optional(),
 });
