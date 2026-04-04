@@ -23,6 +23,8 @@ Keep entries short: symptom, root cause, fix applied, and what to watch out for 
 - Clean up leftover dual-provider DB fields and the `sensitive` flag (no longer needed — everything is on-premise by default).
 - Chat answers are **documentation-grounded only** — no configurable tone, no custom org system prompt; the model must cite sources and not substitute general knowledge (see Batch 14).
 
+**Next recommended:** **Batch 15** — default to a **smaller / faster** Ollama chat model (lower latency), with switching still **env-only** via `OLLAMA_CHAT_MODEL`. Does not change embeddings (`nomic-embed-text`). See [Batch 15](#batch-15-smaller-default-ollama-chat-model-env-driven) below.
+
 ---
 
 ## Batch 1: Ollama provider infrastructure ✅
@@ -332,6 +334,49 @@ Removing OpenAI touches **config, provider factory, chat routing, RAG errors, or
 | 12 | Ollama-only deployment (remove OpenAI) | ✅ Done |
 | 13 | Schema + UI cleanup (remove sensitive flag, obsolete org AI fields) | ✅ Done |
 | 14 | Documentation-only assistant (remove tone / custom prompt; strict system prompt) | ✅ Done |
+| 15 | Smaller default Ollama chat model (env-driven) | ⬜ **Recommended next** |
+
+---
+
+## Batch 15: Smaller default Ollama chat model (env-driven)
+
+**Goal:** Cut **time-to-first-token** and total generation time for chat by standardizing on a **lighter** Ollama **chat** model, while keeping **embeddings** unchanged (`nomic-embed-text`, 768-dim). Switching models stays a **configuration change** (`OLLAMA_CHAT_MODEL`) — no per-org UI required.
+
+### Why this batch
+
+- Chat quality for this product is **documentation-grounded** (cite chunks, no general-knowledge filler). Smaller instruct models (roughly **1B–8B** class, quantized) are often **fast enough** and may follow structured instructions well; very large models add latency without proportional benefit for short RAG answers.
+- The app already reads **`OLLAMA_CHAT_MODEL`** in `lib/ai-provider.ts`; the work here is mainly **defaults**, **documentation**, and **validation** so teams don’t run a heavier model than they need.
+
+### Recommended default (starting point)
+
+Pick **one** of these families (exact tag = `ollama pull` name on your machine):
+
+| Tier | Example tags (illustrative) | Notes |
+|------|-----------------------------|--------|
+| Fastest / smallest | `llama3.2:1b`, `phi3:mini`, `gemma2:2b` | Lowest latency; may be weaker on nuance or long answers. |
+| Balanced | `llama3.2:3b`, `mistral:7b-instruct` (quantized) | Common sweet spot for speed vs quality on modest hardware. |
+
+**Do not change** `OLLAMA_EMBEDDING_MODEL` in this batch unless you explicitly plan a separate migration (vector dimension + re-index).
+
+### Checklist
+
+- [ ] **Choose** a default chat tag (e.g. `llama3.2:3b`) after a quick smoke test on your target hardware (laptop vs server GPU).
+- [ ] Update **`.env.example`**: set `OLLAMA_CHAT_MODEL` to that default; add 2–4 lines on **tradeoffs** (speed vs quality) and how to switch back (e.g. `llama3.1` or `llama3.1:8b`).
+- [ ] Optionally update **`README.md`** (stack / configuration) to mention the default and that chat is separate from embeddings.
+- [ ] **Operational:** document `ollama pull <model>` for deploys so the model exists before traffic hits the app.
+- [ ] **Validate:** same RAG flows (upload → chat with citations; `retrieve_context` follow-up); confirm time-to-first-token improves vs your previous default.
+- [ ] If anything regresses (citations dropped, ignores system prompt), note in [`potential-issues.md`](potential-issues.md) and bump to a slightly larger tag or tune generation params in a follow-up (not required in this batch).
+
+### Test plan
+
+- Local: set `OLLAMA_CHAT_MODEL` to the new default, restart dev server, run a few **short** and **medium** doc-grounded questions; compare latency to previous model.
+- Confirm **`rag.*` / `chat.*` logs** still show the expected model name (`getOllamaModelsForLog()` / ops events).
+- **Embedding** path unchanged: upload still produces 768-dim vectors; hybrid search unchanged.
+
+### Relation to other batches
+
+- **Batch 9 / 11:** Independent (email / invites).
+- **Batch 10:** Embedding tokenizer chunking — independent; chat model size does not change embedding model.
 
 ---
 
